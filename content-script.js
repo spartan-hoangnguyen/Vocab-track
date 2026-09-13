@@ -13,12 +13,16 @@ function showButton(word, rect) {
   // Inline styles with a maximum z-index: the button must survive whatever
   // CSS the host page applies. It is removed on the next click, so it never
   // lingers over the page.
+  // 'all:revert' MUST come first: 'all' is a shorthand for every CSS
+  // property, so if it appeared after position/top/left/z-index it would
+  // revert those declarations right back out at equal specificity, leaving
+  // the button static and off-screen.
   button.style.cssText = [
+    'all:revert',
     'position:absolute',
     `top:${window.scrollY + rect.bottom + 4}px`,
     `left:${window.scrollX + rect.left}px`,
     'z-index:2147483647',
-    'all:revert',
     'font:14px/1 system-ui,sans-serif',
     'padding:4px 6px',
     'background:#fff',
@@ -29,6 +33,9 @@ function showButton(word, rect) {
   ].join(';');
 
   button.addEventListener('mousedown', (event) => {
+    // Reject synthetic events: a hostile page could otherwise dispatch its
+    // own mousedown and write an attacker-chosen word into `pending`.
+    if (!event.isTrusted) return;
     // Stop the page seeing this and clearing the selection first.
     event.preventDefault();
     event.stopPropagation();
@@ -44,6 +51,8 @@ function showButton(word, rect) {
 }
 
 document.addEventListener('mouseup', (event) => {
+  // Reject synthetic events: same reasoning as the button's mousedown guard.
+  if (!event.isTrusted) return;
   if (button?.contains(event.target)) return;
   const selection = window.getSelection();
   const raw = selection?.toString() ?? '';
