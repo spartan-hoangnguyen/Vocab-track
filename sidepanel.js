@@ -135,3 +135,71 @@ chrome.storage.session.get('pending', ({ pending }) => lookup(pending));
 chrome.storage.session.onChanged.addListener((changes) => {
   if (changes.pending) lookup(changes.pending.newValue);
 });
+
+const GRADES = [
+  { q: 0, label: 'Blank' },
+  { q: 3, label: 'Hard' },
+  { q: 4, label: 'Good' },
+  { q: 5, label: 'Easy' }
+];
+
+let queue = [];
+
+async function startReview() {
+  const words = await getWords();
+  queue = Object.values(words).filter((entry) => entry.due <= Date.now());
+  nextCard();
+}
+
+function nextCard() {
+  $('review-count').textContent = queue.length ? `${queue.length} due` : '';
+  if (!queue.length) {
+    $('card').hidden = true;
+    $('review-empty').hidden = false;
+    return;
+  }
+  const entry = queue[0];
+  $('review-empty').hidden = true;
+  $('card').hidden = false;
+  $('card-answer').hidden = true;
+  $('card-reveal').hidden = false;
+  $('card-word').textContent = entry.word;
+  $('card-vi').textContent = entry.vi ?? DASH;
+  $('card-def').textContent = entry.def ?? DASH;
+}
+
+$('card-reveal').addEventListener('click', () => {
+  $('card-answer').hidden = false;
+  $('card-reveal').hidden = true;
+  pronounce(queue[0]);
+});
+
+function buildGradeButtons() {
+  const container = $('grades');
+  for (const grade of GRADES) {
+    const button = document.createElement('button');
+    button.textContent = grade.label;
+    button.addEventListener('click', () => grade_(grade.q));
+    container.appendChild(button);
+  }
+}
+
+async function grade_(quality) {
+  const entry = queue.shift();
+  Object.assign(entry, VT.sm2(entry, quality));
+  await putWord(entry);
+  // A lapse is re-queued at the back, so it is seen again this session.
+  if (quality < 3) queue.push(entry);
+  nextCard();
+}
+
+buildGradeButtons();
+$('tab-review').addEventListener('click', startReview);
+
+// Opened from the toolbar with no pending lookup: go straight to review.
+chrome.storage.session.get('pending', ({ pending }) => {
+  if (!pending) {
+    showView('review');
+    startReview();
+  }
+});
