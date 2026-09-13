@@ -22,5 +22,20 @@ const VT = {
   wordRegex(word) {
     const safe = word.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
     return new RegExp(`\\b${safe}\\b`, 'gi');
+  },
+
+  // Selectors verified against the committed fixtures on 2026-09-13.
+  // Each field is independent: a markup change that breaks one selector
+  // yields null for that field and leaves the other three intact.
+  parseCambridge(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const text = (sel) => doc.querySelector(sel)?.textContent.trim() || null;
+    const audio = doc.querySelector('source[src$=".mp3"]')?.getAttribute('src');
+    return {
+      level: text('.epp-xref'),
+      ipa: text('.ipa'),
+      def: text('.def.ddef_d'),
+      audio: audio ? VT.CAMBRIDGE + audio : null
+    };
   }
 };
