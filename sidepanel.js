@@ -1,6 +1,18 @@
+const VIEWS = ['word', 'page'];
+
 const $ = (id) => document.getElementById(id);
 
 const DASH = VT.DASH;
+
+function showView(name) {
+  for (const view of VIEWS) {
+    $(`view-${view}`).hidden = view !== name;
+    $(`tab-${view}`).classList.toggle('active', view === name);
+  }
+}
+
+$('tab-word').addEventListener('click', () => showView('word'));
+$('tab-page').addEventListener('click', () => { showView('page'); renderPage(); });
 
 // Captured once, before renderNotFound can ever overwrite it, so the empty
 // state can be restored to its original instruction rather than getting
@@ -8,6 +20,7 @@ const DASH = VT.DASH;
 const LOOKUP_EMPTY_DEFAULT = $('lookup-empty').textContent;
 
 function renderEntry(entry, failed) {
+  showView('word');
   $('lookup-empty').hidden = true;
   $('lookup-empty').textContent = LOOKUP_EMPTY_DEFAULT;
   $('entry').hidden = false;
@@ -217,4 +230,92 @@ $('open-dashboard').addEventListener('click', () => {
   // Via the worker, so this reuses the same dashboard tab the toolbar icon does
   // instead of opening a second one.
   chrome.runtime.sendMessage({ type: 'open-dashboard' });
+});
+
+
+/* ---------- words saved on the page you are reading ---------- */
+
+// The active tab's id. tabs.query returns it without the "tabs" permission —
+// only url and title are withheld — so the URL is asked of the content script
+// instead, which knows its own location.
+async function activeTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab ?? null;
+}
+
+async function askPage(message) {
+  const tab = await activeTab();
+  if (!tab) return null;
+  try {
+    return { tabId: tab.id, reply: await chrome.tabs.sendMessage(tab.id, message) };
+  } catch (err) {
+    // No content script on chrome:// pages, the web store, PDFs, or a tab that
+    // has not been reloaded since the extension was installed.
+    console.error('[vocab-track] page did not answer', message.type, err);
+    return null;
+  }
+}
+
+async function renderPage() {
+  const list = $('page-list');
+  const empty = $('page-empty');
+  list.replaceChildren();
+
+  const asked = await askPage({ type: 'page-info' });
+  if (!asked?.reply?.url) {
+    $('page-head').textContent = '';
+    empty.hidden = false;
+    empty.textContent = 'This page cannot be read — try reloading it, or open a normal web page.';
+    return;
+  }
+
+  const { url } = asked.reply;
+  const words = await getWords();
+  const here = Object.values(words)
+    .filter((entry) => entry.sources?.includes(url))
+    .sort((a, b) => b.added - a.added);
+
+  let host = url;
+  try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* keep raw */ }
+  $('page-head').textContent = here.length
+    ? `${here.length} word${here.length === 1 ? '' : 's'} saved on ${host}`
+    : '';
+
+  empty.hidden = here.length > 0;
+  empty.textContent = `Nothing saved on ${host} yet.`;
+
+  for (const entry of here) {
+    const li = document.createElement('li');
+    li.className = 'pageword';
+
+    const word = document.createElement('span');
+    word.className = 'w';
+    word.textContent = entry.word;
+
+    const level = document.createElement('span');
+    level.className = 'level';
+    level.textContent = entry.level ?? DASH;
+
+    const vi = document.createElement('span');
+    vi.className = 't';
+    vi.textContent = entry.vi ?? DASH;
+
+    li.append(word, level, vi);
+    li.title = 'Scroll to it on the page';
+    li.addEventListener('click', () => jumpTo(entry, li));
+    list.appendChild(li);
+  }
+}
+
+async function jumpTo(entry, li) {
+  const asked = await askPage({ type: 'scroll-to', word: entry.word });
+  // The word is saved against this URL but is not in the text any more — the
+  // article changed, or it was behind something that has since collapsed.
+  li.classList.toggle('missing', !asked?.reply?.found);
+}
+
+// The panel outlives the tab it was opened over, so the list must follow the
+// user rather than freeze on whichever page it was first opened above.
+chrome.tabs.onActivated.addListener(() => {
+  if (!$('view-page').hidden) renderPage();
 });

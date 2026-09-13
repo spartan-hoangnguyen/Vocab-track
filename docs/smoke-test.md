@@ -65,6 +65,29 @@ While iterating: reload the card after changing `manifest.json` or
     or comment widget produce no button, because `all_frames` is unset in the
     manifest. Decide whether you want it on.
 
+## On this page
+
+Open a long article, save three or four words from different parts of it, then
+open the panel's **On this page** tab.
+
+A. It should list exactly the words saved on that URL, newest first, with the
+   host named in the header. Words saved on other pages must not appear.
+
+B. Click one. The page should scroll to it and flash it orange for a couple of
+   seconds. Click another — the previous flash must clear rather than
+   accumulate.
+
+C. Click a word whose text is no longer on the page (edit the page in DevTools
+   to remove it, or save a word then use the site's search to change the view).
+   The row should dim and read "not on page" rather than doing nothing.
+
+D. Switch to a different tab while the panel is open. The list should follow to
+   the new page, not stay on the old one.
+
+E. Open the tab on a `chrome://` page, the Chrome Web Store, or a PDF. It
+   should say the page cannot be read, not fail silently — there is no content
+   script on those.
+
 ## Dashboard
 
 Open it from **Open dashboard →** in the side panel.

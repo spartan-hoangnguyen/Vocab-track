@@ -76,3 +76,25 @@ blockquote mark{background:transparent;color:var(--ink);font-weight:600}
 .links a{color:var(--ink2);font-size:12.5px;text-decoration:none;
          border-bottom:1px solid var(--rule);padding-bottom:1px}
 .links a:hover{color:var(--ink);border-bottom-color:var(--ink3)}
+
+/* two views: the word you just looked up, and everything saved on this page */
+nav{display:flex;gap:2px;background:var(--panel);border:1px solid var(--rule);
+    border-radius:11px;padding:3px;margin-bottom:12px}
+nav button{flex:1;padding:7px 4px;border:0;border-radius:8px;background:transparent;
+           color:var(--ink2);font-weight:500;font-size:13px;cursor:pointer;
+           transition:background .12s ease,color .12s ease}
+nav button:hover{color:var(--ink)}
+nav button.active{background:var(--card);color:var(--ink);font-weight:600;
+                  box-shadow:0 1px 2px #0000001f}
+
+.pagehead{color:var(--ink3);font-size:12px;margin:0 0 10px}
+.muted{color:var(--ink2);font-size:13px;line-height:1.6}
+#page-list{list-style:none;margin:0;padding:0}
+.pageword{display:flex;align-items:baseline;gap:9px;padding:10px 8px;
+          border-bottom:1px solid var(--rule);cursor:pointer;border-radius:8px}
+.pageword:hover{background:var(--panel)}
+.pageword .w{font-weight:600}
+.pageword .t{color:var(--ink2);margin-left:auto;font-size:12.5px;text-align:right}
+/* the word is saved against this page but is no longer in its text */
+.pageword.missing{opacity:.5}
+.pageword.missing .t::after{content:' · not on page';color:var(--ink3)}

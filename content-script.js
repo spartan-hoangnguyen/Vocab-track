@@ -92,13 +92,29 @@ document.addEventListener('mousedown', (event) => {
 });
 
 const HIGHLIGHT_NAME = 'vocab-track';
+// Declared beside its sibling, not next to scrollToWord: highlightStyle()
+// references it, and only the async call chain currently keeps that out of
+// the temporal dead zone.
+const FOCUS_NAME = 'vocab-track-focus';
+
+let styleAdopted = false;
 
 function highlightStyle() {
+  // Adopted once: scrollToWord calls this too, and pushing the same rules onto
+  // adoptedStyleSheets repeatedly would grow the array on every click.
+  if (styleAdopted) return;
+  styleAdopted = true;
   const sheet = new CSSStyleSheet();
-  sheet.replaceSync(`::highlight(${HIGHLIGHT_NAME}) {
-    background: rgba(255, 214, 0, .45);
-    text-decoration: underline dotted currentColor;
-  }`);
+  sheet.replaceSync(`
+    ::highlight(${HIGHLIGHT_NAME}) {
+      background: rgba(255, 214, 0, .45);
+      text-decoration: underline dotted currentColor;
+    }
+    ::highlight(${FOCUS_NAME}) {
+      background: rgba(255, 145, 0, .85);
+      color: #1c1a17;
+    }
+  `);
   // adoptedStyleSheets rather than a <style> element, so the page's DOM is
   // never modified.
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
@@ -158,3 +174,42 @@ async function applyHighlights() {
 }
 
 applyHighlights();
+
+
+/* ---------- answering the side panel ---------- */
+
+
+// rangesFor() already knows how to locate a word in the page, so scrolling to
+// one is just taking the first range it finds.
+function scrollToWord(word) {
+  const ranges = rangesFor([word]);
+  if (!ranges.length) return false;
+
+  const first = ranges[0];
+  // A Range has no scrollIntoView; its client rect does, via a throwaway anchor
+  // that is removed immediately so the page's DOM is not left modified.
+  const rect = first.getBoundingClientRect();
+  window.scrollTo({
+    top: window.scrollY + rect.top - window.innerHeight / 3,
+    behavior: 'smooth'
+  });
+
+  highlightStyle();
+  CSS.highlights.set(FOCUS_NAME, new Highlight(first));
+  // Cleared rather than left on: the focus colour means "this is the one you
+  // just clicked", which stops being true the moment you click another.
+  clearTimeout(scrollToWord.timer);
+  scrollToWord.timer = setTimeout(() => CSS.highlights.delete(FOCUS_NAME), 2600);
+  return true;
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'page-info') {
+    sendResponse({ url: location.href, title: document.title });
+    return;
+  }
+  if (message?.type === 'scroll-to') {
+    sendResponse({ found: scrollToWord(message.word) });
+    return;
+  }
+});
