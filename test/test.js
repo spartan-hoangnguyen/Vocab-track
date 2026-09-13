@@ -69,6 +69,18 @@ async function parserTests() {
   eq('ubiquitous def still parses', ubi.def, 'seeming to be everywhere:');
   check('ubiquitous audio still parses', ubi.audio?.endsWith('.mp3'));
 
+  // notfound.html: saved 2026-09-13 via
+  // `curl -sL -A "Mozilla/5.0 ..." https://dictionary.cambridge.org/dictionary/english/zzqqxwv`
+  // — the page Cambridge 302-redirects an unknown word to. It has no
+  // `.entry-body__el`, but does carry a Word-of-the-Day promo block with its
+  // own `.ipa` and `source[src$=".mp3"]`. All four fields must come back
+  // null, proving the entry-scoped parse does not pick up that promo block.
+  const notfound = VT.parseCambridge(await fixture('notfound'));
+  eq('not-found level is null', notfound.level, null);
+  eq('not-found ipa is null', notfound.ipa, null);
+  eq('not-found def is null', notfound.def, null);
+  eq('not-found audio is null', notfound.audio, null);
+
   // Garbage in, four nulls out. Never throws.
   const empty = VT.parseCambridge('<html><body>nothing here</body></html>');
   eq('empty level', empty.level, null);
