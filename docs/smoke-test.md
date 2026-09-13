@@ -65,6 +65,44 @@ While iterating: reload the card after changing `manifest.json` or
     or comment widget produce no button, because `all_frames` is unset in the
     manifest. Decide whether you want it on.
 
+## Dashboard
+
+Open it from **Open dashboard →** in the side panel.
+
+11. **It loads with your real words.** Totals, due count and median level should
+    match what you actually have. A brand-new profile should show zeros and an
+    empty "From reading" card rather than an error.
+
+12. **Folders.** Create one, give it a colour, then add a word to it with the
+    `+` chip in the All words table. The count on its card should go up. Rename
+    it; the tag on the word should follow. Delete it; the word must survive and
+    fall back to "From reading".
+
+13. **"From reading" cannot be deleted** and has no Edit link. It is synthesised
+    rather than stored, so it exists even on a fresh profile.
+
+14. **Search.** Type part of a saved word — the table filters. Type a word you
+    have never saved, e.g. `serendipity`, and it should offer to look it up on
+    Cambridge and then appear in the table. ⌘K focuses the box, Escape clears it.
+
+15. **Review.** Space reveals, keys 1–4 grade. Grade one card **Blank** — it must
+    come back later in the same session, and the "N of M" counter must grow
+    rather than lie. Check a folder's own **Review** link scopes the session to
+    that folder.
+
+16. **The panel and the dashboard stay in sync.** With the dashboard open in a
+    tab, look a new word up from a page. The dashboard should update on its own,
+    without a reload.
+
+17. **Export, then import the same file back.** Nothing should duplicate, and
+    your review schedules must be unchanged — import merges and deliberately
+    never overwrites `ease`/`interval`/`reps`/`due`. Then edit the JSON to add a
+    word by hand and re-import to confirm new entries are added.
+
+18. **Statistics.** With only a few days of data the charts will be mostly empty;
+    that is correct, not a bug. Confirm "Review load" folds everything overdue
+    into today rather than spreading it backwards.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture
