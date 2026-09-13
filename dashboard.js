@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const DASH = VT.DASH;
 const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-const VIEWS = ['overview', 'words', 'io'];
+const VIEWS = ['overview', 'words', 'review', 'stats', 'io'];
 
 // One in-memory snapshot per render pass. Every view reads from this rather
 // than hitting storage per row, and refresh() is the single place that
@@ -21,6 +21,7 @@ for (const a of document.querySelectorAll('nav a')) {
   a.addEventListener('click', (event) => {
     event.preventDefault();
     if (a.dataset.view === 'words') activeFolder = null;
+    if (a.dataset.view === 'review') startReview(null);
     showView(a.dataset.view);
     render();
   });
@@ -36,6 +37,8 @@ function render() {
   renderOverview(all);
   renderWords(all);
   renderStreak(all);
+  renderStats(all);
+  renderCard();
 }
 
 /* ---------- overview ---------- */
@@ -108,6 +111,18 @@ function renderOverview(all) {
     const dueText = document.createElement('span');
     dueText.textContent = dueHere ? `${dueHere} due today` : (n ? 'All reviewed' : 'Empty');
     foot.appendChild(dueText);
+    if (dueHere) {
+      const go = document.createElement('button');
+      go.className = 'edit';
+      go.textContent = 'Review';
+      go.addEventListener('click', (event) => {
+        event.stopPropagation();
+        startReview(folder.id);
+        showView('review');
+        render();
+      });
+      foot.appendChild(go);
+    }
     if (!folder.auto) {
       const edit = document.createElement('button');
       edit.className = 'edit';
@@ -411,8 +426,9 @@ document.addEventListener('keydown', (event) => {
 });
 
 $('review-btn').addEventListener('click', () => {
-  // Review still lives in the side panel; the dashboard hands off to it.
-  chrome.runtime.sendMessage({ type: 'open-review' });
+  startReview(null);
+  showView('review');
+  render();
 });
 
 // Another surface (the side panel, or a lookup from a page) can write while
@@ -422,3 +438,211 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 refresh();
+
+
+/* ---------- review ---------- */
+
+const GRADES = [
+  { q: 0, label: 'Blank', hint: 'no idea', key: '1' },
+  { q: 3, label: 'Hard',  hint: 'barely',  key: '2' },
+  { q: 4, label: 'Good',  hint: 'got it',  key: '3' },
+  { q: 5, label: 'Easy',  hint: 'instant', key: '4' }
+];
+
+let queue = [];
+let sessionTotal = 0;
+let reviewScope = null;     // folder id, or null for everything due
+let revealed = false;
+let grading = false;
+
+function startReview(folderId) {
+  reviewScope = folderId;
+  const now = Date.now();
+  queue = Object.values(words)
+    .filter((e) => e.due <= now)
+    .filter((e) => !folderId || VT.foldersOf(e).includes(folderId))
+    // Oldest due first: the most overdue card is the one most at risk.
+    .sort((a, b) => a.due - b.due);
+  sessionTotal = queue.length;
+  revealed = false;
+}
+
+function renderCard() {
+  const scopeName = reviewScope ? folders[reviewScope]?.name : null;
+  $('rv-title').textContent = scopeName ? `Review · ${scopeName}` : 'Review';
+
+  if (!queue.length) {
+    $('rv-card').hidden = true;
+    $('rv-empty').hidden = false;
+    $('rv-sub').textContent = '';
+    $('rv-empty-text').textContent = sessionTotal
+      ? `Done — ${sessionTotal} card${sessionTotal === 1 ? '' : 's'} reviewed.`
+      : 'Nothing due. Come back later.';
+    return;
+  }
+
+  const entry = queue[0];
+  const done = sessionTotal - queue.length;
+  $('rv-empty').hidden = true;
+  $('rv-card').hidden = false;
+  $('rv-sub').textContent = `${done + 1} of ${sessionTotal}`;
+  $('rv-prog-fill').style.width = `${(done / sessionTotal) * 100}%`;
+
+  $('rv-word').textContent = entry.word;
+  $('rv-level').textContent = entry.level ?? DASH;
+  $('rv-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : '';
+  $('rv-play').onclick = () => pronounce(entry);
+
+  // The answer is only written into the DOM once revealed, so it is never
+  // sitting in the page while you are still trying to recall it.
+  $('rv-answer').hidden = !revealed;
+  $('rv-reveal').hidden = revealed;
+  $('rv-vi').textContent = revealed ? (entry.vi ?? DASH) : '';
+  $('rv-def').textContent = revealed ? (entry.def ?? DASH) : '';
+}
+
+function reveal() {
+  if (revealed || !queue.length) return;
+  revealed = true;
+  renderCard();
+  pronounce(queue[0]);
+}
+
+async function grade(quality) {
+  // Re-entry guard: putWord awaits a storage round-trip during which the
+  // buttons stay live, and a second press would shift a card the user never saw.
+  if (grading || !revealed || !queue.length) return;
+  grading = true;
+  try {
+    const entry = queue.shift();
+    const patch = VT.sm2(entry, quality);
+    Object.assign(entry, patch);
+    await putWord(entry.word, patch);
+    // A lapse returns to the back of this session's queue, so it is seen again
+    // today; sessionTotal grows with it so the counter stays honest.
+    if (quality < 3) {
+      queue.push(entry);
+      sessionTotal++;
+    }
+    revealed = false;
+    words[entry.word] = entry;
+    renderCard();
+  } finally {
+    grading = false;
+  }
+}
+
+for (const g of GRADES) {
+  const button = document.createElement('button');
+  const label = document.createElement('b');
+  label.textContent = g.label;
+  const hint = document.createElement('span');
+  hint.textContent = `${g.key} · ${g.hint}`;
+  button.append(label, hint);
+  button.addEventListener('click', () => grade(g.q));
+  $('rv-grades').appendChild(button);
+}
+
+$('rv-reveal').addEventListener('click', reveal);
+$('rv-back').addEventListener('click', () => { showView('overview'); render(); });
+
+document.addEventListener('keydown', (event) => {
+  if ($('view-review').hidden || document.activeElement === $('q')) return;
+  if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); reveal(); return; }
+  const g = GRADES.find((x) => x.key === event.key);
+  if (g) { event.preventDefault(); grade(g.q); }
+});
+
+/* ---------- statistics ---------- */
+
+function dayKey(ts) { return new Date(ts).toDateString(); }
+
+function plotSeries(node, series, caption) {
+  node.replaceChildren();
+  const max = Math.max(1, ...series.map((s) => s.n));
+  for (const point of series) {
+    const col = document.createElement('span');
+    col.className = 'col';
+    const bar = document.createElement('i');
+    bar.style.height = `${(point.n / max) * 100}%`;
+    if (!point.n) bar.className = 'none';
+    bar.title = `${point.label}: ${point.n}`;
+    col.appendChild(bar);
+    if (caption) {
+      const cap = document.createElement('u');
+      cap.textContent = point.label;
+      col.appendChild(cap);
+    }
+    node.appendChild(col);
+  }
+}
+
+function renderStats(all) {
+  $('st-sub').textContent = all.length
+    ? `${all.length} words · first saved ${new Date(Math.min(...all.map((e) => e.added)))
+        .toLocaleDateString()}`
+    : 'Nothing saved yet.';
+
+  // added per day, last 30
+  const added = new Map();
+  for (const entry of all) added.set(dayKey(entry.added), (added.get(dayKey(entry.added)) ?? 0) + 1);
+  const addedSeries = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    addedSeries.push({ label: d.toLocaleDateString(), n: added.get(d.toDateString()) ?? 0 });
+  }
+  plotSeries($('st-added'), addedSeries, false);
+  const from = new Date(); from.setDate(from.getDate() - 29);
+  $('st-added-from').textContent = from.toLocaleDateString();
+
+  // review load, next 14 days — everything already overdue lands on today
+  const dueSeries = [];
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 14; i++) {
+    const from = startOfToday.getTime() + i * 86400000;
+    const to = from + 86400000;
+    const n = all.filter((e) => (i === 0 ? e.due < to : e.due >= from && e.due < to)).length;
+    dueSeries.push({ label: new Date(from).toLocaleDateString(), n });
+  }
+  plotSeries($('st-due'), dueSeries, false);
+  const to = new Date(); to.setDate(to.getDate() + 13);
+  $('st-due-to').textContent = to.toLocaleDateString();
+
+  // levels
+  const levelSeries = [...LEVELS, DASH].map((l) => ({
+    label: l, n: all.filter((e) => (e.level ?? DASH) === l).length
+  }));
+  plotSeries($('st-levels'), levelSeries, true);
+  $('st-levels-axis').textContent = '';
+
+  // where they came from
+  const hosts = new Map();
+  for (const entry of all) {
+    for (const url of entry.sources ?? []) {
+      if (!url) continue;
+      let host;
+      try { host = new URL(url).hostname.replace(/^www\./, ''); }
+      catch { continue; }   // a saved entry may carry a non-URL source
+      hosts.set(host, (hosts.get(host) ?? 0) + 1);
+    }
+  }
+  const list = $('st-sources');
+  list.replaceChildren();
+  const ranked = [...hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (!ranked.length) {
+    const li = document.createElement('li');
+    li.textContent = 'No pages recorded yet.';
+    list.appendChild(li);
+  }
+  for (const [host, n] of ranked) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = host;
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `${n} word${n === 1 ? '' : 's'}`;
+    li.append(name, count);
+    list.appendChild(li);
+  }
+}

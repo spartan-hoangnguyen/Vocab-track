@@ -9,6 +9,8 @@
   <nav>
     <a href="#" data-view="overview" class="on"><i></i>Overview</a>
     <a href="#" data-view="words"><i></i>All words</a>
+    <a href="#" data-view="review"><i></i>Review</a>
+    <a href="#" data-view="stats"><i></i>Statistics</a>
   </nav>
   <div class="navlabel">Library</div>
   <nav>
@@ -63,6 +65,62 @@
         <tbody id="w-rows"></tbody>
       </table>
       <p class="empty" id="w-empty" hidden></p>
+    </div>
+  </section>
+
+  <!-- Review -->
+  <section id="view-review" hidden>
+    <div class="rvhead">
+      <h1 id="rv-title">Review</h1>
+      <div class="sub" id="rv-sub"></div>
+    </div>
+
+    <div class="rvempty" id="rv-empty" hidden>
+      <p id="rv-empty-text">Nothing due. Come back later.</p>
+      <button class="btn ghost" id="rv-back">Back to overview</button>
+    </div>
+
+    <div class="rvcard" id="rv-card" hidden>
+      <div class="rvprog"><span id="rv-prog-fill"></span></div>
+      <div class="rvmeta">
+        <span class="lvl" id="rv-level"></span>
+        <span id="rv-ipa"></span>
+        <button class="rvplay" id="rv-play" aria-label="Pronounce">▶</button>
+      </div>
+      <h2 class="rvword" id="rv-word"></h2>
+      <button class="btn" id="rv-reveal">Show answer <kbd>space</kbd></button>
+      <div id="rv-answer" hidden>
+        <p class="rvvi" id="rv-vi"></p>
+        <p class="rvdef" id="rv-def"></p>
+        <div class="rvgrades" id="rv-grades"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Statistics -->
+  <section id="view-stats" hidden>
+    <h1>Statistics</h1>
+    <div class="sub" id="st-sub"></div>
+    <div class="charts">
+      <figure class="chart">
+        <figcaption>Words added · last 30 days</figcaption>
+        <div class="plot" id="st-added"></div>
+        <div class="axis"><span id="st-added-from"></span><span>today</span></div>
+      </figure>
+      <figure class="chart">
+        <figcaption>Review load · next 14 days</figcaption>
+        <div class="plot" id="st-due"></div>
+        <div class="axis"><span>today</span><span id="st-due-to"></span></div>
+      </figure>
+      <figure class="chart">
+        <figcaption>Words by level</figcaption>
+        <div class="plot tall" id="st-levels"></div>
+        <div class="axis" id="st-levels-axis"></div>
+      </figure>
+      <figure class="chart">
+        <figcaption>Where they came from</figcaption>
+        <ul class="sources" id="st-sources"></ul>
+      </figure>
     </div>
   </section>
 
