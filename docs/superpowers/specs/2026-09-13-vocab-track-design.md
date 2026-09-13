@@ -194,7 +194,11 @@ Lookup flow for a word:
      `https://dictionary.cambridge.org`, or `null`
    Every field is independently optional. A missing field renders as `—`; it
    never aborts the lookup.
-5. Translate through `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=<word>`.
+5. Translate through `https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&sl=en&tl=vi&dt=t&q=<word>`.
+   `client=gtx` was the original choice and is now rate-limited to HTTP 429
+   from ordinary clients; `client=dict-chrome-ex` returns HTTP 200 with the
+   same response shape, so the `data[0][0][0]` parse is unchanged. Verified
+   2026-09-13.
    This endpoint is unofficial and keyless. It is acceptable for a personal
    tool and will break without notice. On failure, `vi` is `null` and the
    entry still saves.
