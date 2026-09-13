@@ -16,6 +16,15 @@ OUT=$("$CHROME" --headless --disable-gpu --virtual-time-budget=10000 \
       --dump-dom "http://localhost:$PORT/test/test.html" 2>/dev/null \
       | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# The caption probe needs layout, so it gets a window size and its own run.
+# It checks one thing the unit tests cannot reach: that caretRangeFromPoint
+# still reads text through the user-select:none YouTube puts on its captions.
+PROBE=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
+        --window-size=1200,800 --dump-dom "http://localhost:$PORT/test/yt-probe.html" 2>/dev/null \
+        | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
-echo "$OUT" | grep -qE '^0 failure\(s\)' && exit 0
-exit 1
+echo "$PROBE"
+echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
+echo "$PROBE" | grep -qE '^0 failure\(s\)' || exit 1
+exit 0

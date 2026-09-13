@@ -173,6 +173,76 @@ const VT = {
     };
   },
 
+  // The video id, or null for anything that is not a YouTube watch page.
+  // Only `v` is read: a watch URL routinely also carries list, index, pp and
+  // ab_channel, none of which say which video is playing.
+  youtubeId(url) {
+    try {
+      const parsed = new URL(url);
+      if (!/(^|\.)youtube\.com$/.test(parsed.hostname)) return null;
+      if (parsed.pathname !== '/watch') return null;
+      return parsed.searchParams.get('v') || null;
+    } catch {
+      return null;
+    }
+  },
+
+  // "Is this word saved on this page?" cannot be a URL equality test any more:
+  // every word saved from a video carries the moment it was said (`&t=`), so no
+  // two saves of the same video share a URL. Comparing page keys instead folds
+  // a video down to its id and an ordinary page down to its hash-less URL.
+  pageKey(url) {
+    if (!url) return null;
+    const id = VT.youtubeId(url);
+    if (id) return 'yt:' + id;
+    try {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      return parsed.href;
+    } catch {
+      return url;
+    }
+  },
+
+  // Seconds into the video the word was saved at. Null for a URL without a
+  // `t=`, which is every source that did not come from a video.
+  timestampOf(url) {
+    try {
+      const seconds = parseInt(new URL(url).searchParams.get('t'), 10);
+      return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+    } catch {
+      return null;
+    }
+  },
+
+  // The word under a caret offset. Needed because YouTube's captions set
+  // user-select:none, so there is no selection to read — a click resolves to a
+  // caret position and the word has to be grown out of it in both directions.
+  // Grabs the whole token deliberately, rather than only the characters
+  // isLookupCandidate accepts: captions are full of contractions, and a class
+  // that stopped at the apostrophe would turn "don't" into the real word "don"
+  // and save it. Taking the token whole lets isLookupCandidate be the only
+  // gate, so "don't", "caf\u00e9" and "covid19" are each rejected as a unit
+  // and the click does nothing at all.
+  wordAt(text, offset) {
+    const str = String(text ?? '');
+    if (!Number.isInteger(offset) || offset < 0 || offset > str.length) return null;
+    const isWord = (ch) => /[\p{L}\p{N}'\u2019-]/u.test(ch ?? '');
+
+    let start = offset;
+    // A caret resting just past the last letter still belongs to that word:
+    // clicking the right-hand half of a character puts it there.
+    if (!isWord(str[start]) && isWord(str[start - 1])) start--;
+    if (!isWord(str[start])) return null;
+
+    while (isWord(str[start - 1])) start--;
+    let end = start;
+    while (isWord(str[end])) end++;
+    // Hyphens and quotes are word characters inside a word but not at either
+    // edge: a click on 'quoted' should give back quoted.
+    return str.slice(start, end).replace(/^['\u2019-]+|['\u2019-]+$/g, '') || null;
+  },
+
   // A link back to the exact place the word was read, using Chrome's native
   // scroll-to-text-fragment (`#:~:text=`). The page needs no cooperation and
   // nothing extra is stored — the saved sentence is the anchor.
@@ -184,6 +254,10 @@ const VT = {
   // on the right occurrence without being brittle.
   sourceLink(url, context, word) {
     if (!url) return null;
+    // A video URL already points at the moment the word was said. A text
+    // fragment on top of that would match nothing — the caption is not in the
+    // page's text — and Chrome would silently drop the whole link.
+    if (VT.youtubeId(url)) return url;
     if (!context) return url;
     // A truncated context ends in an ellipsis that is not on the page.
     const clean = context.replace(/…$/, '').trim();

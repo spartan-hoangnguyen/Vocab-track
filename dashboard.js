@@ -663,8 +663,12 @@ function renderStats(all) {
   // where they came from
   const hosts = new Map();
   for (const entry of all) {
+    // Deduped by page key: a word clicked twice in one video has two sources
+    // that differ only by their timestamp, and that is one place it was met.
+    const seen = new Set();
     for (const url of entry.sources ?? []) {
-      if (!url) continue;
+      if (!url || seen.has(VT.pageKey(url))) continue;
+      seen.add(VT.pageKey(url));
       let host;
       try { host = new URL(url).hostname.replace(/^www\./, ''); }
       catch { continue; }   // a saved entry may carry a non-URL source

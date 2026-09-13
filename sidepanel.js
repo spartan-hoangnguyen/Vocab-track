@@ -270,9 +270,13 @@ async function renderPage() {
   }
 
   const { url } = asked.reply;
+  const video = VT.youtubeId(url) !== null;
   const words = await getWords();
+  // By page key, not by URL: every word saved from a video carries the moment
+  // it was said, so the sources for one video are all different strings.
+  const key = VT.pageKey(url);
   const here = Object.values(words)
-    .filter((entry) => entry.sources?.includes(url))
+    .filter((entry) => entry.sources?.some((source) => VT.pageKey(source) === key))
     .sort((a, b) => b.added - a.added);
 
   let host = url;
@@ -301,14 +305,20 @@ async function renderPage() {
     vi.textContent = entry.vi ?? DASH;
 
     li.append(word, level, vi);
-    li.title = 'Scroll to it on the page';
-    li.addEventListener('click', () => jumpTo(entry, li));
+    li.title = video ? 'Jump to it in the video' : 'Scroll to it on the page';
+    li.addEventListener('click', () => jumpTo(entry, li, key));
     list.appendChild(li);
   }
 }
 
-async function jumpTo(entry, li) {
-  const asked = await askPage({ type: 'scroll-to', word: entry.word });
+async function jumpTo(entry, li, key) {
+  // Which of the word's sources is this page decides where to go: on a video
+  // that source carries the timestamp to seek to.
+  const source = entry.sources?.find((candidate) => VT.pageKey(candidate) === key);
+  const t = VT.timestampOf(source);
+  const message = { type: 'scroll-to', word: entry.word };
+  if (t !== null) message.t = t;
+  const asked = await askPage(message);
   // The word is saved against this URL but is not in the text any more — the
   // article changed, or it was behind something that has since collapsed.
   li.classList.toggle('missing', !asked?.reply?.found);

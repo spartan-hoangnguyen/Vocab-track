@@ -234,6 +234,82 @@ async function parserTests() {
   check('existing fragment is replaced, not appended',
         VT.sourceLink('https://e.com/p#section', CTX, 'resilient').split('#').length === 2);
 
+  // --- youtubeId
+  const WATCH = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=94s';
+  eq('reads the video id', VT.youtubeId(WATCH), 'dQw4w9WgXcQ');
+  eq('ignores list, index and friends',
+     VT.youtubeId('https://www.youtube.com/watch?v=abc123&list=PL9&index=4&pp=xyz'), 'abc123');
+  eq('a channel page is not a watch page',
+     VT.youtubeId('https://www.youtube.com/@someone'), null);
+  eq('the youtube home page is not a watch page',
+     VT.youtubeId('https://www.youtube.com/'), null);
+  eq('a watch url with no v is not a video',
+     VT.youtubeId('https://www.youtube.com/watch?list=PL9'), null);
+  eq('another host is never a video', VT.youtubeId('https://example.com/watch?v=abc'), null);
+  // The regex must anchor the host: notyoutube.com is a different site.
+  eq('a lookalike host is not youtube',
+     VT.youtubeId('https://notyoutube.com/watch?v=abc'), null);
+  eq('a subdomain still is', VT.youtubeId('https://m.youtube.com/watch?v=abc'), 'abc');
+  eq('a non-url is not a video', VT.youtubeId('not a url'), null);
+
+  // --- pageKey: the same video at different moments is the same page
+  eq('two moments in one video share a key',
+     VT.pageKey('https://www.youtube.com/watch?v=abc&t=12s'),
+     VT.pageKey('https://www.youtube.com/watch?v=abc&t=300s'));
+  check('two different videos do not',
+        VT.pageKey('https://www.youtube.com/watch?v=abc&t=12s') !==
+        VT.pageKey('https://www.youtube.com/watch?v=xyz&t=12s'));
+  eq('a playlist does not change the key',
+     VT.pageKey('https://www.youtube.com/watch?v=abc&list=PL9&index=2'),
+     VT.pageKey('https://www.youtube.com/watch?v=abc'));
+  eq('an ordinary page keys on its url',
+     VT.pageKey('https://example.com/a'), 'https://example.com/a');
+  eq('a text fragment does not change an ordinary key',
+     VT.pageKey('https://example.com/a#:~:text=hello'), 'https://example.com/a');
+  check('a query string still does',
+        VT.pageKey('https://example.com/a?p=1') !== VT.pageKey('https://example.com/a'));
+  eq('no url means no key', VT.pageKey(null), null);
+
+  // --- timestampOf
+  eq('reads the seconds', VT.timestampOf(WATCH), 94);
+  eq('zero is a real timestamp',
+     VT.timestampOf('https://www.youtube.com/watch?v=abc&t=0s'), 0);
+  eq('no t means no timestamp', VT.timestampOf('https://www.youtube.com/watch?v=abc'), null);
+  eq('an ordinary page has no timestamp', VT.timestampOf('https://example.com/a'), null);
+  eq('a non-url has no timestamp', VT.timestampOf('nonsense'), null);
+
+  // --- wordAt: clicking a caption, where there is no selection to read
+  const LINE = 'the supply chains proved well-known and resilient';
+  eq('caret inside a word', VT.wordAt(LINE, 6), 'supply');
+  eq('caret at the first letter', VT.wordAt(LINE, 4), 'supply');
+  eq('caret just past the last letter', VT.wordAt(LINE, 10), 'supply');
+  eq('caret at the very start', VT.wordAt(LINE, 0), 'the');
+  eq('caret at the very end', VT.wordAt(LINE, LINE.length), 'resilient');
+  eq('a hyphenated word comes back whole', VT.wordAt(LINE, 27), 'well-known');
+  eq('caret on a space between words', VT.wordAt('a  b', 2), null);
+  eq('trailing punctuation is not part of the word', VT.wordAt('resilient, truly', 3), 'resilient');
+  eq('an edge hyphen is trimmed', VT.wordAt('a -- b', 3), null);
+  // A whole token, not just the letters isLookupCandidate would accept:
+  // slicing at the apostrophe would turn "don't" into the real word "don" and
+  // save that instead of doing nothing.
+  eq("a contraction comes back whole", VT.wordAt("I don't know", 4), "don't");
+  check("a contraction is not a lookup candidate", !VT.isLookupCandidate("don't"));
+  eq('a curly apostrophe too', VT.wordAt('I don\u2019t know', 4), 'don\u2019t');
+  eq('an accented word comes back whole', VT.wordAt('caf\u00e9 au lait', 1), 'caf\u00e9');
+  check('an accented word is not a lookup candidate', !VT.isLookupCandidate('caf\u00e9'));
+  eq('a word with digits comes back whole', VT.wordAt('covid19 spread', 2), 'covid19');
+  check('a word with digits is not a lookup candidate', !VT.isLookupCandidate('covid19'));
+  eq('edge quotes are trimmed', VT.wordAt("'quoted' word", 3), 'quoted');
+  eq('empty text has no word', VT.wordAt('', 0), null);
+  eq('null text has no word', VT.wordAt(null, 0), null);
+  eq('an offset past the end has no word', VT.wordAt('abc', 9), null);
+  eq('a negative offset has no word', VT.wordAt('abc', -1), null);
+
+  // --- sourceLink: a video link is already a position
+  eq('a video url is returned untouched', VT.sourceLink(WATCH, CTX, 'resilient'), WATCH);
+  check('a video url never gets a text fragment',
+        !VT.sourceLink(WATCH, 'the chains proved resilient', 'resilient').includes('#:~:text='));
+
   // --- source guard: the Cambridge fetch must not send cookies
   // Not a behaviour test (the fetch needs Chrome), but this option is a
   // one-word deletion away from a silent 403 on every lookup, so it is worth

@@ -126,6 +126,19 @@ Open it from **Open dashboard →** in the side panel.
     that is correct, not a bug. Confirm "Review load" folds everything overdue
     into today rather than spreading it backwards.
 
+19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
+    word in them. The video must pause on that click, the panel must open with
+    that word, and the "Seen in" quote must be the caption line — not the video
+    title or a stray bit of page text. Clicking a caption word that is not a
+    word (a number, a name with an apostrophe) must do nothing at all, and must
+    not pause the video.
+
+20. **The timestamp is the position.** For a word saved from a video, the panel's
+    `↩ youtube.com` link must carry `&t=` and open at that second — and must
+    *not* carry a `#:~:text=` fragment. Then save a second word later in the
+    same video: the *On this page* tab must list both, and clicking each must
+    seek the player to its own moment without changing whether it is playing.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

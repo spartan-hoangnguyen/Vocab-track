@@ -17,11 +17,15 @@ Built for one person. No accounts, no sync, no server.
 ## What it does
 
 - **Look up while reading.** Select a word, click 📘. No typing, no tab switch.
+- **Look up while watching.** On YouTube, click a word in the subtitles. The
+  video pauses, the word is saved with the line it was said in, and the source
+  link takes you back to that exact second.
 - **Keep the context.** The sentence the word appeared in is saved with it, and
   clicking the source link jumps back to that exact line using Chrome's
   scroll-to-text-fragment.
 - **See what you saved here.** The panel's *On this page* tab lists the words
-  saved on the page you are reading; clicking one scrolls to it.
+  saved on the page you are reading; clicking one scrolls to it, or seeks the
+  video to the moment it was said.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
 - **Review.** SM-2 spaced repetition, in the dashboard or the panel.
@@ -44,7 +48,7 @@ Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 | `lib.js` | All pure logic — parser, SM-2, word matching, text fragments. No Chrome API, no network. |
 | `store.js` | `chrome.storage` access and the serialised write queue |
 | `lookup.js` | Cambridge + translation pipeline, pronunciation |
-| `content-script.js` | The floating button, highlighting, scroll-to-word |
+| `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
@@ -76,4 +80,10 @@ manual checklist for it.
 - **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
 - **Storage is local to this Chrome profile.** Export is the only backup.
+- **YouTube subtitles are not highlighted on return.** A caption exists only
+  while it is on screen, so there is nothing to paint over when you come back —
+  the *On this page* tab is how you find those words again.
+- **The caption click depends on YouTube's player classes**
+  (`.ytp-caption-segment`, `.caption-window`). A player rewrite would need
+  those selectors updating; `test/yt-probe.html` documents the shape they had.
 - Roughly 1 word in 8 has no synonyms on Cambridge.

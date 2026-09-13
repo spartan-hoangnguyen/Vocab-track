@@ -1,0 +1,84 @@
+<!doctype html><meta charset="utf-8"><title>caption probe</title>
+<style>
+  /* Copied verbatim from www-player.css (player 8c3fda2d), the rules that
+     decide whether a click on a caption can be read at all. */
+  .ytp-caption-window-container { position:absolute; top:0; width:100%; height:100%; pointer-events:none }
+  .caption-window { position:absolute; line-height:normal; z-index:41; pointer-events:auto;
+                    cursor:grab; -moz-user-select:none; -ms-user-select:none; -webkit-user-select:none }
+  .ytp-caption-segment { display:inline-block; font:28px/1.2 Roboto,Arial,sans-serif;
+                         background:rgba(8,8,8,.75); color:#fff; padding:0 4px }
+  #player { position:relative; width:900px; height:500px; background:#111 }
+</style>
+<div id="player">
+  <video></video>
+  <div class="ytp-caption-window-container">
+    <div class="caption-window ytp-caption-window-bottom" style="left:80px; top:380px">
+      <span class="captions-text"
+        ><span class="ytp-caption-segment">supply chains proved remarkably</span
+        ><span class="ytp-caption-segment"> resilient this winter</span></span>
+    </div>
+  </div>
+</div>
+<pre id="out">running…</pre>
+<script src="../lib.js"></script>
+<script>
+const log = [];
+let failures = 0;
+const check = (name, cond, detail) => {
+  if (cond) log.push('PASS  ' + name);
+  else { failures++; log.push('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
+};
+
+// The exact chain content-script.js runs on mousedown.
+function hitAt(x, y) {
+  const range = document.caretRangeFromPoint(x, y);
+  const node = range?.startContainer;
+  if (node?.nodeType !== Node.TEXT_NODE) return { why: 'not a text node: ' + (node?.nodeName ?? 'null') };
+  const segment = node.parentElement?.closest('.ytp-caption-segment');
+  if (!segment) return { why: 'not inside a caption segment: ' + node.parentElement?.className };
+  const raw = VT.wordAt(node.nodeValue, range.startOffset);
+  if (!raw) return { why: 'no word at offset ' + range.startOffset };
+  return {
+    word: VT.normaliseWord(raw),
+    candidate: VT.isLookupCandidate(raw),
+    caption: segment.closest('.caption-window')?.textContent
+  };
+}
+
+// The centre of a given word, found the way a user's cursor would land on it.
+function centreOf(word) {
+  for (const text of document.querySelectorAll('.ytp-caption-segment')) {
+    const node = text.firstChild;
+    const i = node.nodeValue.indexOf(word);
+    if (i < 0) continue;
+    const r = document.createRange();
+    r.setStart(node, i);
+    r.setEnd(node, i + word.length);
+    const box = r.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  }
+  return null;
+}
+
+for (const word of ['supply', 'remarkably', 'resilient', 'winter']) {
+  const at = centreOf(word);
+  const hit = at && hitAt(at.x, at.y);
+  check(`caret resolves "${word}" through user-select:none`,
+        hit?.word === word, hit ? (hit.why ?? `got "${hit.word}"`) : 'no rect');
+  if (hit?.word === word) check(`"${word}" is a lookup candidate`, hit.candidate === true);
+}
+
+const hit = hitAt(centreOf('resilient').x, centreOf('resilient').y);
+check('caption text spans both segments',
+      hit.caption.replace(/\s+/g, ' ').trim() ===
+        'supply chains proved remarkably resilient this winter', hit.caption);
+check('the sentence is captured for context',
+      VT.sentenceAround(hit.caption, 'resilient') === 'supply chains proved remarkably resilient this winter',
+      VT.sentenceAround(hit.caption, 'resilient'));
+
+// A click on the black video area, away from any caption, must be ignored.
+check('a click off the captions is not a hit', hitAt(450, 100).why !== undefined);
+
+document.getElementById('out').textContent =
+  log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+</script>

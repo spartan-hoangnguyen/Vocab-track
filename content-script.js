@@ -157,9 +157,11 @@ async function applyHighlights() {
   const { words } = await chrome.storage.local.get('words');
   if (!words) return;
 
-  // Per-URL: only words that were looked up on this exact page.
+  // Per-page, not per-URL: a word saved from a video carries the moment it was
+  // said, so no two sources for one video are string-equal.
+  const key = VT.pageKey(location.href);
   const here = Object.values(words)
-    .filter((entry) => entry.sources.includes(location.href))
+    .filter((entry) => entry.sources?.some((source) => VT.pageKey(source) === key))
     .map((entry) => entry.word);
   if (!here.length) return;
 
@@ -209,7 +211,100 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
   if (message?.type === 'scroll-to') {
-    sendResponse({ found: scrollToWord(message.word) });
+    // In a video the word's position is a moment, not a place on the page.
+    sendResponse({
+      found: typeof message.t === 'number' ? seekTo(message.t) : scrollToWord(message.word)
+    });
     return;
   }
 });
+
+
+/* ---------- YouTube: click a word in the live captions ---------- */
+
+
+// Captions are unselectable, so the selection-then-button flow above cannot
+// reach them: .caption-window carries user-select:none. It does carry
+// pointer-events:auto though (it is draggable), so the click itself arrives.
+// Verified against www-player.css 2026-09-13.
+const CAPTION = '.ytp-caption-segment';
+const CAPTION_WINDOW = '.caption-window';
+
+function captionHit(event) {
+  // caretRangeFromPoint, not caretPositionFromPoint: the latter needs Chrome
+  // 128 and the manifest floor is 116. Neither is affected by user-select, so
+  // the unselectable caption text still resolves to a text node and an offset.
+  const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+  const node = range?.startContainer;
+  if (node?.nodeType !== Node.TEXT_NODE) return null;
+  const segment = node.parentElement?.closest(CAPTION);
+  if (!segment) return null;
+
+  const raw = VT.wordAt(node.nodeValue, range.startOffset);
+  if (!raw || !VT.isLookupCandidate(raw)) return null;
+  return {
+    word: VT.normaliseWord(raw),
+    video: videoFor(segment),
+    // The whole caption window, not the segment: a sentence is regularly split
+    // across two segments on screen.
+    caption: segment.closest(CAPTION_WINDOW)?.textContent ?? segment.textContent
+  };
+}
+
+function captionClick(event) {
+  // isTrusted for the same reason the button checks it; left button only, so a
+  // right-click can still reach YouTube's own menu.
+  if (!event.isTrusted || event.button !== 0) return;
+  const hit = captionHit(event);
+  if (!hit) return;
+
+  // Pause before anything else. The caption is gone in a second or two
+  // otherwise, and the panel would open over a word that is no longer on
+  // screen — the whole reason this is a click and not a selection.
+  const video = hit.video;
+  video?.pause();
+  // Stops the player starting a caption drag on this same mousedown.
+  event.preventDefault();
+  event.stopPropagation();
+
+  const id = VT.youtubeId(location.href);
+  const seconds = Math.floor(video?.currentTime ?? 0);
+  chrome.runtime.sendMessage({
+    type: 'lookup',
+    word: hit.word,
+    // The timestamp IS the position, the way a text fragment is on a page.
+    // Rebuilt from the id rather than patched onto location.href, which drags
+    // along list, index and pp.
+    url: id ? `https://www.youtube.com/watch?v=${id}&t=${seconds}s` : location.href,
+    context: VT.sentenceAround(hit.caption, hit.word)
+  });
+}
+
+// The player a caption belongs to. A watch page holds more than one <video>:
+// every hover preview in the sidebar is one, and #inline-preview-player runs
+// its own captions. The bare document.querySelector is only a last resort.
+function videoFor(segment) {
+  return segment?.closest('.html5-video-player')?.querySelector('video')
+      ?? document.querySelector('#movie_player video')
+      ?? document.querySelector('video');
+}
+
+function seekTo(seconds) {
+  const video = videoFor(null);
+  if (!video) return false;
+  video.currentTime = seconds;
+  // Play state is deliberately left alone: jumping back to a word should not
+  // start a video the user had paused.
+  return true;
+}
+
+if (/(^|\.)youtube\.com$/.test(location.hostname)) {
+  // Capture phase: the player's own handlers sit on the caption window and
+  // would otherwise see this mousedown first.
+  document.addEventListener('mousedown', captionClick, true);
+  const sheet = new CSSStyleSheet();
+  // The caption window advertises `cursor: grab` because it is draggable.
+  // Over the words themselves that is now a lie.
+  sheet.replaceSync(`${CAPTION} { cursor: pointer }`);
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+}
