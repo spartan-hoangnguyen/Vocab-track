@@ -184,13 +184,24 @@ function buildGradeButtons() {
   }
 }
 
+let grading = false;
+
 async function grade_(quality) {
-  const entry = queue.shift();
-  Object.assign(entry, VT.sm2(entry, quality));
-  await putWord(entry);
-  // A lapse is re-queued at the back, so it is seen again this session.
-  if (quality < 3) queue.push(entry);
-  nextCard();
+  // Re-entry guard: putWord awaits a storage round-trip, during which the
+  // buttons are still live. A second click would shift the next card and
+  // silently grade a card the user never saw.
+  if (grading) return;
+  grading = true;
+  try {
+    const entry = queue.shift();
+    Object.assign(entry, VT.sm2(entry, quality));
+    await putWord(entry);
+    // A lapse is re-queued at the back, so it is seen again this session.
+    if (quality < 3) queue.push(entry);
+    nextCard();
+  } finally {
+    grading = false;
+  }
 }
 
 buildGradeButtons();
