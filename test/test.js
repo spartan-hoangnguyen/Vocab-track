@@ -76,6 +76,47 @@ async function parserTests() {
   eq('empty def', empty.def, null);
   eq('empty audio', empty.audio, null);
 
+  // --- sm2
+  const fresh = { ease: 2.5, interval: 0, reps: 0 };
+
+  const first = VT.sm2(fresh, 5);
+  eq('first success: reps', first.reps, 1);
+  eq('first success: interval is 1 day', first.interval, 1);
+
+  const second = VT.sm2(first, 5);
+  eq('second success: reps', second.reps, 2);
+  eq('second success: interval is 6 days', second.interval, 6);
+
+  const third = VT.sm2(second, 4);
+  eq('third success: interval is round(6 * ease)', third.interval, Math.round(6 * second.ease));
+
+  // A lapse resets the schedule but not the ease factor.
+  const lapsed = VT.sm2(third, 2);
+  eq('lapse resets reps', lapsed.reps, 0);
+  eq('lapse resets interval to 1', lapsed.interval, 1);
+  check('lapse lowers ease', lapsed.ease < third.ease);
+
+  // The 1.3 floor is part of the algorithm, not a tuning constant.
+  let beaten = { ease: 2.5, interval: 0, reps: 0 };
+  for (let i = 0; i < 20; i++) beaten = VT.sm2(beaten, 0);
+  eq('ease floors at 1.3', beaten.ease, 1.3);
+
+  const day = 24 * 60 * 60 * 1000;
+  const due = VT.sm2(fresh, 5).due;
+  check('due is about one day out', Math.abs(due - (Date.now() + day)) < 5000,
+        `due delta ${due - Date.now()}`);
+
+  // --- newEntry
+  const entry = VT.newEntry('resilient', { level: 'C2', ipa: 'x', def: 'y', audio: null },
+                            'kiên cường', 'https://example.com/a');
+  eq('entry word', entry.word, 'resilient');
+  eq('entry level', entry.level, 'C2');
+  eq('entry vi', entry.vi, 'kiên cường');
+  eq('entry sources', entry.sources.length, 1);
+  eq('entry starts at ease 2.5', entry.ease, 2.5);
+  eq('entry starts at reps 0', entry.reps, 0);
+  check('entry is due immediately', entry.due <= Date.now());
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }
