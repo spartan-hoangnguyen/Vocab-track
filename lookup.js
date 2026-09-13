@@ -4,7 +4,14 @@
 
 async function fetchCambridge(word) {
   try {
-    const res = await fetch(`${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(word)}`);
+    // credentials:'omit' is load-bearing, not tidiness. Chrome attaches the
+    // user's dictionary.cambridge.org cookies to this cross-origin fetch, and
+    // that request shape — cors mode, sec-fetch-site: none, carrying cookies —
+    // trips Cambridge's bot protection, which answers 403. The identical
+    // request without cookies returns 200. Verified in the panel console
+    // 2026-09-13: with cookies 403, with credentials:'omit' 200.
+    const res = await fetch(`${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(word)}`,
+                            { credentials: 'omit' });
     // Cambridge never 404s an unknown word: it 302-redirects to the
     // dictionary index, which fetch follows, so res.ok is true and
     // res.status is useless here. res.redirected is ALSO not a valid test —

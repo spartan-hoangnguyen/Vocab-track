@@ -151,6 +151,16 @@ async function parserTests() {
   eq('median of nothing is null', VT.medianLevel([]), null);
   eq('median of only-null levels is null', VT.medianLevel([{ level: null }]), null);
 
+  // --- source guard: the Cambridge fetch must not send cookies
+  // Not a behaviour test (the fetch needs Chrome), but this option is a
+  // one-word deletion away from a silent 403 on every lookup, so it is worth
+  // pinning where a test run will catch it.
+  const lookupSrc = await (await fetch('../lookup.js')).text();
+  const cambridgeCall = lookupSrc.slice(lookupSrc.indexOf('async function fetchCambridge'),
+                                        lookupSrc.indexOf('async function fetchVietnamese'));
+  check('cambridge fetch omits credentials', /credentials:\s*'omit'/.test(cambridgeCall),
+        'Cambridge 403s when Chrome attaches cookies to this cross-origin fetch');
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }
