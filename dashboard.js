@@ -177,18 +177,15 @@ function renderWords(all) {
     ? `${shown.length} match${shown.length === 1 ? '' : 'es'} for “${term}”`
     : `${shown.length} word${shown.length === 1 ? '' : 's'}`;
 
-  const body = $('w-rows');
-  body.replaceChildren();
-  for (const entry of shown) body.appendChild(wordRow(entry));
+  const cards = $('w-cards');
+  cards.replaceChildren();
+  for (const entry of shown) cards.appendChild(wordCard(entry));
 
   const empty = $('w-empty');
   empty.replaceChildren();
   empty.hidden = shown.length > 0;
   if (!shown.length) {
     if (term && VT.isLookupCandidate(term)) {
-      // Nothing saved matches, but it looks like a word — offer the lookup
-      // rather than a dead end. This is the dashboard's own way in, for words
-      // you meet away from a page you were reading.
       empty.className = 'lookupcta';
       const line = document.createElement('div');
       const strong = document.createElement('b');
@@ -207,85 +204,113 @@ function renderWords(all) {
   }
 }
 
-function wordRow(entry) {
-  const tr = document.createElement('tr');
+// A link's visible label, e.g. "en.wikipedia.org". Returns null for anything
+// that is not a real URL, so a malformed source never renders a dead link.
+function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return null; }
+}
 
-  const term = document.createElement('td');
-  const termSpan = document.createElement('span');
-  termSpan.className = 'term';
-  termSpan.textContent = entry.word;
-  termSpan.title = 'Pronounce';
-  termSpan.addEventListener('click', () => pronounce(entry));
-  term.appendChild(termSpan);
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  // textContent everywhere: definitions, translations and page sentences are
+  // third-party text and must never be parsed as markup.
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
 
-  const lvl = document.createElement('td');
-  const lvlSpan = document.createElement('span');
-  lvlSpan.className = 'lvl';
-  lvlSpan.textContent = entry.level ?? DASH;
-  lvl.appendChild(lvlSpan);
+function wordCard(entry) {
+  const card = el('article', 'wcard');
 
-  const vi = document.createElement('td');
-  vi.className = 'vi';
-  vi.textContent = entry.vi ?? DASH;
+  // --- headline row
+  const head = el('div', 'wc-head');
+  const title = el('h3', 'wc-word', entry.word);
+  title.title = 'Pronounce';
+  title.addEventListener('click', () => pronounce(entry));
+  head.appendChild(title);
+  if (entry.level) head.appendChild(el('span', 'lvl', entry.level));
+  if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
+  if (entry.ipa) head.appendChild(el('span', 'wc-ipa', `/${entry.ipa}/`));
 
-  const def = document.createElement('td');
-  def.className = 'def';
-  // textContent throughout: definitions, translations and page sentences come
-  // from third parties and must never be parsed as markup.
-  const defText = document.createElement('div');
-  defText.textContent = entry.def ?? DASH;
-  def.appendChild(defText);
-  if (entry.context) {
-    const seen = document.createElement('div');
-    seen.className = 'seen';
-    seen.textContent = entry.context;
-    seen.title = 'The sentence you met this word in';
-    def.appendChild(seen);
-  }
-  if (entry.senses?.length > 1) {
-    const more = document.createElement('div');
-    more.className = 'more';
-    more.textContent = `+${entry.senses.length - 1} more meaning${entry.senses.length > 2 ? 's' : ''}`;
-    def.appendChild(more);
-  }
-
-  const tags = document.createElement('td');
-  const tagWrap = document.createElement('div');
-  tagWrap.className = 'tags';
-  for (const id of VT.foldersOf(entry)) {
-    const tag = document.createElement('span');
-    tag.className = 'tag';
-    tag.textContent = folders[id]?.name ?? id;
-    tag.addEventListener('click', () => openFolder(id));
-    tagWrap.appendChild(tag);
-  }
-  const assign = document.createElement('span');
-  assign.className = 'tag';
-  assign.textContent = '+';
-  assign.title = 'Add to folder';
-  assign.addEventListener('click', () => assignFolder(entry));
-  tagWrap.appendChild(assign);
-  tags.appendChild(tagWrap);
-
-  const when = document.createElement('td');
-  when.className = 'r when';
-  when.textContent = relative(entry.added);
-
-  const del = document.createElement('td');
-  del.className = 'r';
-  const delBtn = document.createElement('button');
-  delBtn.className = 'rowdel';
-  delBtn.textContent = '×';
-  delBtn.title = `Delete ${entry.word}`;
-  delBtn.addEventListener('click', async () => {
+  const spacer = el('span', 'wc-spacer');
+  head.appendChild(spacer);
+  head.appendChild(el('span', 'when', relative(entry.added)));
+  const del = el('button', 'rowdel', '×');
+  del.title = `Delete ${entry.word}`;
+  del.addEventListener('click', async () => {
     if (!confirm(`Delete "${entry.word}"? This cannot be undone.`)) return;
     await removeWord(entry.word);
     await refresh();
   });
-  del.appendChild(delBtn);
+  head.appendChild(del);
+  card.appendChild(head);
 
-  tr.append(term, lvl, vi, def, tags, when, del);
-  return tr;
+  // --- meaning
+  if (entry.vi) card.appendChild(el('p', 'wc-vi', entry.vi));
+  card.appendChild(el('p', 'wc-def', entry.def ?? DASH));
+  if (entry.senses?.length > 1) {
+    card.appendChild(el('p', 'wc-more',
+      `+${entry.senses.length - 1} more meaning${entry.senses.length > 2 ? 's' : ''} on Cambridge`));
+  }
+
+  // --- the sentence it was met in, with the word marked
+  if (entry.context) {
+    const quote = el('blockquote', 'wc-seen');
+    const re = VT.wordRegex(entry.word);
+    let last = 0;
+    let match;
+    while ((match = re.exec(entry.context))) {
+      quote.append(entry.context.slice(last, match.index));
+      quote.appendChild(el('mark', null, match[0]));
+      last = match.index + match[0].length;
+    }
+    quote.append(entry.context.slice(last));
+    card.appendChild(quote);
+  }
+
+  // --- synonyms
+  if (entry.synonyms?.length) {
+    const chips = el('div', 'wc-chips');
+    for (const word of entry.synonyms.slice(0, 5)) chips.appendChild(el('span', 'tag', word));
+    card.appendChild(chips);
+  }
+
+  // --- footer: where it came from, where to read more, which folders
+  const foot = el('div', 'wc-foot');
+
+  const source = entry.sources?.[entry.sources.length - 1];
+  const host = source ? hostOf(source) : null;
+  if (host) {
+    const link = el('a', 'wc-link', host);
+    link.href = source;
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    link.title = `Open the page you saved this from\n${source}`;
+    foot.appendChild(link);
+  }
+
+  const cam = el('a', 'wc-link', 'Cambridge ↗');
+  cam.href = `${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(entry.word)}`;
+  cam.target = '_blank';
+  cam.rel = 'noreferrer';
+  cam.title = 'Full entry on Cambridge Dictionary';
+  foot.appendChild(cam);
+
+  foot.appendChild(el('span', 'wc-spacer'));
+
+  for (const id of VT.foldersOf(entry)) {
+    const tag = el('span', 'tag clickable', folders[id]?.name ?? id);
+    tag.addEventListener('click', () => openFolder(id));
+    foot.appendChild(tag);
+  }
+  const add = el('span', 'tag clickable', '+');
+  add.title = 'Add to folder';
+  add.addEventListener('click', () => assignFolder(entry));
+  foot.appendChild(add);
+
+  card.appendChild(foot);
+  return card;
 }
 
 async function assignFolder(entry) {

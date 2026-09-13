@@ -94,20 +94,9 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .f .edit{background:none;border:0;padding:0;font:500 12.5px Inter;color:inherit;
          opacity:.7;cursor:pointer;text-decoration:underline}
 
-.tablewrap{margin-top:26px;border:1px solid var(--rule);border-radius:14px;
-           overflow:hidden;background:#fff}
-table{width:100%;border-collapse:collapse}
-th{font:600 11px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2);
-   text-align:left;padding:13px 18px;border-bottom:1px solid var(--rule);background:var(--panel)}
-th.r,td.r{text-align:right}
-td{padding:13px 18px;border-bottom:1px solid var(--rule);vertical-align:top}
-tr:last-child td{border-bottom:0}
-tr:hover td{background:#faf7f2}
-.term{font:600 17px/1.25 Fraunces,Georgia,serif;cursor:pointer}
 .lvl{font:600 11px Inter;letter-spacing:.04em;color:var(--bar);
      border:1px solid var(--rule);padding:2px 7px;border-radius:6px;white-space:nowrap}
 .vi{font-weight:500}
-.def{color:var(--ink2);font-size:13px;max-width:44ch}
 .tags{display:flex;gap:5px;flex-wrap:wrap}
 .tag{font-size:11.5px;padding:2px 8px;border-radius:999px;background:var(--panel);
      color:var(--ink2);white-space:nowrap;cursor:pointer}
@@ -202,9 +191,41 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
 .sources .n{color:var(--ink2);font-variant-numeric:tabular-nums;flex:none}
 
 /* The sentence the word was met in — the strongest recall cue there is. */
-.def .seen{margin-top:6px;padding-left:9px;border-left:2px solid var(--rule);
-           color:var(--ink3);font-size:12.5px;font-style:italic;line-height:1.5}
-.def .more{margin-top:5px;color:var(--ink3);font-size:12px}
 .rvseen{max-width:46ch;margin:22px auto 0;padding:11px 14px;text-align:left;
         border-left:2px solid var(--rule);background:var(--panel);
         border-radius:0 8px 8px 0;color:var(--ink2);font-size:13.5px;line-height:1.6}
+
+/* --- saved-word cards ---------------------------------------------------
+   Replaces the table: a long source sentence in a narrow table column wrapped
+   into a tall ribbon and blew the row height out. A card gives the sentence
+   full width and leaves room for the links. */
+.cards{display:flex;flex-direction:column;gap:14px;margin-top:26px}
+.wcard{border:1px solid var(--rule);border-radius:14px;background:#fff;padding:20px 22px}
+.wcard:hover{border-color:#d7cfc0}
+
+.wc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.wc-word{font:600 23px/1.15 Fraunces,Georgia,serif;margin:0;letter-spacing:-.015em;
+         cursor:pointer;text-transform:none;color:var(--ink)}
+.wc-word:hover{text-decoration:underline dotted}
+.wc-pos{color:var(--ink2);font-size:13px;font-style:italic}
+.wc-ipa{color:var(--ink3);font-size:13px}
+.wc-spacer{flex:1}
+
+.wc-vi{margin:12px 0 4px;font-size:16px;font-weight:600}
+.wc-def{margin:0;color:var(--ink2);font-size:14px;line-height:1.6;max-width:78ch}
+.wc-more{margin:6px 0 0;color:var(--ink3);font-size:12.5px}
+
+.wc-seen{margin:14px 0 0;padding:10px 14px;border-left:2px solid var(--rule);
+         background:var(--paper);border-radius:0 8px 8px 0;color:var(--ink2);
+         font-size:13.5px;line-height:1.6;max-width:82ch}
+.wc-seen mark{background:transparent;color:var(--ink);font-weight:600}
+
+.wc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+
+.wc-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+         margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)}
+.wc-link{color:var(--ink2);font-size:12.5px;text-decoration:none;
+         border-bottom:1px solid var(--rule);padding-bottom:1px}
+.wc-link:hover{color:var(--ink);border-bottom-color:var(--ink3)}
+.tag.clickable{cursor:pointer}
+.tag.clickable:hover{background:#e8e1d4;color:var(--ink)}
