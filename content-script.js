@@ -5,7 +5,7 @@ function removeButton() {
   button = null;
 }
 
-function showButton(word, rect) {
+function showButton(word, rect, context) {
   removeButton();
   button = document.createElement('button');
   button.textContent = '📘';
@@ -39,7 +39,7 @@ function showButton(word, rect) {
     // Stop the page seeing this and clearing the selection first.
     event.preventDefault();
     event.stopPropagation();
-    chrome.runtime.sendMessage({ type: 'lookup', word, url: location.href });
+    chrome.runtime.sendMessage({ type: 'lookup', word, url: location.href, context });
     // Clear the selection so the following mouseup finds no candidate and does not
     // re-show the button. preventDefault() above blocks the browser's default
     // selection-collapse, so it is still live and must be cleared explicitly.
@@ -48,6 +48,23 @@ function showButton(word, rect) {
   });
 
   document.body.appendChild(button);
+}
+
+// The sentence on the page that the word appeared in. Prefers the nearest
+// small block: falling straight back to a div or article would hand
+// sentenceAround the whole page and make the split meaningless.
+const CONTEXT_BLOCKS = 'p, li, td, th, blockquote, dd, dt, figcaption, h1, h2, h3, h4, h5, h6';
+
+function contextFor(range, word) {
+  const node = range.startContainer;
+  const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  const block = el?.closest(CONTEXT_BLOCKS) ?? el;
+  try {
+    return VT.sentenceAround(block?.textContent, word);
+  } catch (err) {
+    console.error('[vocab-track] could not read context for', word, err);
+    return null;
+  }
 }
 
 document.addEventListener('mouseup', (event) => {
@@ -62,8 +79,12 @@ document.addEventListener('mouseup', (event) => {
     return;
   }
 
-  const rect = selection.getRangeAt(0).getBoundingClientRect();
-  showButton(VT.normaliseWord(raw), rect);
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  const word = VT.normaliseWord(raw);
+  // Captured now, not on click: the click handler clears the selection so the
+  // button does not re-show, which would take the context with it.
+  showButton(word, rect, contextFor(range, word));
 });
 
 document.addEventListener('mousedown', (event) => {

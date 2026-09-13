@@ -200,3 +200,11 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
 .sources li:last-child{border-bottom:0}
 .sources .host{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sources .n{color:var(--ink2);font-variant-numeric:tabular-nums;flex:none}
+
+/* The sentence the word was met in — the strongest recall cue there is. */
+.def .seen{margin-top:6px;padding-left:9px;border-left:2px solid var(--rule);
+           color:var(--ink3);font-size:12.5px;font-style:italic;line-height:1.5}
+.def .more{margin-top:5px;color:var(--ink3);font-size:12px}
+.rvseen{max-width:46ch;margin:22px auto 0;padding:11px 14px;text-align:left;
+        border-left:2px solid var(--rule);background:var(--panel);
+        border-radius:0 8px 8px 0;color:var(--ink2);font-size:13.5px;line-height:1.6}

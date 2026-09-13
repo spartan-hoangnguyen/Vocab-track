@@ -4,6 +4,12 @@
 const VT = {
   CAMBRIDGE: 'https://dictionary.cambridge.org',
 
+  // Storage caps. Entries are stored whole, and chrome.storage.local is
+  // about 10MB, so these bound how much one word can cost.
+  MAX_SENSES: 3,
+  MAX_XREF: 6,
+  MAX_CONTEXT: 220,
+
   normaliseWord(raw) {
     return String(raw ?? '').trim().toLowerCase();
   },
@@ -24,27 +30,86 @@ const VT = {
     return new RegExp(`\\b${safe}\\b`, 'gi');
   },
 
-  // Selectors verified against the committed fixtures on 2026-09-13.
+  // Selectors verified against real Cambridge pages on 2026-09-13.
   // Each field is independent: a markup change that breaks one selector
-  // yields null for that field and leaves the other three intact.
+  // yields null for that field and leaves the others intact.
   //
   // Scoped to the first `.entry-body__el` (the actual dictionary entry),
   // not the whole document: an off-entry page (e.g. the dictionary index a
   // not-found lookup redirects to) carries a Word-of-the-Day promo block
   // with its own `.ipa` and `source[src$=".mp3"]`, which would otherwise be
-  // picked up as if they belonged to the looked-up word. Defence in depth
-  // for that case, not the only guard against it.
+  // picked up as if they belonged to the looked-up word.
+  //
+  // level/ipa/def/audio stay top level and describe the FIRST sense, so
+  // entries saved before senses existed keep rendering unchanged.
   parseCambridge(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const root = doc.querySelector('.entry-body__el');
-    const text = (sel) => root?.querySelector(sel)?.textContent.trim() || null;
-    const audio = root?.querySelector('source[src$=".mp3"]')?.getAttribute('src');
-    return {
-      level: text('.epp-xref'),
-      ipa: text('.ipa'),
-      def: text('.def.ddef_d'),
-      audio: audio ? VT.CAMBRIDGE + audio : null
+    if (!root) return { level: null, ipa: null, def: null, audio: null };
+
+    const text = (el, sel) => el?.querySelector(sel)?.textContent.trim() || null;
+    const audioIn = (el) => {
+      const src = el?.querySelector('source[src$=".mp3"]')?.getAttribute('src');
+      return src ? VT.CAMBRIDGE + src : null;
     };
+    const uk = root.querySelector('.uk.dpron-i');
+    const us = root.querySelector('.us.dpron-i');
+
+    // Capped deliberately: every sense and example is stored per word, and
+    // chrome.storage.local is ~10MB. Three senses with one example each keeps
+    // an entry near 1KB, so the quota still holds roughly 10,000 words.
+    const senses = [...root.querySelectorAll('.def-block.ddef_block')]
+      .slice(0, VT.MAX_SENSES)
+      .map((block) => ({
+        level: text(block, '.epp-xref'),
+        def: text(block, '.def.ddef_d'),
+        example: text(block, '.examp.dexamp')
+      }))
+      .filter((sense) => sense.def);
+
+    const xref = (kind) => {
+      const items = [...root.querySelectorAll(`.xref.${kind} .x-h`)]
+        .map((el) => el.textContent.trim())
+        .filter(Boolean);
+      return [...new Set(items)].slice(0, VT.MAX_XREF);
+    };
+
+    return {
+      pos: text(root, '.pos.dpos'),
+      gram: text(root, '.gram.dgram'),
+      ipa: text(uk, '.ipa') ?? text(root, '.ipa'),
+      ipaUs: text(us, '.ipa'),
+      audio: audioIn(uk) ?? audioIn(root),
+      audioUs: audioIn(us),
+      level: senses[0]?.level ?? text(root, '.epp-xref'),
+      def: senses[0]?.def ?? text(root, '.def.ddef_d'),
+      senses,
+      synonyms: xref('synonym'),
+      related: xref('related_word')
+    };
+  },
+
+  // The sentence in the page that the looked-up word appeared in, so a saved
+  // word keeps the context that made it worth saving. Pure: the content
+  // script hands in the surrounding block's text.
+  sentenceAround(blockText, word) {
+    const text = String(blockText ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) return null;
+    const re = VT.wordRegex(word);
+    // Split after . ! ? followed by a space — deliberately naive. It can cut
+    // an abbreviation ("Dr. Smith") in two; a wrong sentence boundary costs a
+    // slightly odd quote, which is not worth a parser to avoid.
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    for (const sentence of sentences) {
+      re.lastIndex = 0;
+      if (re.test(sentence)) {
+        const trimmed = sentence.trim();
+        return trimmed.length > VT.MAX_CONTEXT
+          ? trimmed.slice(0, VT.MAX_CONTEXT).trimEnd() + '…'
+          : trimmed;
+      }
+    }
+    return null;
   },
 
   // SM-2, standard formulation. quality is 0..5; below 3 is a lapse.
@@ -112,6 +177,14 @@ const VT = {
       ipa: parsed.ipa,
       def: parsed.def,
       audio: parsed.audio,
+      pos: parsed.pos ?? null,
+      gram: parsed.gram ?? null,
+      ipaUs: parsed.ipaUs ?? null,
+      audioUs: parsed.audioUs ?? null,
+      senses: parsed.senses ?? [],
+      synonyms: parsed.synonyms ?? [],
+      related: parsed.related ?? [],
+      context: null,
       vi,
       sources: [url],
       added: Date.now(),

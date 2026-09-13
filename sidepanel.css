@@ -19,7 +19,7 @@ body{margin:0;padding:14px 14px 22px;background:var(--paper);color:var(--ink);
 nav{display:flex;gap:2px;background:var(--panel);border:1px solid var(--rule);
     border-radius:11px;padding:3px;margin-bottom:12px}
 nav button{flex:1;padding:7px 4px;border:0;border-radius:8px;background:transparent;
-           color:var(--ink2);font:500 13px inherit;cursor:pointer;
+           color:var(--ink2);font-weight:500;font-size:13px;cursor:pointer;
            transition:background .12s ease,color .12s ease}
 nav button:hover{color:var(--ink)}
 nav button.active{background:var(--card);color:var(--ink);font-weight:600;
@@ -27,19 +27,49 @@ nav button.active{background:var(--card);color:var(--ink);font-weight:600;
 
 .dashlink{margin:0 0 16px}
 #open-dashboard{width:100%;padding:9px;border:1px solid var(--rule);border-radius:10px;
-                background:transparent;color:var(--ink2);font:500 12.5px inherit;
+                background:transparent;color:var(--ink2);font-weight:500;font-size:12.5px;
                 cursor:pointer;text-decoration:none}
 #open-dashboard:hover{background:var(--panel);color:var(--ink)}
 
 h1{font:600 23px/1.2 system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.015em}
 
 .meta{display:flex;align-items:center;gap:9px;margin:0 0 14px;flex-wrap:wrap}
-.level{font:600 11px inherit;letter-spacing:.04em;color:var(--accent);
+.level{font-weight:600;font-size:11px;letter-spacing:.04em;color:var(--accent);
        border:1px solid var(--rule);padding:2px 8px;border-radius:6px}
-#entry-ipa{color:var(--ink2);font-size:13px}
-#entry-play{border:1px solid var(--rule);background:var(--card);color:var(--ink);
-            border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;line-height:1}
-#entry-play:hover{background:var(--panel)}
+#entry-pos{color:var(--ink2);font-size:13px;font-style:italic}
+#entry-gram{color:var(--ink3);font-size:12px}
+
+.prons{display:flex;flex-direction:column;gap:5px;margin:0 0 14px}
+.pron{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+.pron .tag{font-weight:600;font-size:10px;letter-spacing:.06em;color:var(--ink3);
+           border:1px solid var(--rule);border-radius:5px;padding:1px 5px}
+.pron button{border:1px solid var(--rule);background:var(--card);color:var(--ink);
+             border-radius:7px;padding:3px 9px;font-size:10px;cursor:pointer;line-height:1.4}
+.pron button:hover{background:var(--panel)}
+
+.block{margin:0 0 18px}
+.block h2{font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+          color:var(--ink3);margin:0 0 8px}
+blockquote{margin:0;padding:9px 12px;border-left:2px solid var(--rule);
+           background:var(--panel);border-radius:0 8px 8px 0;
+           font-size:13px;line-height:1.6;color:var(--ink2)}
+blockquote mark{background:transparent;color:var(--ink);font-weight:600}
+
+#entry-senses{list-style:none;margin:0;padding:0;counter-reset:sense}
+#entry-senses li{position:relative;padding:0 0 12px 24px;counter-increment:sense}
+#entry-senses li::before{content:counter(sense);position:absolute;left:0;top:1px;
+  width:17px;height:17px;border-radius:50%;background:var(--panel);color:var(--ink2);
+  font-size:10px;font-weight:600;display:grid;place-items:center}
+#entry-senses li:last-child{padding-bottom:0}
+#entry-senses .d{font-size:13.5px;line-height:1.55}
+#entry-senses .lv{font-weight:600;font-size:10px;color:var(--accent);margin-left:6px;
+                  border:1px solid var(--rule);border-radius:4px;padding:1px 4px}
+#entry-senses .ex{display:block;margin-top:5px;color:var(--ink2);font-size:12.5px;
+                  font-style:italic;line-height:1.5}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--panel);
+      color:var(--ink2);border:1px solid var(--rule)}
 
 .vi{font-size:17px;font-weight:600;margin:0 0 10px}
 #entry-def{color:var(--ink2);font-size:13.5px;margin:0;line-height:1.6}
@@ -52,7 +82,7 @@ h1{font:600 23px/1.2 system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.015em
 .warn b{color:var(--ink);font-weight:600}
 
 #words-filter{width:100%;padding:8px 11px;margin-bottom:10px;border:1px solid var(--rule);
-              border-radius:9px;background:var(--card);color:var(--ink);font:400 13px inherit}
+              border-radius:9px;background:var(--card);color:var(--ink);font-weight:400;font-size:13px}
 #words-list{list-style:none;margin:0;padding:0}
 #words-list li{display:flex;align-items:baseline;gap:9px;padding:9px 4px;
                border-bottom:1px solid var(--rule);cursor:pointer;border-radius:6px}
@@ -64,13 +94,13 @@ h1{font:600 23px/1.2 system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.015em
 #card{text-align:center;padding:18px 0}
 #card-word{font:600 27px/1.2 system-ui,sans-serif;margin:0 0 18px;letter-spacing:-.02em}
 #card-reveal{padding:9px 18px;border:1px solid var(--rule);border-radius:10px;
-             background:var(--card);color:var(--ink);font:500 13px inherit;cursor:pointer}
+             background:var(--card);color:var(--ink);font-weight:500;font-size:13px;cursor:pointer}
 #card-reveal:hover{background:var(--panel)}
 #card-vi{font-size:17px;font-weight:600;margin:4px 0 8px}
 #card-def{color:var(--ink2);font-size:13px;margin:0}
 #grades{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:18px}
 #grades button{padding:9px 6px;border:1px solid var(--rule);border-radius:9px;
-               background:var(--card);color:var(--ink);font:500 12.5px inherit;cursor:pointer}
+               background:var(--card);color:var(--ink);font-weight:500;font-size:12.5px;cursor:pointer}
 #grades button:hover{background:var(--panel)}
 #review-count,#review-empty{color:var(--ink2);font-size:12.5px}
 #review-count{margin-top:14px;text-align:center}

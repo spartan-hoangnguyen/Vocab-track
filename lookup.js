@@ -51,7 +51,7 @@ async function fetchVietnamese(word) {
 // The whole save path for one word, with no UI in it: known words short-
 // circuit without a network call, new words are fetched, saved and returned.
 // Returns { entry } or { notFound: true }.
-async function resolveWord(rawWord, url, folderIds) {
+async function resolveWord(rawWord, url, folderIds, context) {
   const word = VT.normaliseWord(rawWord);
   const words = await getWords();
 
@@ -61,6 +61,12 @@ async function resolveWord(rawWord, url, folderIds) {
     if (url && !known.sources.includes(url)) {
       known.sources.push(url);
       patch.sources = known.sources;
+    }
+    // A word already saved without context gains it the next time it is met
+    // in a real sentence; an existing context is never overwritten.
+    if (context && !known.context) {
+      known.context = context;
+      patch.context = context;
     }
     if (folderIds?.length) {
       const merged = [...new Set([...VT.foldersOf(known), ...folderIds])];
@@ -75,6 +81,7 @@ async function resolveWord(rawWord, url, folderIds) {
   if (parsed.notFound) return { notFound: true };
 
   const entry = VT.newEntry(word, parsed, vi, url);
+  if (context) entry.context = context;
   // Not persisted: it describes this attempt, not the word.
   const failed = parsed.failed ?? null;
   if (folderIds?.length) {

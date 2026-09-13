@@ -151,6 +151,55 @@ async function parserTests() {
   eq('median of nothing is null', VT.medianLevel([]), null);
   eq('median of only-null levels is null', VT.medianLevel([{ level: null }]), null);
 
+  // --- richer parse fields, read from the same three fixtures
+  const rich = VT.parseCambridge(await fixture('resilient'));
+  eq('resilient part of speech', rich.pos, 'adjective');
+  eq('resilient US ipa', rich.ipaUs, 'rɪˈzɪl.jənt');
+  check('resilient US audio is a cambridge mp3', rich.audioUs?.startsWith(VT.CAMBRIDGE));
+  check('resilient US audio differs from UK', rich.audioUs !== rich.audio);
+  eq('resilient sense count', rich.senses.length, 2);
+  eq('resilient first example', rich.senses[0].example,
+     "She's a resilient girl - she won't be unhappy for long.");
+  eq('resilient related words', rich.related.join(), 'resilience');
+  eq('resilient has no synonyms', rich.synonyms.length, 0);
+
+  const happyRich = VT.parseCambridge(await fixture('happy'));
+  eq('happy grammar label', happyRich.gram, '[ before noun ]');
+  eq('happy sense count', happyRich.senses.length, 3);
+  check('every parsed sense has a definition', happyRich.senses.every((s) => s.def));
+
+  const ubiRich = VT.parseCambridge(await fixture('ubiquitous'));
+  eq('ubiquitous synonym', ubiRich.synonyms.join(), 'omnipresent');
+  // Top-level level/def still describe the first sense, so entries saved
+  // before senses existed keep rendering identically.
+  eq('top-level def still mirrors sense 0', ubiRich.def, ubiRich.senses[0].def);
+
+  // Caps exist because every sense is stored per word against a ~10MB quota.
+  check('senses are capped', VT.MAX_SENSES <= 5 && rich.senses.length <= VT.MAX_SENSES);
+
+  // A page with no entry yields nulls and empty lists, never a throw.
+  const none = VT.parseCambridge('<html><body>nothing</body></html>');
+  eq('no-entry page has null pos', none.pos ?? null, null);
+  eq('no-entry page has no senses', (none.senses ?? []).length, 0);
+
+  // --- sentenceAround: the line from the page that the word appeared in
+  const para = 'The system failed. Engineers called it resilient anyway! Then it fell over.';
+  eq('picks the sentence containing the word',
+     VT.sentenceAround(para, 'resilient'), 'Engineers called it resilient anyway!');
+  eq('picks the first sentence when the word is there',
+     VT.sentenceAround(para, 'system'), 'The system failed.');
+  eq('null when the word is absent', VT.sentenceAround(para, 'banana'), null);
+  eq('null on empty input', VT.sentenceAround('', 'x'), null);
+  eq('null on missing input', VT.sentenceAround(null, 'x'), null);
+  // Word-bounded, like the highlighter: a substring match is not the sentence.
+  eq('does not match inside a longer word',
+     VT.sentenceAround('Category theory is fun.', 'cat'), null);
+  eq('collapses whitespace',
+     VT.sentenceAround('  The   word\n\nis   here.  ', 'word'), 'The word is here.');
+  const long = VT.sentenceAround('x '.repeat(200) + 'resilient end.', 'resilient');
+  eq('long context is capped', long.length, VT.MAX_CONTEXT);
+  check('capped context is marked with an ellipsis', long.endsWith('…'));
+
   // --- source guard: the Cambridge fetch must not send cookies
   // Not a behaviour test (the fetch needs Chrome), but this option is a
   // one-word deletion away from a silent 403 on every lookup, so it is worth

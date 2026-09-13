@@ -24,12 +24,17 @@ function renderEntry(entry, failed) {
   $('lookup-empty').hidden = true;
   $('lookup-empty').textContent = LOOKUP_EMPTY_DEFAULT;
   $('entry').hidden = false;
+
   $('entry-word').textContent = entry.word;
   $('entry-level').textContent = entry.level ?? DASH;
-  $('entry-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : DASH;
+  $('entry-pos').textContent = entry.pos ?? '';
+  $('entry-gram').textContent = entry.gram ?? '';
   $('entry-vi').textContent = entry.vi ?? DASH;
-  $('entry-def').textContent = entry.def ?? DASH;
-  $('entry-play').onclick = () => pronounce(entry);
+
+  renderProns(entry);
+  renderContext(entry);
+  renderSenses(entry);
+  renderChips(entry);
 
   const warn = $('entry-warn');
   warn.replaceChildren();
@@ -38,6 +43,97 @@ function renderEntry(entry, failed) {
     const lead = document.createElement('b');
     lead.textContent = 'Cambridge lookup failed. ';
     warn.append(lead, `Level, pronunciation and definition are missing for this reason, not because the word has none. ${failed}`);
+  }
+}
+
+function renderProns(entry) {
+  const box = $('entry-prons');
+  box.replaceChildren();
+  // Both accents when Cambridge has both; the play button always works, since
+  // pronounce() falls back to speech synthesis when there is no mp3.
+  const rows = [['UK', entry.ipa, entry.audio], ['US', entry.ipaUs, entry.audioUs]]
+    .filter(([, ipa, audio]) => ipa || audio);
+  if (!rows.length) rows.push(['UK', null, null]);
+  for (const [tag, ipa, audio] of rows) {
+    const row = document.createElement('div');
+    row.className = 'pron';
+    const label = document.createElement('span');
+    label.className = 'tag';
+    label.textContent = tag;
+    const text = document.createElement('span');
+    text.textContent = ipa ? `/${ipa}/` : DASH;
+    const play = document.createElement('button');
+    play.textContent = '▶';
+    play.setAttribute('aria-label', `Pronounce ${entry.word} (${tag})`);
+    play.addEventListener('click', () => pronounce({ ...entry, audio: audio ?? entry.audio }));
+    row.append(label, text, play);
+    box.appendChild(row);
+  }
+}
+
+function renderContext(entry) {
+  const block = $('entry-context-block');
+  const quote = $('entry-context');
+  quote.replaceChildren();
+  block.hidden = !entry.context;
+  if (!entry.context) return;
+  // The word is marked inside its own sentence, built with text nodes so the
+  // page's sentence can never be parsed as markup.
+  const re = VT.wordRegex(entry.word);
+  let last = 0;
+  let match;
+  while ((match = re.exec(entry.context))) {
+    quote.append(entry.context.slice(last, match.index));
+    const mark = document.createElement('mark');
+    mark.textContent = match[0];
+    quote.append(mark);
+    last = match.index + match[0].length;
+  }
+  quote.append(entry.context.slice(last));
+}
+
+function renderSenses(entry) {
+  const list = $('entry-senses');
+  list.replaceChildren();
+  const senses = entry.senses?.length
+    ? entry.senses
+    : [{ level: entry.level, def: entry.def, example: null }];
+  $('entry-senses-title').textContent = senses.length > 1 ? 'Meanings' : 'Meaning';
+  for (const sense of senses) {
+    const li = document.createElement('li');
+    const def = document.createElement('span');
+    def.className = 'd';
+    def.textContent = sense.def ?? DASH;
+    li.appendChild(def);
+    if (sense.level) {
+      const lv = document.createElement('span');
+      lv.className = 'lv';
+      lv.textContent = sense.level;
+      li.appendChild(lv);
+    }
+    if (sense.example) {
+      const ex = document.createElement('span');
+      ex.className = 'ex';
+      ex.textContent = sense.example;
+      li.appendChild(ex);
+    }
+    list.appendChild(li);
+  }
+}
+
+function renderChips(entry) {
+  const block = $('entry-syn-block');
+  const box = $('entry-syn');
+  box.replaceChildren();
+  const syn = entry.synonyms ?? [];
+  const rel = entry.related ?? [];
+  block.hidden = !syn.length && !rel.length;
+  $('entry-syn-title').textContent = syn.length ? 'Synonyms' : 'Related words';
+  for (const word of (syn.length ? syn : rel)) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = word;
+    box.appendChild(chip);
   }
 }
 
@@ -59,7 +155,7 @@ async function lookup(pending) {
   // loop.
   chrome.storage.session.remove('pending');
   const word = VT.normaliseWord(pending.word);
-  const { entry, notFound, failed } = await resolveWord(word, pending.url);
+  const { entry, notFound, failed } = await resolveWord(word, pending.url, null, pending.context);
   if (notFound) {
     renderNotFound(word);
     return;

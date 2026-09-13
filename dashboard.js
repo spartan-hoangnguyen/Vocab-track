@@ -230,9 +230,24 @@ function wordRow(entry) {
 
   const def = document.createElement('td');
   def.className = 'def';
-  // textContent throughout: definitions and translations come from third
-  // parties and must never be parsed as markup.
-  def.textContent = entry.def ?? DASH;
+  // textContent throughout: definitions, translations and page sentences come
+  // from third parties and must never be parsed as markup.
+  const defText = document.createElement('div');
+  defText.textContent = entry.def ?? DASH;
+  def.appendChild(defText);
+  if (entry.context) {
+    const seen = document.createElement('div');
+    seen.className = 'seen';
+    seen.textContent = entry.context;
+    seen.title = 'The sentence you met this word in';
+    def.appendChild(seen);
+  }
+  if (entry.senses?.length > 1) {
+    const more = document.createElement('div');
+    more.className = 'more';
+    more.textContent = `+${entry.senses.length - 1} more meaning${entry.senses.length > 2 ? 's' : ''}`;
+    def.appendChild(more);
+  }
 
   const tags = document.createElement('td');
   const tagWrap = document.createElement('div');
@@ -499,6 +514,9 @@ function renderCard() {
   $('rv-reveal').hidden = revealed;
   $('rv-vi').textContent = revealed ? (entry.vi ?? DASH) : '';
   $('rv-def').textContent = revealed ? (entry.def ?? DASH) : '';
+  const seen = $('rv-context');
+  seen.hidden = !(revealed && entry.context);
+  seen.textContent = revealed && entry.context ? entry.context : '';
 }
 
 function reveal() {
