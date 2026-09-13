@@ -78,10 +78,11 @@ function rangesFor(words) {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      const tag = node.parentElement?.tagName;
-      // Never highlight inside code, script or editable fields.
-      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'CODE' || tag === 'PRE' ||
-          tag === 'TEXTAREA' || node.parentElement?.isContentEditable) {
+      const parent = node.parentElement;
+      // closest(), not parentElement.tagName: a highlighted code block nests
+      // spans inside <pre><code>, so the immediate parent is not the CODE.
+      if (!parent || parent.closest('script, style, code, pre, textarea') ||
+          parent.isContentEditable) {
         return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
