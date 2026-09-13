@@ -10,7 +10,9 @@ revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
 
 Built for one person. No accounts, no sync, no server.
 
-![The side panel and the dashboard](docs/screenshot-panel.png)
+| Side panel | Dashboard |
+|---|---|
+| ![The side panel](docs/screenshot-panel.png) | ![The dashboard](docs/screenshot-dashboard.png) |
 
 ## What it does
 
