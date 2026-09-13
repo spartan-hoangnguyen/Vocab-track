@@ -154,11 +154,14 @@ async function parserTests() {
   // --- source guard: the Cambridge fetch must not send cookies
   // Not a behaviour test (the fetch needs Chrome), but this option is a
   // one-word deletion away from a silent 403 on every lookup, so it is worth
-  // pinning where a test run will catch it.
-  const lookupSrc = await (await fetch('../lookup.js')).text();
-  const cambridgeCall = lookupSrc.slice(lookupSrc.indexOf('async function fetchCambridge'),
-                                        lookupSrc.indexOf('async function fetchVietnamese'));
-  check('cambridge fetch omits credentials', /credentials:\s*'omit'/.test(cambridgeCall),
+  // pinning where a test run will catch it. Comments are stripped first: the
+  // comment justifying the option also contains the string, and matching that
+  // made an earlier version of this check pass with the option deleted.
+  const lookupSrc = await (await fetch('../lookup.js?t=' + Date.now())).text();
+  const cambridgeFn = lookupSrc.slice(lookupSrc.indexOf('async function fetchCambridge'),
+                                      lookupSrc.indexOf('async function fetchVietnamese'));
+  const cambridgeCode = cambridgeFn.replace(/^\s*\/\/.*$/gm, '');
+  check('cambridge fetch omits credentials', /credentials:\s*'omit'/.test(cambridgeCode),
         'Cambridge 403s when Chrome attaches cookies to this cross-origin fetch');
 
   document.getElementById('out').textContent =
