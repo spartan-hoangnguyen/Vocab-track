@@ -27,10 +27,18 @@ const VT = {
   // Selectors verified against the committed fixtures on 2026-09-13.
   // Each field is independent: a markup change that breaks one selector
   // yields null for that field and leaves the other three intact.
+  //
+  // Scoped to the first `.entry-body__el` (the actual dictionary entry),
+  // not the whole document: an off-entry page (e.g. the dictionary index a
+  // not-found lookup redirects to) carries a Word-of-the-Day promo block
+  // with its own `.ipa` and `source[src$=".mp3"]`, which would otherwise be
+  // picked up as if they belonged to the looked-up word. Defence in depth
+  // for that case, not the only guard against it.
   parseCambridge(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const text = (sel) => doc.querySelector(sel)?.textContent.trim() || null;
-    const audio = doc.querySelector('source[src$=".mp3"]')?.getAttribute('src');
+    const root = doc.querySelector('.entry-body__el');
+    const text = (sel) => root?.querySelector(sel)?.textContent.trim() || null;
+    const audio = root?.querySelector('source[src$=".mp3"]')?.getAttribute('src');
     return {
       level: text('.epp-xref'),
       ipa: text('.ipa'),
