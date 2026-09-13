@@ -17,10 +17,24 @@ async function getWords() {
   return words ?? {};
 }
 
-async function putWord(entry) {
-  const words = await getWords();
-  words[entry.word] = entry;
-  await chrome.storage.local.set({ words });
+// Writes are serialised: putWord read-modify-writes the whole `words` map,
+// and a lookup's fetches can finish while another is still in flight.
+// Without this, the second write clobbers the first and the word is lost.
+let writeQueue = Promise.resolve();
+
+function putWord(entry) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const words = await getWords();
+      words[entry.word] = entry;
+      await chrome.storage.local.set({ words });
+    } catch (err) {
+      // Caught here, not rethrown: a rejected link in this chain would skip
+      // every later queued write's callback, silently dropping them too.
+      console.error('[vocab-track] save failed for', entry.word, err);
+    }
+  });
+  return writeQueue;
 }
 
 async function fetchCambridge(word) {
