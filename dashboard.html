@@ -1,0 +1,114 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vocab-track</title>
+<link rel="stylesheet" href="dashboard.css">
+<body>
+<aside>
+  <div class="brand"><span class="mark">V</span><b>Vocab-track</b></div>
+  <div class="navlabel">Learn</div>
+  <nav>
+    <a href="#" data-view="overview" class="on"><i></i>Overview</a>
+    <a href="#" data-view="words"><i></i>All words</a>
+  </nav>
+  <div class="navlabel">Library</div>
+  <nav>
+    <a href="#" data-view="io"><i></i>Import &amp; export</a>
+  </nav>
+  <div class="streak">
+    <div class="d" id="streak-days">—</div>
+    <div class="l">Days with a new word</div>
+    <div class="dots" id="streak-dots"></div>
+  </div>
+</aside>
+
+<main>
+  <div class="top">
+    <div class="search">
+      <span class="ic"></span>
+      <input id="q" type="search" autocomplete="off"
+             placeholder="Search your words, or look up a new one…">
+      <span class="kbd">⌘K</span>
+    </div>
+    <span class="sp"></span>
+    <button class="btn" id="review-btn">Review</button>
+  </div>
+
+  <!-- Overview -->
+  <section id="view-overview">
+    <h1>Your vocabulary</h1>
+    <div class="sub" id="ov-sub"></div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="ov-total">0</div><div class="l">Total words</div></div>
+      <div class="stat"><div class="n" id="ov-due">0</div><div class="l">Due today</div></div>
+      <div class="stat"><div class="n" id="ov-median">—</div><div class="l">Median level</div></div>
+      <div class="stat push">
+        <div class="l tight">By level</div>
+        <div class="bars" id="ov-bars"></div>
+      </div>
+    </div>
+    <div class="secthead"><h2>Folders</h2></div>
+    <div class="grid" id="ov-folders"></div>
+  </section>
+
+  <!-- Words table -->
+  <section id="view-words" hidden>
+    <h1 id="w-title">All words</h1>
+    <div class="sub" id="w-sub"></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Word</th><th>Level</th><th>Vietnamese</th><th>Definition</th>
+          <th>Folders</th><th class="r">Added</th><th></th>
+        </tr></thead>
+        <tbody id="w-rows"></tbody>
+      </table>
+      <p class="empty" id="w-empty" hidden></p>
+    </div>
+  </section>
+
+  <!-- Import / export -->
+  <section id="view-io" hidden>
+    <h1>Import &amp; export</h1>
+    <div class="sub">Your words live only in this browser profile. Export is the backup.</div>
+    <div class="iocards">
+      <div class="iocard">
+        <h3>Export</h3>
+        <p>Downloads every word and folder as one JSON file.</p>
+        <button class="btn" id="export-btn">Export JSON</button>
+      </div>
+      <div class="iocard">
+        <h3>Import</h3>
+        <p>Merges by word. Existing entries keep their review schedule;
+           folders are combined. Nothing is overwritten.</p>
+        <input type="file" id="import-file" accept="application/json,.json">
+        <div class="note" id="io-note"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="folder-dlg">
+  <form method="dialog">
+    <h3 id="dlg-title">New folder</h3>
+    <label>Name<input id="dlg-name" required maxlength="40" autocomplete="off"></label>
+    <label>Description<input id="dlg-desc" maxlength="80" autocomplete="off"></label>
+    <label>Colour
+      <select id="dlg-color">
+        <option value="sage">Sage</option>
+        <option value="clay">Clay</option>
+        <option value="ochre">Ochre</option>
+        <option value="sky">Sky</option>
+      </select>
+    </label>
+    <div class="dlgrow">
+      <button value="cancel" class="btn ghost">Cancel</button>
+      <button value="save" class="btn" id="dlg-save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="lib.js"></script>
+<script src="store.js"></script>
+<script src="lookup.js"></script>
+<script src="dashboard.js"></script>
+</body>

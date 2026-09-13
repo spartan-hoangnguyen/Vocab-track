@@ -1,0 +1,148 @@
+/* Paper-and-serif direction: the page is a reading surface, not a console.
+   Light only by deliberate choice — the warm palette is the identity, and a
+   dark variant of it would be a different design, not a flipped one. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#faf7f2; --panel:#f4efe6; --ink:#1c1a17; --ink2:#6b655c; --ink3:#938c80;
+  --rule:#e4ded3; --bar:#2a78d6; --danger:#a8362f;
+  --sage:#e7ece0; --sage-ink:#4a5d3f;
+  --clay:#f3e3dc; --clay-ink:#7a4b3a;
+  --ochre:#f7ecd7; --ochre-ink:#7d5f23;
+  --sky:#e2eaf2;  --sky-ink:#38546e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+     font:14.5px/1.6 Inter,system-ui,sans-serif;display:flex;min-height:100vh}
+
+aside{width:236px;flex:none;background:var(--panel);border-right:1px solid var(--rule);
+      padding:24px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px}
+.mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);
+      display:grid;place-items:center;font:600 15px Fraunces,Georgia,serif}
+.brand b{font:600 15px Inter;letter-spacing:-.01em}
+.navlabel{font:600 10.5px Inter;letter-spacing:.11em;text-transform:uppercase;
+          color:var(--ink3);padding:14px 10px 8px}
+nav a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
+      color:var(--ink);text-decoration:none;font-weight:500;font-size:14px}
+nav a:hover{background:#0000000a}
+nav a.on{background:var(--ink);color:var(--paper)}
+nav a i{width:15px;height:15px;border:1.6px solid currentColor;border-radius:3px;opacity:.7}
+.streak{margin-top:auto;background:var(--paper);border:1px solid var(--rule);
+        border-radius:12px;padding:14px}
+.streak .d{font:600 22px/1 Fraunces,Georgia,serif}
+.streak .l{color:var(--ink2);font-size:12px;margin-top:5px}
+.dots{display:flex;gap:5px;margin-top:11px}
+.dots span{display:block;flex:none;width:15px;height:5px;border-radius:3px;
+           background:var(--rule)}
+.dots span.on{background:var(--ink)}
+
+main{flex:1;min-width:0;padding:22px 34px 64px}
+.top{display:flex;align-items:center;gap:16px;margin-bottom:32px}
+.search{flex:1;max-width:520px;position:relative}
+.search input{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--rule);
+              border-radius:11px;background:#fff;font:400 14px Inter;color:var(--ink)}
+.search input::placeholder{color:var(--ink3)}
+.search input:focus{outline:2px solid var(--bar);outline-offset:-1px}
+.search .ic{position:absolute;left:14px;top:12px;width:13px;height:13px;
+            border:1.8px solid var(--ink3);border-radius:50%;pointer-events:none}
+.kbd{position:absolute;right:11px;top:9px;font:500 11px Inter;color:var(--ink3);
+     border:1px solid var(--rule);border-radius:6px;padding:3px 7px;background:var(--panel);
+     pointer-events:none}
+.top .sp{flex:1}
+.btn{background:var(--ink);color:var(--paper);border:0;border-radius:10px;
+     padding:11px 18px;font:500 13.5px Inter;cursor:pointer}
+.btn:hover{opacity:.88}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
+.btn.small{padding:6px 11px;font-size:12.5px;border-radius:8px}
+
+h1{font:600 30px/1.15 Fraunces,Georgia,serif;margin:0;letter-spacing:-.015em}
+.sub{color:var(--ink2);font-size:14px;margin-top:7px}
+h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2);margin:0}
+.secthead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+
+.stats{display:flex;align-items:flex-end;gap:44px;margin:26px 0 34px;padding:20px 0;
+       border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.stat.push{margin-left:auto}
+.stat .n{font:600 30px/1 Fraunces,Georgia,serif;letter-spacing:-.02em}
+.stat .l{color:var(--ink2);font-size:12.5px;margin-top:5px}
+.stat .l.tight{margin:0 0 6px}
+.bars{display:flex;align-items:flex-end;gap:6px;height:34px}
+.bars i{display:block;width:13px;background:var(--bar);border-radius:3px 3px 0 0}
+.bars u{display:block;font-size:10px;color:var(--ink3);text-decoration:none;
+        text-align:center;margin-top:4px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+.f{border-radius:16px;padding:20px 22px;border:1px solid var(--rule);position:relative;
+   min-height:150px;display:flex;flex-direction:column;cursor:pointer;text-align:left;
+   font:inherit;color:inherit}
+.f:hover{filter:brightness(.98)}
+.f .meta{font:500 11.5px Inter;letter-spacing:.05em;text-transform:uppercase;opacity:.72}
+.f h3{font:600 21px/1.2 Fraunces,Georgia,serif;margin:9px 0 5px;letter-spacing:-.01em}
+.f p{margin:0;font-size:13px;opacity:.78;line-height:1.5}
+.f .foot{margin-top:auto;padding-top:14px;font-size:12.5px;font-weight:500;opacity:.8;
+         display:flex;gap:10px;align-items:center}
+.f .badge{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:9px;
+          background:#ffffffb8;display:grid;place-items:center;font-size:15px}
+.f.sage{background:var(--sage);color:var(--sage-ink)}
+.f.clay{background:var(--clay);color:var(--clay-ink)}
+.f.ochre{background:var(--ochre);color:var(--ochre-ink)}
+.f.sky{background:var(--sky);color:var(--sky-ink)}
+.f.new{background:transparent;border:1.5px dashed var(--rule);color:var(--ink2);
+       align-items:center;justify-content:center;text-align:center}
+.f.new .plus{font:400 26px Inter;line-height:1}
+.f .edit{background:none;border:0;padding:0;font:500 12.5px Inter;color:inherit;
+         opacity:.7;cursor:pointer;text-decoration:underline}
+
+.tablewrap{margin-top:26px;border:1px solid var(--rule);border-radius:14px;
+           overflow:hidden;background:#fff}
+table{width:100%;border-collapse:collapse}
+th{font:600 11px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2);
+   text-align:left;padding:13px 18px;border-bottom:1px solid var(--rule);background:var(--panel)}
+th.r,td.r{text-align:right}
+td{padding:13px 18px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr:hover td{background:#faf7f2}
+.term{font:600 17px/1.25 Fraunces,Georgia,serif;cursor:pointer}
+.lvl{font:600 11px Inter;letter-spacing:.04em;color:var(--bar);
+     border:1px solid var(--rule);padding:2px 7px;border-radius:6px;white-space:nowrap}
+.vi{font-weight:500}
+.def{color:var(--ink2);font-size:13px;max-width:44ch}
+.tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:999px;background:var(--panel);
+     color:var(--ink2);white-space:nowrap;cursor:pointer}
+.when{color:var(--ink3);font-size:12.5px;white-space:nowrap}
+.rowdel{background:none;border:0;color:var(--ink3);cursor:pointer;font-size:15px;padding:0 4px}
+.rowdel:hover{color:var(--danger)}
+.empty{padding:34px 18px;color:var(--ink2);margin:0;text-align:center}
+.lookupcta{padding:22px 18px;text-align:center;color:var(--ink2)}
+.lookupcta b{color:var(--ink);font-weight:600}
+
+.iocards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+         gap:16px;margin-top:26px}
+.iocard{border:1px solid var(--rule);border-radius:14px;padding:22px;background:#fff}
+.iocard h3{font:600 19px Fraunces,Georgia,serif;margin:0 0 7px}
+.iocard p{margin:0 0 16px;color:var(--ink2);font-size:13.5px}
+.note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
+
+dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
+       color:var(--ink);width:min(420px,92vw);box-shadow:0 24px 60px -20px #0000004d}
+dialog::backdrop{background:#1c1a1755}
+dialog h3{font:600 21px Fraunces,Georgia,serif;margin:0 0 16px}
+dialog label{display:block;font-size:12.5px;color:var(--ink2);margin-bottom:12px}
+dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 11px;
+       border:1px solid var(--rule);border-radius:9px;background:#fff;
+       font:400 14px Inter;color:var(--ink)}
+.dlgrow{display:flex;gap:9px;justify-content:flex-end;margin-top:20px}
+
+@media (max-width:900px){
+  body{flex-direction:column}
+  aside{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;
+        align-items:center;gap:8px;padding:12px 16px}
+  .brand{padding:0 10px 0 0}
+  .navlabel,.streak{display:none}
+  nav{display:flex;gap:4px}
+  main{padding:18px 16px 48px}
+  .stats{flex-wrap:wrap;gap:26px}
+  .stat.push{margin-left:0}
+}

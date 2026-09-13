@@ -6,6 +6,17 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender) => {
+  // The dashboard runs in a tab, so sender.tab is defined there too; opening
+  // by windowId rather than tabId keeps the panel available after the user
+  // switches back to whatever they were reading.
+  if (message?.type === 'open-review') {
+    const windowId = sender.tab?.windowId;
+    if (windowId === undefined) return;
+    chrome.sidePanel.open({ windowId })
+      .catch((err) => console.error('[vocab-track] sidePanel.open failed for review', err));
+    return;
+  }
+
   if (message?.type !== 'lookup') return;
 
   // Open FIRST. sidePanel.open() consumes the user gesture forwarded with

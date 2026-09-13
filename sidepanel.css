@@ -16,3 +16,7 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 #words-list li:hover { background: #8882; }
 #words-list .w { font-weight: 600; }
 #words-list .t { color: #888; margin-left: auto; font-size: 13px; }
+
+.dashlink{margin:0 0 12px}
+#open-dashboard{background:none;border:0;padding:0;cursor:pointer;font:500 13px inherit;
+                color:#2a78d6;text-decoration:underline}

@@ -190,3 +190,7 @@ async function renderWords() {
 
 $('tab-words').addEventListener('click', renderWords);
 $('words-filter').addEventListener('input', renderWords);
+
+$('open-dashboard').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+});
