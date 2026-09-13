@@ -24,16 +24,22 @@ async function getWords() {
 // Without this, the second write clobbers the first and the word is lost.
 let writeQueue = Promise.resolve();
 
-function putWord(entry) {
+// Patches, never replaces: the caller snapshots an entry before an await
+// (a storage read, a fetch), and another queued write can land in between.
+// Overwriting the whole record with that stale snapshot would erase whatever
+// that other write just added (e.g. a `sources` URL). Object.assign onto the
+// current stored record instead, so only the fields the caller actually
+// changed are applied.
+function putWord(word, patch) {
   writeQueue = writeQueue.then(async () => {
     try {
       const words = await getWords();
-      words[entry.word] = entry;
+      words[word] = Object.assign(words[word] ?? {}, patch);
       await chrome.storage.local.set({ words });
     } catch (err) {
       // Caught here, not rethrown: a rejected link in this chain would skip
       // every later queued write's callback, silently dropping them too.
-      console.error('[vocab-track] save failed for', entry.word, err);
+      console.error('[vocab-track] save failed for', word, err);
     }
   });
   return writeQueue;
@@ -42,7 +48,13 @@ function putWord(entry) {
 async function fetchCambridge(word) {
   try {
     const res = await fetch(`${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(word)}`);
-    if (res.status === 404) return { notFound: true };
+    // Cambridge never 404s an unknown word: it 302-redirects to the
+    // dictionary index, which fetch follows, so res.ok is true and
+    // res.status is useless here. res.redirected is ALSO not a valid test —
+    // a known word like "cats" legitimately 302s to a real entry
+    // (.../dictionary/english/cat). The only reliable signal is where the
+    // redirect actually landed: only the bare index path means not-found.
+    if (new URL(res.url).pathname === '/dictionary/english/') return { notFound: true };
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return VT.parseCambridge(await res.text());
   } catch (err) {
@@ -69,9 +81,15 @@ async function fetchVietnamese(word) {
   }
 }
 
+// Captured once, before renderNotFound can ever overwrite it, so the empty
+// state can be restored to its original instruction rather than getting
+// stuck on a stale not-found message.
+const LOOKUP_EMPTY_DEFAULT = $('lookup-empty').textContent;
+
 function renderEntry(entry) {
   showView('lookup');
   $('lookup-empty').hidden = true;
+  $('lookup-empty').textContent = LOOKUP_EMPTY_DEFAULT;
   $('entry').hidden = false;
   $('entry-word').textContent = entry.word;
   $('entry-level').textContent = entry.level ?? DASH;
@@ -107,6 +125,14 @@ function speak(word) {
 
 async function lookup(pending) {
   if (!pending) return;
+  // Consumed: clear it now, in lookup() itself rather than in a caller, so
+  // BOTH callers below (the load-time get() and the onChanged listener)
+  // clear it. Otherwise a second lookup while the panel is already open
+  // (which only the onChanged path sees) would leave `pending` behind for a
+  // later toolbar-only open to replay. Clearing fires onChanged again with
+  // no newValue, which re-enters here and returns immediately above — no
+  // loop.
+  chrome.storage.session.remove('pending');
   const word = VT.normaliseWord(pending.word);
   const words = await getWords();
 
@@ -116,7 +142,7 @@ async function lookup(pending) {
   if (known) {
     if (!known.sources.includes(pending.url)) {
       known.sources.push(pending.url);
-      await putWord(known);
+      await putWord(word, { sources: known.sources });
     }
     renderEntry(known);
     return;
@@ -129,11 +155,28 @@ async function lookup(pending) {
   }
 
   const entry = VT.newEntry(word, parsed, vi, pending.url);
-  await putWord(entry);
+  await putWord(word, entry);
   renderEntry(entry);
 }
 
-chrome.storage.session.get('pending', ({ pending }) => lookup(pending));
+// Single read of `pending` on load. Present: the panel was opened by a
+// lookup (button click) that reached storage before this script started, so
+// run it (lookup() itself clears the key once consumed, so a later
+// toolbar-only open — which writes nothing new — lands on Review instead of
+// replaying this word). Absent: opened from the toolbar icon with no lookup
+// pending, land on Review directly.
+chrome.storage.session.get('pending', ({ pending }) => {
+  if (pending) {
+    lookup(pending);
+  } else {
+    showView('review');
+    startReview();
+  }
+});
+// Every lookup after the panel is already open arrives here instead: a
+// storage write while the panel is open does not re-run this script, so this
+// is the second, ongoing handoff path (the load-time read above only covers
+// the first one).
 chrome.storage.session.onChanged.addListener((changes) => {
   if (changes.pending) lookup(changes.pending.newValue);
 });
@@ -196,8 +239,9 @@ async function grade_(quality) {
   grading = true;
   try {
     const entry = queue.shift();
-    Object.assign(entry, VT.sm2(entry, quality));
-    await putWord(entry);
+    const patch = VT.sm2(entry, quality);
+    Object.assign(entry, patch);
+    await putWord(entry.word, patch);
     // A lapse is re-queued at the back, so it is seen again this session.
     if (quality < 3) queue.push(entry);
     nextCard();
@@ -208,14 +252,6 @@ async function grade_(quality) {
 
 buildGradeButtons();
 $('tab-review').addEventListener('click', startReview);
-
-// Opened from the toolbar with no pending lookup: go straight to review.
-chrome.storage.session.get('pending', ({ pending }) => {
-  if (!pending) {
-    showView('review');
-    startReview();
-  }
-});
 
 async function renderWords() {
   // Ruling F3: switch the view here, first, so both the tab click and the
