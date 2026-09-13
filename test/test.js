@@ -209,6 +209,31 @@ async function parserTests() {
   eq('long context is capped', long.length, VT.MAX_CONTEXT);
   check('capped context is marked with an ellipsis', long.endsWith('…'));
 
+  // --- sourceLink: jump back to the exact spot on the page
+  // Deliberately more than FRAGMENT_WORDS on each side, so the window test bites.
+  const CTX = 'Against every forecast the global supply chains proved unusually resilient through the long winter, despite three separate shocks hitting at once.';
+  const link = VT.sourceLink('https://example.com/a', CTX, 'resilient');
+  check('builds a text fragment', link.includes('#:~:text='));
+  check('fragment contains the word', decodeURIComponent(link).includes('resilient'));
+  check('fragment is a window, not the whole sentence',
+        !decodeURIComponent(link).includes('Against every forecast'));
+  check('window keeps the words nearest the match',
+        decodeURIComponent(link).includes('proved unusually resilient through'));
+  eq('fragment window size',
+     decodeURIComponent(link.split('#:~:text=')[1]).split(' ').length, VT.FRAGMENT_WORDS * 2 + 1);
+  eq('no url means no link', VT.sourceLink(null, CTX, 'x'), null);
+  eq('no context falls back to the plain url',
+     VT.sourceLink('https://example.com/a', null, 'x'), 'https://example.com/a');
+  eq('word absent from context falls back to the plain url',
+     VT.sourceLink('https://example.com/a', CTX, 'banana'), 'https://example.com/a');
+  // A truncated context ends in an ellipsis that does not exist on the page.
+  check('ellipsis is never part of the fragment',
+        !decodeURIComponent(VT.sourceLink('https://e.com', 'a b resilient c d…', 'resilient'))
+          .includes('…'));
+  // The saved URL may already carry a fragment; two would be invalid.
+  check('existing fragment is replaced, not appended',
+        VT.sourceLink('https://e.com/p#section', CTX, 'resilient').split('#').length === 2);
+
   // --- source guard: the Cambridge fetch must not send cookies
   // Not a behaviour test (the fetch needs Chrome), but this option is a
   // one-word deletion away from a silent 403 on every lookup, so it is worth

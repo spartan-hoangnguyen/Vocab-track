@@ -9,6 +9,7 @@ const VT = {
   MAX_SENSES: 3,
   MAX_XREF: 6,
   MAX_CONTEXT: 220,
+  FRAGMENT_WORDS: 4,
 
   normaliseWord(raw) {
     return String(raw ?? '').trim().toLowerCase();
@@ -170,6 +171,39 @@ const VT = {
       auto: false,
       added: Date.now()
     };
+  },
+
+  // A link back to the exact place the word was read, using Chrome's native
+  // scroll-to-text-fragment (`#:~:text=`). The page needs no cooperation and
+  // nothing extra is stored — the saved sentence is the anchor.
+  //
+  // A short window around the word rather than the whole sentence: the browser
+  // must match the page's rendered text exactly, and the longer the snippet
+  // the more likely some markup inside it (a link, an emphasis span) makes the
+  // match fail. Roughly four words either side is distinctive enough to land
+  // on the right occurrence without being brittle.
+  sourceLink(url, context, word) {
+    if (!url) return null;
+    if (!context) return url;
+    // A truncated context ends in an ellipsis that is not on the page.
+    const clean = context.replace(/…$/, '').trim();
+    const re = VT.wordRegex(word);
+    re.lastIndex = 0;
+    const match = re.exec(clean);
+    if (!match) return url;
+
+    const before = clean.slice(0, match.index).split(' ').filter(Boolean);
+    const after = clean.slice(match.index + match[0].length).split(' ').filter(Boolean);
+    const snippet = [
+      ...before.slice(-VT.FRAGMENT_WORDS),
+      match[0],
+      ...after.slice(0, VT.FRAGMENT_WORDS)
+    ].join(' ').trim();
+    if (!snippet) return url;
+
+    // Strip any fragment the saved URL already had: two #s would be invalid.
+    const base = url.split('#')[0];
+    return `${base}#:~:text=${encodeURIComponent(snippet)}`;
   },
 
   // Median CEFR level across entries that have one. Reported instead of a

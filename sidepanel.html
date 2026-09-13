@@ -3,56 +3,36 @@
 <title>Vocab-track</title>
 <link rel="stylesheet" href="sidepanel.css">
 <body>
-  <nav>
-    <button id="tab-lookup" class="active">Lookup</button>
-    <button id="tab-words">Words</button>
-    <button id="tab-review">Review</button>
-  </nav>
   <p class="dashlink"><button id="open-dashboard">Open dashboard →</button></p>
 
-  <section id="view-lookup">
-    <p id="lookup-empty">Select a word on any page and click the button that appears.</p>
-    <article id="entry" hidden>
-      <h1 id="entry-word"></h1>
-      <p class="meta">
-        <span id="entry-level" class="level"></span>
-        <span id="entry-pos"></span>
-        <span id="entry-gram"></span>
-      </p>
-      <div class="prons" id="entry-prons"></div>
-      <p id="entry-vi" class="vi"></p>
-      <section class="block" id="entry-context-block" hidden>
-        <h2>Seen in</h2>
-        <blockquote id="entry-context"></blockquote>
-      </section>
-      <section class="block">
-        <h2 id="entry-senses-title">Meaning</h2>
-        <ol id="entry-senses"></ol>
-      </section>
-      <div id="entry-groups"></div>
-      <p id="entry-warn" class="warn" hidden></p>
-    </article>
-  </section>
+  <p id="lookup-empty">Select a word on any page and click the button that appears.</p>
 
-  <section id="view-words" hidden>
-    <input id="words-filter" type="search" placeholder="Filter…" autocomplete="off">
-    <p id="words-empty" hidden>No words saved yet.</p>
-    <ul id="words-list"></ul>
-  </section>
+  <article id="entry" hidden>
+    <h1 id="entry-word"></h1>
+    <p class="meta">
+      <span id="entry-level" class="level"></span>
+      <span id="entry-pos"></span>
+      <span id="entry-gram"></span>
+    </p>
+    <div class="prons" id="entry-prons"></div>
+    <p id="entry-vi" class="vi"></p>
 
-  <section id="view-review" hidden>
-    <p id="review-empty">Nothing due. Come back later.</p>
-    <article id="card" hidden>
-      <h1 id="card-word"></h1>
-      <button id="card-reveal">Show answer</button>
-      <div id="card-answer" hidden>
-        <p id="card-vi" class="vi"></p>
-        <p id="card-def"></p>
-        <div id="grades"></div>
-      </div>
-    </article>
-    <p id="review-count"></p>
-  </section>
+    <section class="block" id="entry-context-block" hidden>
+      <h2>Seen in</h2>
+      <blockquote id="entry-context"></blockquote>
+    </section>
+
+    <p class="links" id="entry-links"></p>
+
+    <section class="block">
+      <h2 id="entry-senses-title">Meaning</h2>
+      <ol id="entry-senses"></ol>
+    </section>
+
+    <div id="entry-groups"></div>
+
+    <p id="entry-warn" class="warn" hidden></p>
+  </article>
 
   <script src="lib.js"></script>
   <script src="store.js"></script>

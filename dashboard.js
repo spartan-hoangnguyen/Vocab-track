@@ -282,11 +282,13 @@ function wordCard(entry) {
   const source = entry.sources?.[entry.sources.length - 1];
   const host = source ? hostOf(source) : null;
   if (host) {
-    const link = el('a', 'wc-link', host);
-    link.href = source;
+    const link = el('a', 'wc-link', `↩ ${host}`);
+    // A text fragment, so this lands on the sentence rather than the top of a
+    // long article. Falls back to the plain URL when there is no context.
+    link.href = VT.sourceLink(source, entry.context, entry.word);
     link.target = '_blank';
     link.rel = 'noreferrer';
-    link.title = `Open the page you saved this from\n${source}`;
+    link.title = `Jump back to where you read it\n${source}`;
     foot.appendChild(link);
   }
 

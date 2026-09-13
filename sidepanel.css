@@ -16,15 +16,6 @@ body{margin:0;padding:14px 14px 22px;background:var(--paper);color:var(--ink);
      font:14px/1.55 system-ui,-apple-system,sans-serif}
 
 /* Segmented control rather than three loose buttons. */
-nav{display:flex;gap:2px;background:var(--panel);border:1px solid var(--rule);
-    border-radius:11px;padding:3px;margin-bottom:12px}
-nav button{flex:1;padding:7px 4px;border:0;border-radius:8px;background:transparent;
-           color:var(--ink2);font-weight:500;font-size:13px;cursor:pointer;
-           transition:background .12s ease,color .12s ease}
-nav button:hover{color:var(--ink)}
-nav button.active{background:var(--card);color:var(--ink);font-weight:600;
-                  box-shadow:0 1px 2px #0000001f}
-
 .dashlink{margin:0 0 16px}
 #open-dashboard{width:100%;padding:9px;border:1px solid var(--rule);border-radius:10px;
                 background:transparent;color:var(--ink2);font-weight:500;font-size:12.5px;
@@ -72,7 +63,6 @@ blockquote mark{background:transparent;color:var(--ink);font-weight:600}
       color:var(--ink2);border:1px solid var(--rule)}
 
 .vi{font-size:17px;font-weight:600;margin:0 0 10px}
-#entry-def{color:var(--ink2);font-size:13.5px;margin:0;line-height:1.6}
 #lookup-empty{color:var(--ink2);font-size:13.5px;line-height:1.6}
 
 /* Shown when a lookup came back without dictionary data, so four em dashes are
@@ -81,26 +71,8 @@ blockquote mark{background:transparent;color:var(--ink);font-weight:600}
       background:var(--panel);color:var(--ink2);font-size:12.5px;line-height:1.5}
 .warn b{color:var(--ink);font-weight:600}
 
-#words-filter{width:100%;padding:8px 11px;margin-bottom:10px;border:1px solid var(--rule);
-              border-radius:9px;background:var(--card);color:var(--ink);font-weight:400;font-size:13px}
-#words-list{list-style:none;margin:0;padding:0}
-#words-list li{display:flex;align-items:baseline;gap:9px;padding:9px 4px;
-               border-bottom:1px solid var(--rule);cursor:pointer;border-radius:6px}
-#words-list li:hover{background:var(--panel)}
-#words-list .w{font-weight:600}
-#words-list .t{color:var(--ink2);margin-left:auto;font-size:12.5px;text-align:right}
-#words-empty{color:var(--ink2);font-size:13px}
 
-#card{text-align:center;padding:18px 0}
-#card-word{font:600 27px/1.2 system-ui,sans-serif;margin:0 0 18px;letter-spacing:-.02em}
-#card-reveal{padding:9px 18px;border:1px solid var(--rule);border-radius:10px;
-             background:var(--card);color:var(--ink);font-weight:500;font-size:13px;cursor:pointer}
-#card-reveal:hover{background:var(--panel)}
-#card-vi{font-size:17px;font-weight:600;margin:4px 0 8px}
-#card-def{color:var(--ink2);font-size:13px;margin:0}
-#grades{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:18px}
-#grades button{padding:9px 6px;border:1px solid var(--rule);border-radius:9px;
-               background:var(--card);color:var(--ink);font-weight:500;font-size:12.5px;cursor:pointer}
-#grades button:hover{background:var(--panel)}
-#review-count,#review-empty{color:var(--ink2);font-size:12.5px}
-#review-count{margin-top:14px;text-align:center}
+.links{display:flex;gap:14px;margin:0 0 18px;flex-wrap:wrap}
+.links a{color:var(--ink2);font-size:12.5px;text-decoration:none;
+         border-bottom:1px solid var(--rule);padding-bottom:1px}
+.links a:hover{color:var(--ink);border-bottom-color:var(--ink3)}
