@@ -60,3 +60,70 @@ document.addEventListener('mouseup', (event) => {
 document.addEventListener('mousedown', (event) => {
   if (!button?.contains(event.target)) removeButton();
 });
+
+const HIGHLIGHT_NAME = 'vocab-track';
+
+function highlightStyle() {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(`::highlight(${HIGHLIGHT_NAME}) {
+    background: rgba(255, 214, 0, .45);
+    text-decoration: underline dotted currentColor;
+  }`);
+  // adoptedStyleSheets rather than a <style> element, so the page's DOM is
+  // never modified.
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+}
+
+function rangesFor(words) {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const tag = node.parentElement?.tagName;
+      // Never highlight inside code, script or editable fields.
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'CODE' || tag === 'PRE' ||
+          tag === 'TEXTAREA' || node.parentElement?.isContentEditable) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  const regexes = words.map((word) => VT.wordRegex(word));
+  const ranges = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    for (const regex of regexes) {
+      regex.lastIndex = 0;
+      let match;
+      while ((match = regex.exec(node.nodeValue))) {
+        const range = document.createRange();
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        ranges.push(range);
+      }
+    }
+  }
+  return ranges;
+}
+
+async function applyHighlights() {
+  const { words } = await chrome.storage.local.get('words');
+  if (!words) return;
+
+  // Per-URL: only words that were looked up on this exact page.
+  const here = Object.values(words)
+    .filter((entry) => entry.sources.includes(location.href))
+    .map((entry) => entry.word);
+  if (!here.length) return;
+
+  const ranges = rangesFor(here);
+  if (!ranges.length) return;
+
+  highlightStyle();
+  // ponytail: highlights are painted once, at document_idle. Content added
+  // later by infinite scroll is not covered. Upgrade path is a debounced
+  // MutationObserver calling applyHighlights again.
+  CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...ranges));
+}
+
+applyHighlights();
