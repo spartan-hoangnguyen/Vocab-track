@@ -9,3 +9,10 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 .vi { font-size: 16px; font-weight: 600; }
 #grades { display: flex; gap: 4px; margin-top: 12px; }
 #grades button { flex: 1; padding: 6px; cursor: pointer; }
+#words-filter { width: 100%; padding: 6px; margin-bottom: 8px; box-sizing: border-box; }
+#words-list { list-style: none; margin: 0; padding: 0; }
+#words-list li { display: flex; align-items: baseline; gap: 8px; padding: 6px 4px;
+                 border-bottom: 1px solid #8883; cursor: pointer; }
+#words-list li:hover { background: #8882; }
+#words-list .w { font-weight: 600; }
+#words-list .t { color: #888; margin-left: auto; font-size: 13px; }

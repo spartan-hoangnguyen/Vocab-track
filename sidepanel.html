@@ -5,6 +5,7 @@
 <body>
   <nav>
     <button id="tab-lookup" class="active">Lookup</button>
+    <button id="tab-words">Words</button>
     <button id="tab-review">Review</button>
   </nav>
 
@@ -20,6 +21,12 @@
       <p id="entry-vi" class="vi"></p>
       <p id="entry-def"></p>
     </article>
+  </section>
+
+  <section id="view-words" hidden>
+    <input id="words-filter" type="search" placeholder="Filter…" autocomplete="off">
+    <p id="words-empty" hidden>No words saved yet.</p>
+    <ul id="words-list"></ul>
   </section>
 
   <section id="view-review" hidden>

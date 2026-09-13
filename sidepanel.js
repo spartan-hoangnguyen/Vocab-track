@@ -1,10 +1,12 @@
 const $ = (id) => document.getElementById(id);
 
+const VIEWS = ['lookup', 'words', 'review'];
+
 function showView(name) {
-  $('view-lookup').hidden = name !== 'lookup';
-  $('view-review').hidden = name !== 'review';
-  $('tab-lookup').classList.toggle('active', name === 'lookup');
-  $('tab-review').classList.toggle('active', name === 'review');
+  for (const view of VIEWS) {
+    $(`view-${view}`).hidden = view !== name;
+    $(`tab-${view}`).classList.toggle('active', view === name);
+  }
 }
 
 $('tab-lookup').addEventListener('click', () => showView('lookup'));
@@ -214,3 +216,42 @@ chrome.storage.session.get('pending', ({ pending }) => {
     startReview();
   }
 });
+
+async function renderWords() {
+  // Ruling F3: switch the view here, first, so both the tab click and the
+  // filter's input handler (which also calls renderWords) keep it visible.
+  showView('words');
+  const words = await getWords();
+  // Most recently added first: the list is for reviewing what you just read.
+  const all = Object.values(words).sort((a, b) => b.added - a.added);
+  const term = $('words-filter').value.trim().toLowerCase();
+  const shown = term
+    ? all.filter((e) => e.word.includes(term) || (e.vi ?? '').toLowerCase().includes(term))
+    : all;
+
+  $('words-empty').hidden = shown.length > 0;
+  $('words-empty').textContent = all.length ? 'No match.' : 'No words saved yet.';
+
+  const list = $('words-list');
+  list.replaceChildren();
+  for (const entry of shown) {
+    const li = document.createElement('li');
+    const word = document.createElement('span');
+    word.className = 'w';
+    word.textContent = entry.word;
+    const level = document.createElement('span');
+    level.className = 'level';
+    level.textContent = entry.level ?? DASH;
+    const vi = document.createElement('span');
+    vi.className = 't';
+    vi.textContent = entry.vi ?? DASH;
+    li.append(word, level, vi);
+    // textContent throughout, never innerHTML: definitions come from a third
+    // party and must never be parsed as markup.
+    li.addEventListener('click', () => renderEntry(entry));
+    list.appendChild(li);
+  }
+}
+
+$('tab-words').addEventListener('click', renderWords);
+$('words-filter').addEventListener('input', renderWords);
