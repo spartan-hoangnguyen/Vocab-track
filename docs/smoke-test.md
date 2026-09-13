@@ -139,6 +139,34 @@ Open it from **Open dashboard →** in the side panel.
     same video: the *On this page* tab must list both, and clicking each must
     seek the player to its own moment without changing whether it is playing.
 
+21. **The shortcut is actually bound.** Open `chrome://extensions/shortcuts` and
+    confirm Vocab-track has one — on macOS `Alt+Shift+R` is Option+Shift+R, and
+    if another extension already claims it Chrome assigns nothing and says
+    nothing.
+
+22. **Speed read an article.** On a long news article with nothing selected, the
+    reader must start at the first paragraph of the body — not a nav link, a
+    cookie banner, or the comments. Then select two paragraphs and press it
+    again: it must read only those.
+
+23. **Controls.** `space` pauses and resumes, `←` steps back a word, `↑`/`↓`
+    change the speed and the number on screen follows. Close and reopen: the
+    speed must be remembered.
+
+24. **The page behind must not react.** While the reader is open, `space` must
+    not scroll the article or play a video, and the arrows must not scroll it.
+    Try this on a YouTube watch page, which listens for exactly those keys.
+    Then try it on a video **in fullscreen** — the reader must still paint above
+    it.
+
+25. **Escape lands you where you stopped.** Close mid-article: the page should
+    be scrolled to the paragraph that was on screen. Also confirm
+    double-clicking the flashed word does **not** pop the 📘 lookup button.
+
+26. **A hostile page.** Run it somewhere with aggressive CSS — GitHub, a news
+    site with a sticky header — and confirm the reader's own type, colours and
+    layout are untouched, and that it covers the page completely.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

@@ -310,6 +310,54 @@ async function parserTests() {
   check('a video url never gets a text fragment',
         !VT.sourceLink(WATCH, 'the chains proved resilient', 'resilient').includes('#:~:text='));
 
+  // --- tokenise
+  eq('splits on whitespace', VT.tokenise('a b c').length, 3);
+  eq('collapses runs of whitespace', VT.tokenise('a   b\n\n c').length, 3);
+  eq('punctuation stays with its word', VT.tokenise('the winter.')[1], 'winter.');
+  eq('a non-breaking space splits', VT.tokenise('a b').length, 2);
+  eq('leading whitespace makes no empty token', VT.tokenise('   a')[0], 'a');
+  eq('empty text tokenises to nothing', VT.tokenise('').length, 0);
+  eq('null tokenises to nothing', VT.tokenise(null).length, 0);
+
+  // --- pivotOf: the table every RSVP reader uses
+  eq('pivot of a 1-letter word', VT.pivotOf('a'), 0);
+  eq('pivot at the 2 boundary', VT.pivotOf('in'), 1);
+  eq('pivot at the 5 boundary', VT.pivotOf('tree.'.slice(0, 5)), 1);
+  eq('pivot at 5 letters', VT.pivotOf('trees'), 1);
+  eq('pivot at the 6 boundary', VT.pivotOf('winter'), 2);
+  eq('pivot at the 9 boundary', VT.pivotOf('resilient'), 2);
+  eq('pivot at the 10 boundary', VT.pivotOf('resilience'), 3);
+  eq('pivot at the 13 boundary', VT.pivotOf('extraordinary'), 3);
+  eq('pivot at the 14 boundary', VT.pivotOf('extraordinarily'.slice(0, 14)), 4);
+  eq('pivot never past 4', VT.pivotOf('antidisestablishmentarianism'), 4);
+  // A leading quote must not steal the focus letter.
+  eq('leading punctuation is skipped', VT.pivotOf('"The'), 2);
+  eq('and the word underneath still decides', VT.pivotOf('"resilient"'), 3);
+  // Trailing punctuation is not part of the word for sizing purposes.
+  eq('trailing punctuation does not lengthen', VT.pivotOf('winter.'), VT.pivotOf('winter'));
+  // An all-punctuation token must not index past its own end.
+  eq('an em dash has a valid pivot', VT.pivotOf('—'), 0);
+  eq('empty token has a valid pivot', VT.pivotOf(''), 0);
+  check('pivot is always inside the token', ['a', 'in', '—', '"The', 'x.'].every(
+    (t) => VT.pivotOf(t) >= 0 && (t.length === 0 || VT.pivotOf(t) < t.length)));
+
+  // --- holdFor
+  const BASE = 200;   // 300 wpm
+  eq('a plain word holds the base', VT.holdFor('winter', BASE, false), 200);
+  eq('a long word holds longer', VT.holdFor('resilience', BASE, false), 260);
+  eq('a comma holds half again', VT.holdFor('winter,', BASE, false), 300);
+  eq('a full stop holds double', VT.holdFor('winter.', BASE, false), 400);
+  // The closing-quote class is the point: `said,"` and `(above).` are prose.
+  eq('a full stop behind a bracket still counts',
+     VT.holdFor('(above).', BASE, false), VT.holdFor('above.', BASE, false));
+  eq('a comma behind a quote still counts', VT.holdFor('said,"', BASE, false), 300);
+  eq('a curly close-quote counts too', VT.holdFor('said.”', BASE, false), 400);
+  // else-if, not two ifs: a token cannot end in both.
+  eq('long word and full stop compound', VT.holdFor('resilience.', BASE, false), 520);
+  eq('a paragraph break holds longest', VT.holdFor('winter', BASE, true), 500);
+  eq('a question mark is a sentence end', VT.holdFor('why?', BASE, false), 400);
+  eq('a mid-word hyphen is not punctuation', VT.holdFor('well-known', BASE, false), 260);
+
   // --- source guard: the Cambridge fetch must not send cookies
   // Not a behaviour test (the fetch needs Chrome), but this option is a
   // one-word deletion away from a silent 403 on every lookup, so it is worth

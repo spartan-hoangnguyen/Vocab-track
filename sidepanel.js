@@ -324,6 +324,11 @@ async function jumpTo(entry, li, key) {
   li.classList.toggle('missing', !asked?.reply?.found);
 }
 
+// Focus stays in the panel after this, so the first space goes nowhere until
+// the reader is clicked once. The keyboard shortcut has no such problem; this
+// button exists so the feature is findable at all.
+$('speed-read').addEventListener('click', () => askPage({ type: 'speed-read' }));
+
 // The panel outlives the tab it was opened over, so the list must follow the
 // user rather than freeze on whichever page it was first opened above.
 chrome.tabs.onActivated.addListener(() => {

@@ -243,6 +243,60 @@ const VT = {
     return str.slice(start, end).replace(/^['\u2019-]+|['\u2019-]+$/g, '') || null;
   },
 
+  // --- speed reading (RSVP) ---------------------------------------------
+  //
+  // Everything the reader needs that is not DOM: splitting prose into the
+  // tokens it flashes, finding each token's focal letter, and deciding how
+  // long to hold it. reader.js owns the page and the overlay; this owns the
+  // arithmetic, so test/test.js can pin it.
+
+  // Whitespace split, nothing else. Punctuation stays attached to its word:
+  // the reader shows "winter." as one flash, and holdFor reads that full stop
+  // to decide the pause. \s covers the non-breaking space prose is full of.
+  tokenise(text) {
+    return String(text ?? '').match(/\S+/g) ?? [];
+  },
+
+  // The Optimal Recognition Point: the letter the eye should land on, which is
+  // slightly left of centre and moves further left as the word grows. This is
+  // the whole reason RSVP works — the pivot is pinned to one spot on screen so
+  // the eye never travels.
+  //
+  //   length 1 -> 0,  2-5 -> 1,  6-9 -> 2,  10-13 -> 3,  14+ -> 4
+  //
+  // which is Math.min(4, (n + 2) >> 2). Measured from the first LETTER, not
+  // the first character: `"The` would otherwise put the focus on the quote
+  // mark. Clamped, so an all-punctuation token ("—") cannot index past its end.
+  pivotOf(token) {
+    const str = String(token ?? '');
+    const lead = /^[^\p{L}\p{N}]*/u.exec(str)[0].length;
+    const core = str.slice(lead).replace(/[^\p{L}\p{N}]+$/u, '').length;
+    if (!core) return 0;
+    return Math.min(str.length - 1, lead + (core < 2 ? 0 : Math.min(4, (core + 2) >> 2)));
+  },
+
+  // Milliseconds to hold one token. A flat 60000/wpm reads like a metronome
+  // and loses every sentence boundary; these are the pauses a real reader
+  // takes anyway.
+  //
+  // The punctuation classes must look past a closing quote or bracket —
+  // `(see above).` and `he said,"` are ordinary prose, not edge cases — and
+  // they are else-if because a token cannot end in both.
+  //
+  // A long word AND a full stop compound to 2.6x. That is deliberate: the
+  // longest words are where a reader most needs the extra beat.
+  holdFor(token, baseMs, endsBlock) {
+    const str = String(token ?? '');
+    let ms = baseMs;
+    if (str.length > 8) ms *= 1.3;
+    if (/[.!?]['"’”)\]]*$/.test(str)) ms *= 2;
+    else if (/[,;:]['"’”)\]]*$/.test(str)) ms *= 1.5;
+    // The paragraph break is the biggest comprehension aid after being able to
+    // step backwards: it is where you catch up on what you just read.
+    if (endsBlock) ms *= 2.5;
+    return Math.round(ms);
+  },
+
   // A link back to the exact place the word was read, using Chrome's native
   // scroll-to-text-fragment (`#:~:text=`). The page needs no cooperation and
   // nothing extra is stored — the saved sentence is the anchor.

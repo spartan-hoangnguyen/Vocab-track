@@ -23,8 +23,16 @@ PROBE=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
         --window-size=1200,800 --dump-dom "http://localhost:$PORT/test/yt-probe.html" 2>/dev/null \
         | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# Layout again, and at two widths: the reader probe renders reader.js's own CSS
+# and markup in an iframe and measures where the focal letter actually lands.
+READER=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
+         --window-size=1200,900 --dump-dom "http://localhost:$PORT/test/reader-probe.html" 2>/dev/null \
+         | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
 echo "$PROBE"
+echo "$READER"
 echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
-echo "$PROBE" | grep -qE '^0 failure\(s\)' || exit 1
+echo "$PROBE"  | grep -qE '^0 failure\(s\)' || exit 1
+echo "$READER" | grep -qE '^0 failure\(s\)' || exit 1
 exit 0

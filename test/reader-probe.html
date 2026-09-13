@@ -1,0 +1,211 @@
+<!doctype html><meta charset="utf-8"><title>reader probe</title>
+<style>
+  /* Deliberately hostile, the way a real page is. */
+  html { direction: rtl }
+  .more-stories a { display: block }
+</style>
+
+<!-- ---- the fixture: an article buried in page furniture ---- -->
+<header><nav>
+  <p>Home</p><p>About us</p><p>Subscribe to the newsletter today</p>
+</nav></header>
+
+<div id="shell">
+  <div id="rail"><aside>
+    <p>Sponsored content you might enjoy reading later on in your day</p>
+  </aside></div>
+
+  <div id="main-wrap"><div class="post-body">
+    <h1>The long winter</h1>
+    <!-- Per-paragraph wrapper divs, the way Medium and Substack emit them:
+         direct-children-only scoring gives each wrapper exactly one
+         paragraph and then picks one at random. -->
+    <div class="para-wrap"><p>Against every forecast the global supply chains proved
+      unusually resilient through the long winter, despite three separate shocks
+      arriving within a single quarter of one another.</p></div>
+    <div class="para-wrap"><p>Economists had expected a collapse. Instead inventories
+      held and freight rates normalised within eleven weeks of the first
+      disruption, which surprised almost everybody who had modelled it.</p></div>
+    <div class="para-wrap"><p>What followed was less a recovery than a quiet
+      reorganisation of how goods move around the world, and it is still
+      going on today.</p></div>
+    <p class="mobile-dup" style="visibility:hidden">A hidden duplicate of the headline
+      kept around for the mobile layout and never shown to anybody.</p>
+    <p class="faded" style="opacity:0">A faded-out teaser paragraph that is present
+      in the DOM but invisible to every reader on the page.</p>
+    <ul class="more-stories">
+      <li><a href="#">Why freight rates fell again</a></li>
+      <li><a href="#">The quarter that broke the models</a></li>
+      <li><a href="#">Eleven weeks in the Port of Rotterdam</a></li>
+    </ul>
+    <pre><code>const shipping = require('./shipping'); // never read aloud</code></pre>
+  </div></div>
+
+  <!-- No junk-ish class or id, so the junk filter cannot help here: only the
+       parent/grandparent scoring keeps this out of the article. A scorer that
+       credits every ancestor makes <body> the winner and swallows it. -->
+  <div id="appendix"><div class="notes">
+    <p>An appendix of methodological notes appended to the end of the page, written
+      in exactly the same prose register as the article itself and deliberately
+      carrying no class name that any heuristic could object to.</p>
+    <p>It continues for a second paragraph of similar length, because a single
+      short one would not weigh enough to change which container wins the score.</p>
+    <p>And a third, so that the appendix is comfortably longer than the article
+      body it follows and would dominate any monotonic scoring rule.</p>
+  </div></div>
+
+  <!-- Longer than the article, and prose. This is what beats a naive scorer. -->
+  <div id="comments" class="comment-list">
+    <p>I disagree with the premise entirely and here is my extremely long rebuttal,
+      which goes on at considerable length about matters of freight policy.</p>
+    <p>Another verbose comment thread reply that adds very little but takes up a
+      great deal of room on the page, as comment threads reliably do.</p>
+    <p>A third comment, longer again, because the comments always outweigh the
+      article on a post that anybody actually read and cared about.</p>
+    <p>And a fourth for good measure, padding the comment section well past the
+      length of the article body it is attached to.</p>
+  </div>
+</div>
+
+<footer><p>Copyright 2026, all rights reserved worldwide</p></footer>
+
+<pre id="out">running…</pre>
+
+<script>
+  // reader.js registers a message listener and reads a stored WPM at open.
+  // Neither happens here; the stub only has to let the file load.
+  window.chrome = {
+    runtime: { onMessage: { addListener() {} } },
+    storage: { local: { get: async () => ({}), set: async () => {} } }
+  };
+</script>
+<script src="../lib.js"></script>
+<script src="../reader.js"></script>
+<script>
+let failures = 0;
+const log = [];
+const check = (name, cond, detail) => {
+  if (cond) log.push('PASS  ' + name);
+  else { failures++; log.push('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
+};
+const eq = (name, actual, expected) =>
+  check(name, actual === expected, `got ${JSON.stringify(actual)}, want ${JSON.stringify(expected)}`);
+
+/* ---- extraction ---- */
+
+const blocks = rsvpRoot();
+const text = blocks.map((b) => b.innerText).join(' ');
+const name = (el) => el.tagName +
+  (el.id ? '#' + el.id : '') + (el.className ? '.' + el.className : '');
+
+// The whole point: a monotonic scorer returns BODY, and a scorer with no junk
+// filter returns the comment thread, which here is longer than the article.
+check('does not degenerate to the whole page',
+      !blocks.some((b) => b.closest('#comments')) && blocks.length > 0,
+      'root blocks: ' + blocks.map(name).join(', '));
+check('finds the article paragraphs', /every forecast/.test(text) &&
+      /Economists had expected/.test(text) && /less a recovery/.test(text));
+check('keeps the headline', /The long winter/.test(text));
+check('comment thread excluded', !/rebuttal|verbose comment/.test(text));
+check('nav excluded', !/Subscribe to the newsletter/.test(text));
+check('footer excluded', !/all rights reserved/.test(text));
+check('aside excluded', !/Sponsored content/.test(text));
+check('code excluded', !/require\(/.test(text));
+check('visibility:hidden excluded', !/hidden duplicate/.test(text));
+check('opacity:0 excluded', !/faded-out teaser/.test(text));
+check('link-dense list excluded', !/Port of Rotterdam/.test(text));
+// The junk filter cannot catch this one — only parent+grandparent scoring can.
+check('an unnamed prose block outside the article is excluded',
+      !/methodological notes|second paragraph of similar length/.test(text),
+      'root blocks: ' + blocks.map(name).join(', '));
+// Per-paragraph wrappers must not split the article into one-paragraph roots.
+eq('all three body paragraphs came from one root',
+   blocks.filter((b) => b.tagName === 'P').length, 3);
+
+/* ---- tokens, marks and paragraph ends ---- */
+
+const read = rsvpRead(null);
+check('produced tokens', read.tokens.length > 40, String(read.tokens.length));
+eq('one mark per block', read.marks.length, blocks.length);
+eq('first mark is the first token', read.marks[0].i, 0);
+eq('last paragraph end is the last token',
+   Math.max(...read.ends), read.tokens.length - 1);
+check('a paragraph end holds longer than a plain word',
+      VT.holdFor('winter', 200, true) > VT.holdFor('winter', 200, false));
+// Selection mode short-circuits everything above.
+const sel = rsvpRead('just these words here');
+eq('a selection is read verbatim', sel.tokens.length, 4);
+eq('a selection has no blocks to scroll back to', sel.marks.length, 0);
+
+/* ---- the ORP layout, using the reader's own CSS and markup ---- */
+
+const frame = document.createElement('iframe');
+frame.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;height:400px;border:0';
+document.body.appendChild(frame);
+const doc = frame.contentDocument;
+const win = frame.contentWindow;
+// Widths matter: at 900px no word is long enough to overflow its column, so a
+// naive `1fr` looks identical to `minmax(0,1fr)`. The narrow pass is the one
+// that actually exercises the difference.
+const WIDTHS = [900, 380];
+
+let sheetOk = true;
+try {
+  // The real constraint: a sheet built in THIS document is rejected when
+  // adopted into another, with NotAllowedError.
+  const wrong = new CSSStyleSheet();
+  wrong.replaceSync('body{}');
+  doc.adoptedStyleSheets = [wrong];
+  sheetOk = false;
+} catch (err) {
+  check('a parent-built stylesheet is refused by the frame', err.name === 'NotAllowedError', err.name);
+}
+if (!sheetOk) check('a parent-built stylesheet is refused by the frame', false, 'it was accepted');
+
+const sheet = new win.CSSStyleSheet();
+sheet.replaceSync(READER_CSS);
+doc.adoptedStyleSheets = [sheet];
+doc.body.innerHTML = READER_HTML;
+
+// The page is direction:rtl; the reader must not inherit it.
+eq('the reader is left-to-right inside an RTL page',
+   win.getComputedStyle(doc.body).direction, 'ltr');
+
+const b = doc.querySelector('.b');
+const p = doc.querySelector('.p');
+const a = doc.querySelector('.a');
+const spread = (nums) => +(Math.max(...nums) - Math.min(...nums)).toFixed(2);
+let anyLeftSpread = 0;
+
+for (const width of WIDTHS) {
+  frame.style.width = width + 'px';
+  const centres = [];
+  for (const token of ['a', 'in', 'reading', 'extraordinary', 'antidisestablishmentarianism']) {
+    const at = VT.pivotOf(token);
+    b.textContent = token.slice(0, at);
+    p.textContent = token.slice(at, at + 1);
+    a.textContent = token.slice(at + 1);
+    const rect = p.getBoundingClientRect();
+    centres.push({ token, left: +rect.left.toFixed(2), centre: +(rect.left + rect.width / 2).toFixed(2) });
+  }
+  const centreSpread = spread(centres.map((c) => c.centre));
+  anyLeftSpread = Math.max(anyLeftSpread, spread(centres.map((c) => c.left)));
+
+  // The claim the whole feature rests on: the focal letter does not move.
+  // Assert the glyph's CENTRE, never its left edge — the grid centres the
+  // middle COLUMN, so left legitimately varies by ~20px in a proportional font
+  // while the layout is perfectly correct.
+  check(`pivot centre is fixed at ${width}px (spread ${centreSpread}px)`,
+        centreSpread <= 0.5,
+        centres.map((c) => `${c.token}=${c.centre}`).join(' '));
+}
+const leftSpread = anyLeftSpread;
+check('the glyph left edge is NOT the invariant — do not assert it',
+      leftSpread > 0.5, `left spread was ${leftSpread}px`);
+check('the word never wraps',
+      [...doc.querySelectorAll('.word span')]
+        .every((el) => win.getComputedStyle(el).whiteSpace === 'nowrap'));
+
+document.getElementById('out').textContent =
+  log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+</script>

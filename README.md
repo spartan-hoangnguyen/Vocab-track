@@ -26,6 +26,10 @@ Built for one person. No accounts, no sync, no server.
 - **See what you saved here.** The panel's *On this page* tab lists the words
   saved on the page you are reading; clicking one scrolls to it, or seeks the
   video to the moment it was said.
+- **Read faster.** `Alt+Shift+R` opens an RSVP speed reader over the page: one
+  word at a time at a fixed focal point, so your eyes never travel. It reads
+  your selection, or extracts the article if you have not selected anything.
+  Escape drops you back at the paragraph you stopped in.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
 - **Review.** SM-2 spaced repetition, in the dashboard or the panel.
@@ -49,6 +53,7 @@ Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 | `store.js` | `chrome.storage` access and the serialised write queue |
 | `lookup.js` | Cambridge + translation pipeline, pronunciation |
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
+| `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
@@ -86,4 +91,16 @@ manual checklist for it.
 - **The caption click depends on YouTube's player classes**
   (`.ytp-caption-segment`, `.caption-window`). A player rewrite would need
   those selectors updating; `test/yt-probe.html` documents the shape they had.
+- **Speed reading trades comprehension for pace.** Studies put the useful range
+  at 250–350 WPM, and ~300 for non-native readers; above that comprehension
+  falls off. RSVP also removes *regressions* — you cannot glance back — which is
+  why `←` steps backwards. The default is 300 and the ceiling is 700 on purpose.
+- **Article extraction is a heuristic, not Readability.** It scores containers
+  by the prose they hold and rejects comment threads, nav, asides and
+  link-dense lists by name. A page that names its article wrapper `related-*`
+  or hides the body behind a paywall will read the wrong thing; select the text
+  and press the shortcut instead.
+- **The reader cannot open inside a page's own fullscreen video** other than by
+  the top layer, and it does not open on `chrome://` pages, the web store, or a
+  tab that has not been reloaded since the extension was installed.
 - Roughly 1 word in 8 has no synonyms on Cambridge.

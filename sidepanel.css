@@ -87,6 +87,10 @@ nav button:hover{color:var(--ink)}
 nav button.active{background:var(--card);color:var(--ink);font-weight:600;
                   box-shadow:0 1px 2px #0000001f}
 
+.readbtn{width:100%;margin:0 0 12px;padding:9px 12px;border:1px solid var(--rule);
+  border-radius:9px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;
+  cursor:pointer}
+.readbtn:hover{border-color:var(--ink3)}
 .pagehead{color:var(--ink3);font-size:12px;margin:0 0 10px}
 .muted{color:var(--ink2);font-size:13px;line-height:1.6}
 #page-list{list-style:none;margin:0;padding:0}

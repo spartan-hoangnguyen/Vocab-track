@@ -35,6 +35,18 @@ async function openDashboard() {
   await chrome.storage.session.set({ dashboardTabId: tab.id });
 }
 
+// A manifest `commands` entry, so no permission is added. The tab argument has
+// been supplied since Chrome 93; without the "tabs" permission its url/title
+// are stripped, but tab.id survives and that is all sendMessage needs.
+// Browser-level, so it fires even on a page that preventDefaults every keydown.
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command !== 'speed-read' || !tab?.id) return;
+  chrome.tabs.sendMessage(tab.id, { type: 'speed-read' })
+    // No content script here: a chrome:// page, the web store, a PDF, or a tab
+    // not reloaded since the extension was installed.
+    .catch((err) => console.error('[vocab-track] speed-read went nowhere', err));
+});
+
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message?.type === 'open-dashboard') {
     openDashboard();
