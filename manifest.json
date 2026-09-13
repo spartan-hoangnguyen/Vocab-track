@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Vocab-track",
+  "version": "0.1.0",
+  "description": "Look up English words while reading, and review them as flashcards.",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": [
+    "https://dictionary.cambridge.org/*",
+    "https://translate.googleapis.com/*"
+  ],
+  "background": { "service_worker": "service-worker.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": {},
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib.js", "content-script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

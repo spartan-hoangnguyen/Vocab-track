@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vocab-track</title>
+<link rel="stylesheet" href="sidepanel.css">
+<body>
+  <nav>
+    <button id="tab-lookup" class="active">Lookup</button>
+    <button id="tab-review">Review</button>
+  </nav>
+
+  <section id="view-lookup">
+    <p id="lookup-empty">Select a word on any page and click the button that appears.</p>
+    <article id="entry" hidden>
+      <h1 id="entry-word"></h1>
+      <p class="meta">
+        <span id="entry-level" class="level"></span>
+        <span id="entry-ipa"></span>
+        <button id="entry-play" aria-label="Pronounce">▶</button>
+      </p>
+      <p id="entry-vi" class="vi"></p>
+      <p id="entry-def"></p>
+    </article>
+  </section>
+
+  <section id="view-review" hidden>
+    <p id="review-empty">Nothing due. Come back later.</p>
+    <article id="card" hidden>
+      <h1 id="card-word"></h1>
+      <button id="card-reveal">Show answer</button>
+      <div id="card-answer" hidden>
+        <p id="card-vi" class="vi"></p>
+        <p id="card-def"></p>
+        <div id="grades"></div>
+      </div>
+    </article>
+    <p id="review-count"></p>
+  </section>
+
+  <script src="lib.js"></script>
+  <script src="sidepanel.js"></script>
+</body>

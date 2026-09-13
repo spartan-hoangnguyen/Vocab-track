@@ -1,0 +1,11 @@
+:root { color-scheme: light dark; }
+body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 12px; }
+nav { display: flex; gap: 4px; margin-bottom: 12px; }
+nav button { flex: 1; padding: 6px; cursor: pointer; }
+nav button.active { font-weight: 600; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+.meta { display: flex; align-items: center; gap: 8px; color: #666; margin: 0 0 8px; }
+.level { font-weight: 600; padding: 1px 6px; border: 1px solid currentColor; border-radius: 3px; }
+.vi { font-size: 16px; font-weight: 600; }
+#grades { display: flex; gap: 4px; margin-top: 12px; }
+#grades button { flex: 1; padding: 6px; cursor: pointer; }
