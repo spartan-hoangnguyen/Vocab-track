@@ -37,10 +37,11 @@ async function fetchCambridge(word) {
 }
 
 async function fetchVietnamese(word) {
-  // Unofficial, keyless endpoint. Acceptable for a personal tool; it will
-  // break one day, and the replacement goes behind this same function.
+  // Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
+  // personal tool; it will break one day, and the replacement goes behind
+  // this same function.
   const url = 'https://translate.googleapis.com/translate_a/single'
-    + `?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(word)}`;
+    + `?client=dict-chrome-ex&sl=en&tl=vi&dt=t&q=${encodeURIComponent(word)}`;
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
