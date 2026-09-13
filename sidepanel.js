@@ -12,74 +12,7 @@ function showView(name) {
 $('tab-lookup').addEventListener('click', () => showView('lookup'));
 $('tab-review').addEventListener('click', () => showView('review'));
 
-const DASH = '—';
-
-async function getWords() {
-  const { words } = await chrome.storage.local.get('words');
-  return words ?? {};
-}
-
-// Writes are serialised: putWord read-modify-writes the whole `words` map,
-// and a lookup's fetches can finish while another is still in flight.
-// Without this, the second write clobbers the first and the word is lost.
-let writeQueue = Promise.resolve();
-
-// Patches, never replaces: the caller snapshots an entry before an await
-// (a storage read, a fetch), and another queued write can land in between.
-// Overwriting the whole record with that stale snapshot would erase whatever
-// that other write just added (e.g. a `sources` URL). Object.assign onto the
-// current stored record instead, so only the fields the caller actually
-// changed are applied.
-function putWord(word, patch) {
-  writeQueue = writeQueue.then(async () => {
-    try {
-      const words = await getWords();
-      words[word] = Object.assign(words[word] ?? {}, patch);
-      await chrome.storage.local.set({ words });
-    } catch (err) {
-      // Caught here, not rethrown: a rejected link in this chain would skip
-      // every later queued write's callback, silently dropping them too.
-      console.error('[vocab-track] save failed for', word, err);
-    }
-  });
-  return writeQueue;
-}
-
-async function fetchCambridge(word) {
-  try {
-    const res = await fetch(`${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(word)}`);
-    // Cambridge never 404s an unknown word: it 302-redirects to the
-    // dictionary index, which fetch follows, so res.ok is true and
-    // res.status is useless here. res.redirected is ALSO not a valid test —
-    // a known word like "cats" legitimately 302s to a real entry
-    // (.../dictionary/english/cat). The only reliable signal is where the
-    // redirect actually landed: only the bare index path means not-found.
-    if (new URL(res.url).pathname === '/dictionary/english/') return { notFound: true };
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return VT.parseCambridge(await res.text());
-  } catch (err) {
-    // Degrade, never abort: the word is still worth saving with a translation.
-    console.error('[vocab-track] cambridge lookup failed for', word, err);
-    return { level: null, ipa: null, def: null, audio: null };
-  }
-}
-
-async function fetchVietnamese(word) {
-  // Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
-  // personal tool; it will break one day, and the replacement goes behind
-  // this same function.
-  const url = 'https://translate.googleapis.com/translate_a/single'
-    + `?client=dict-chrome-ex&sl=en&tl=vi&dt=t&q=${encodeURIComponent(word)}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return data?.[0]?.[0]?.[0] ?? null;
-  } catch (err) {
-    console.error('[vocab-track] translation failed for', word, err);
-    return null;
-  }
-}
+const DASH = VT.DASH;
 
 // Captured once, before renderNotFound can ever overwrite it, so the empty
 // state can be restored to its original instruction rather than getting
@@ -106,23 +39,6 @@ function renderNotFound(word) {
   $('lookup-empty').textContent = `"${word}" is not in the Cambridge dictionary. Nothing saved.`;
 }
 
-function pronounce(entry) {
-  if (entry.audio) {
-    new Audio(entry.audio).play().catch((err) => {
-      console.error('[vocab-track] audio playback failed for', entry.word, err);
-      speak(entry.word);
-    });
-    return;
-  }
-  speak(entry.word);
-}
-
-function speak(word) {
-  const utterance = new SpeechSynthesisUtterance(word);
-  utterance.lang = 'en-GB';
-  speechSynthesis.speak(utterance);
-}
-
 async function lookup(pending) {
   if (!pending) return;
   // Consumed: clear it now, in lookup() itself rather than in a caller, so
@@ -134,28 +50,11 @@ async function lookup(pending) {
   // loop.
   chrome.storage.session.remove('pending');
   const word = VT.normaliseWord(pending.word);
-  const words = await getWords();
-
-  // Already known: no network call. Record that it appeared on this page too,
-  // so the highlighter picks it up here.
-  const known = words[word];
-  if (known) {
-    if (!known.sources.includes(pending.url)) {
-      known.sources.push(pending.url);
-      await putWord(word, { sources: known.sources });
-    }
-    renderEntry(known);
-    return;
-  }
-
-  const [parsed, vi] = await Promise.all([fetchCambridge(word), fetchVietnamese(word)]);
-  if (parsed.notFound) {
+  const { entry, notFound } = await resolveWord(word, pending.url);
+  if (notFound) {
     renderNotFound(word);
     return;
   }
-
-  const entry = VT.newEntry(word, parsed, vi, pending.url);
-  await putWord(word, entry);
   renderEntry(entry);
 }
 

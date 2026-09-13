@@ -64,9 +64,50 @@ const VT = {
     return { ease, interval, reps, due: Date.now() + interval * 24 * 60 * 60 * 1000 };
   },
 
+  // The em dash every UI shows for a field that is null.
+  DASH: '\u2014',
+
+  // The one folder that always exists and cannot be deleted. Words saved
+  // while reading land here.
+  READING: 'reading',
+
+  // Folder membership lives on the word, and words saved before folders
+  // existed have no `folders` field at all. A missing field reads as "in
+  // From reading" rather than "in nothing", so old entries need no
+  // migration pass and can never become orphans.
+  foldersOf(entry) {
+    const ids = entry?.folders;
+    return Array.isArray(ids) && ids.length ? ids : [VT.READING];
+  },
+
+  // Folder ids are generated, never derived from the name, so renaming a
+  // folder cannot strand the words that point at it.
+  newFolder(name, { color = 'sage', icon = '\u{1F4C1}', desc = '' } = {}) {
+    return {
+      id: 'f_' + Math.random().toString(36).slice(2, 10),
+      name: String(name).trim(),
+      color, icon, desc,
+      auto: false,
+      added: Date.now()
+    };
+  },
+
+  // Median CEFR level across entries that have one. Reported instead of a
+  // "mastered" count, which nothing in the data defines.
+  medianLevel(entries) {
+    const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const ranks = entries
+      .map((e) => order.indexOf(e.level))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b);
+    if (!ranks.length) return null;
+    return order[ranks[Math.floor(ranks.length / 2)]];
+  },
+
   newEntry(word, parsed, vi, url) {
     return {
       word,
+      folders: [VT.READING],
       level: parsed.level,
       ipa: parsed.ipa,
       def: parsed.def,

@@ -129,6 +129,28 @@ async function parserTests() {
   eq('entry starts at reps 0', entry.reps, 0);
   check('entry is due immediately', entry.due <= Date.now());
 
+  // --- folders: membership lives on the word, and pre-folder entries have none
+  eq('foldersOf defaults to reading', VT.foldersOf({ word: 'old' })[0], VT.READING);
+  eq('foldersOf defaults on empty array', VT.foldersOf({ folders: [] })[0], VT.READING);
+  eq('foldersOf keeps explicit ids', VT.foldersOf({ folders: ['f_1', 'f_2'] }).join(), 'f_1,f_2');
+  check('newEntry starts in From reading',
+        VT.foldersOf(VT.newEntry('x', { level: null, ipa: null, def: null, audio: null }, null, 'u'))
+          .includes(VT.READING));
+
+  const folder = VT.newFolder('  Academic writing  ');
+  eq('newFolder trims the name', folder.name, 'Academic writing');
+  check('newFolder id is generated, not derived', folder.id.startsWith('f_') && folder.id.length > 2);
+  check('newFolder ids are unique', VT.newFolder('a').id !== VT.newFolder('a').id);
+  eq('newFolder is not auto', folder.auto, false);
+
+  // --- medianLevel: ignores entries with no level, never throws on an empty set
+  eq('median of one level', VT.medianLevel([{ level: 'B2' }]), 'B2');
+  eq('median ignores nulls', VT.medianLevel([{ level: null }, { level: 'C1' }, { level: null }]), 'C1');
+  eq('median picks the middle',
+     VT.medianLevel([{ level: 'A1' }, { level: 'B2' }, { level: 'C2' }]), 'B2');
+  eq('median of nothing is null', VT.medianLevel([]), null);
+  eq('median of only-null levels is null', VT.medianLevel([{ level: null }]), null);
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }
