@@ -33,6 +33,10 @@ function showButton(word, rect) {
     event.preventDefault();
     event.stopPropagation();
     chrome.runtime.sendMessage({ type: 'lookup', word, url: location.href });
+    // Clear the selection so the following mouseup finds no candidate and does not
+    // re-show the button. preventDefault() above blocks the browser's default
+    // selection-collapse, so it is still live and must be cleared explicitly.
+    window.getSelection()?.removeAllRanges();
     removeButton();
   });
 
