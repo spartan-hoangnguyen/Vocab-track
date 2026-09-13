@@ -122,18 +122,31 @@ function renderSenses(entry) {
 }
 
 function renderChips(entry) {
-  const block = $('entry-syn-block');
-  const box = $('entry-syn');
+  const box = $('entry-groups');
   box.replaceChildren();
-  const syn = entry.synonyms ?? [];
-  const rel = entry.related ?? [];
-  block.hidden = !syn.length && !rel.length;
-  $('entry-syn-title').textContent = syn.length ? 'Synonyms' : 'Related words';
-  for (const word of (syn.length ? syn : rel)) {
-    const chip = document.createElement('span');
-    chip.className = 'chip';
-    chip.textContent = word;
-    box.appendChild(chip);
+  // Cambridge has all three for some words and none for others, so each group
+  // appears only when it has something in it.
+  const groups = [
+    ['Synonyms', entry.synonyms],
+    ['Opposites', entry.opposites],
+    ['Related words', entry.related]
+  ].filter(([, items]) => items?.length);
+
+  for (const [label, items] of groups) {
+    const section = document.createElement('section');
+    section.className = 'block';
+    const title = document.createElement('h2');
+    title.textContent = label;
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    for (const word of items) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = word;
+      chips.appendChild(chip);
+    }
+    section.append(title, chips);
+    box.appendChild(section);
   }
 }
 

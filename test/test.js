@@ -161,7 +161,13 @@ async function parserTests() {
   eq('resilient first example', rich.senses[0].example,
      "She's a resilient girl - she won't be unhappy for long.");
   eq('resilient related words', rich.related.join(), 'resilience');
-  eq('resilient has no synonyms', rich.synonyms.length, 0);
+  // Synonyms come from two sources merged: the sparse .xref.synonym
+  // cross-reference and the richer .daccord thesaurus block.
+  eq('resilient synonyms', rich.synonyms.join(), 'strong,powerful,muscular,muscled');
+  check('synonyms are deduplicated',
+        new Set(rich.synonyms).size === rich.synonyms.length);
+  check('a word is never its own synonym',
+        !rich.synonyms.some((w) => w.toLowerCase() === 'resilient'));
 
   const happyRich = VT.parseCambridge(await fixture('happy'));
   eq('happy grammar label', happyRich.gram, '[ before noun ]');
@@ -170,6 +176,8 @@ async function parserTests() {
 
   const ubiRich = VT.parseCambridge(await fixture('ubiquitous'));
   eq('ubiquitous synonym', ubiRich.synonyms.join(), 'omnipresent');
+  eq('happy synonyms', happyRich.synonyms.join(), 'cheerful,in a good mood,pleased,glad');
+  check('synonyms are capped', rich.synonyms.length <= VT.MAX_XREF);
   // Top-level level/def still describe the first sense, so entries saved
   // before senses existed keep rendering identically.
   eq('top-level def still mirrors sense 0', ubiRich.def, ubiRich.senses[0].def);
@@ -181,6 +189,7 @@ async function parserTests() {
   const none = VT.parseCambridge('<html><body>nothing</body></html>');
   eq('no-entry page has null pos', none.pos ?? null, null);
   eq('no-entry page has no senses', (none.senses ?? []).length, 0);
+  eq('no-entry page has no synonyms', (none.synonyms ?? []).length, 0);
 
   // --- sentenceAround: the line from the page that the word appeared in
   const para = 'The system failed. Engineers called it resilient anyway! Then it fell over.';
