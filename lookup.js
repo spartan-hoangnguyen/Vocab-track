@@ -17,7 +17,10 @@ async function fetchCambridge(word) {
   } catch (err) {
     // Degrade, never abort: the word is still worth saving with a translation.
     console.error('[vocab-track] cambridge lookup failed for', word, err);
-    return { level: null, ipa: null, def: null, audio: null };
+    // `failed` distinguishes "the dictionary call did not happen" from "the
+    // entry has no CEFR level", which are otherwise the same four nulls and
+    // read identically in the UI.
+    return { level: null, ipa: null, def: null, audio: null, failed: String(err) };
   }
 }
 
@@ -65,11 +68,13 @@ async function resolveWord(rawWord, url, folderIds) {
   if (parsed.notFound) return { notFound: true };
 
   const entry = VT.newEntry(word, parsed, vi, url);
+  // Not persisted: it describes this attempt, not the word.
+  const failed = parsed.failed ?? null;
   if (folderIds?.length) {
     entry.folders = [...new Set([VT.READING, ...folderIds])];
   }
   await putWord(word, entry);
-  return { entry };
+  return { entry, failed };
 }
 
 function pronounce(entry) {

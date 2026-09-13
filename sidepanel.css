@@ -1,22 +1,76 @@
-:root { color-scheme: light dark; }
-body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 12px; }
-nav { display: flex; gap: 4px; margin-bottom: 12px; }
-nav button { flex: 1; padding: 6px; cursor: pointer; }
-nav button.active { font-weight: 600; }
-h1 { font-size: 20px; margin: 0 0 4px; }
-.meta { display: flex; align-items: center; gap: 8px; color: #666; margin: 0 0 8px; }
-.level { font-weight: 600; padding: 1px 6px; border: 1px solid currentColor; border-radius: 3px; }
-.vi { font-size: 16px; font-weight: 600; }
-#grades { display: flex; gap: 4px; margin-top: 12px; }
-#grades button { flex: 1; padding: 6px; cursor: pointer; }
-#words-filter { width: 100%; padding: 6px; margin-bottom: 8px; box-sizing: border-box; }
-#words-list { list-style: none; margin: 0; padding: 0; }
-#words-list li { display: flex; align-items: baseline; gap: 8px; padding: 6px 4px;
-                 border-bottom: 1px solid #8883; cursor: pointer; }
-#words-list li:hover { background: #8882; }
-#words-list .w { font-weight: 600; }
-#words-list .t { color: #888; margin-left: auto; font-size: 13px; }
+/* Theme-aware: the panel sits inside Chrome's own chrome, so it follows the
+   browser theme rather than committing to the dashboard's light-only paper. */
+:root{
+  color-scheme: light dark;
+  --paper:#faf7f2; --panel:#efe9de; --ink:#1c1a17; --ink2:#6b655c; --ink3:#938c80;
+  --rule:#e4ded3; --accent:#1c5cab; --card:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#17161a; --panel:#211f25; --ink:#f2f1ee; --ink2:#a8a49c; --ink3:#7d786f;
+    --rule:#312e37; --accent:#7fb0f0; --card:#1d1b21;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;padding:14px 14px 22px;background:var(--paper);color:var(--ink);
+     font:14px/1.55 system-ui,-apple-system,sans-serif}
 
-.dashlink{margin:0 0 12px}
-#open-dashboard{background:none;border:0;padding:0;cursor:pointer;font:500 13px inherit;
-                color:#2a78d6;text-decoration:underline}
+/* Segmented control rather than three loose buttons. */
+nav{display:flex;gap:2px;background:var(--panel);border:1px solid var(--rule);
+    border-radius:11px;padding:3px;margin-bottom:12px}
+nav button{flex:1;padding:7px 4px;border:0;border-radius:8px;background:transparent;
+           color:var(--ink2);font:500 13px inherit;cursor:pointer;
+           transition:background .12s ease,color .12s ease}
+nav button:hover{color:var(--ink)}
+nav button.active{background:var(--card);color:var(--ink);font-weight:600;
+                  box-shadow:0 1px 2px #0000001f}
+
+.dashlink{margin:0 0 16px}
+#open-dashboard{width:100%;padding:9px;border:1px solid var(--rule);border-radius:10px;
+                background:transparent;color:var(--ink2);font:500 12.5px inherit;
+                cursor:pointer;text-decoration:none}
+#open-dashboard:hover{background:var(--panel);color:var(--ink)}
+
+h1{font:600 23px/1.2 system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.015em}
+
+.meta{display:flex;align-items:center;gap:9px;margin:0 0 14px;flex-wrap:wrap}
+.level{font:600 11px inherit;letter-spacing:.04em;color:var(--accent);
+       border:1px solid var(--rule);padding:2px 8px;border-radius:6px}
+#entry-ipa{color:var(--ink2);font-size:13px}
+#entry-play{border:1px solid var(--rule);background:var(--card);color:var(--ink);
+            border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;line-height:1}
+#entry-play:hover{background:var(--panel)}
+
+.vi{font-size:17px;font-weight:600;margin:0 0 10px}
+#entry-def{color:var(--ink2);font-size:13.5px;margin:0;line-height:1.6}
+#lookup-empty{color:var(--ink2);font-size:13.5px;line-height:1.6}
+
+/* Shown when a lookup came back without dictionary data, so four em dashes are
+   never mistaken for "this word simply has no level or definition". */
+.warn{margin:14px 0 0;padding:11px 13px;border:1px solid var(--rule);border-radius:10px;
+      background:var(--panel);color:var(--ink2);font-size:12.5px;line-height:1.5}
+.warn b{color:var(--ink);font-weight:600}
+
+#words-filter{width:100%;padding:8px 11px;margin-bottom:10px;border:1px solid var(--rule);
+              border-radius:9px;background:var(--card);color:var(--ink);font:400 13px inherit}
+#words-list{list-style:none;margin:0;padding:0}
+#words-list li{display:flex;align-items:baseline;gap:9px;padding:9px 4px;
+               border-bottom:1px solid var(--rule);cursor:pointer;border-radius:6px}
+#words-list li:hover{background:var(--panel)}
+#words-list .w{font-weight:600}
+#words-list .t{color:var(--ink2);margin-left:auto;font-size:12.5px;text-align:right}
+#words-empty{color:var(--ink2);font-size:13px}
+
+#card{text-align:center;padding:18px 0}
+#card-word{font:600 27px/1.2 system-ui,sans-serif;margin:0 0 18px;letter-spacing:-.02em}
+#card-reveal{padding:9px 18px;border:1px solid var(--rule);border-radius:10px;
+             background:var(--card);color:var(--ink);font:500 13px inherit;cursor:pointer}
+#card-reveal:hover{background:var(--panel)}
+#card-vi{font-size:17px;font-weight:600;margin:4px 0 8px}
+#card-def{color:var(--ink2);font-size:13px;margin:0}
+#grades{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:18px}
+#grades button{padding:9px 6px;border:1px solid var(--rule);border-radius:9px;
+               background:var(--card);color:var(--ink);font:500 12.5px inherit;cursor:pointer}
+#grades button:hover{background:var(--panel)}
+#review-count,#review-empty{color:var(--ink2);font-size:12.5px}
+#review-count{margin-top:14px;text-align:center}

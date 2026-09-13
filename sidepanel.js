@@ -19,7 +19,7 @@ const DASH = VT.DASH;
 // stuck on a stale not-found message.
 const LOOKUP_EMPTY_DEFAULT = $('lookup-empty').textContent;
 
-function renderEntry(entry) {
+function renderEntry(entry, failed) {
   showView('lookup');
   $('lookup-empty').hidden = true;
   $('lookup-empty').textContent = LOOKUP_EMPTY_DEFAULT;
@@ -30,6 +30,15 @@ function renderEntry(entry) {
   $('entry-vi').textContent = entry.vi ?? DASH;
   $('entry-def').textContent = entry.def ?? DASH;
   $('entry-play').onclick = () => pronounce(entry);
+
+  const warn = $('entry-warn');
+  warn.replaceChildren();
+  warn.hidden = !failed;
+  if (failed) {
+    const lead = document.createElement('b');
+    lead.textContent = 'Cambridge lookup failed. ';
+    warn.append(lead, `Level, pronunciation and definition are missing for this reason, not because the word has none. ${failed}`);
+  }
 }
 
 function renderNotFound(word) {
@@ -50,12 +59,12 @@ async function lookup(pending) {
   // loop.
   chrome.storage.session.remove('pending');
   const word = VT.normaliseWord(pending.word);
-  const { entry, notFound } = await resolveWord(word, pending.url);
+  const { entry, notFound, failed } = await resolveWord(word, pending.url);
   if (notFound) {
     renderNotFound(word);
     return;
   }
-  renderEntry(entry);
+  renderEntry(entry, failed);
 }
 
 // Single read of `pending` on load. Present: the panel was opened by a
