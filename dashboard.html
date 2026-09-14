@@ -11,6 +11,7 @@
     <a href="#" data-view="words"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>All words</a>
     <a href="#" data-view="review"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="10" height="9" rx="2"/><path d="M5 1.5h7.5a2 2 0 0 1 2 2V11"/></svg>Review</a>
     <a href="#" data-view="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5V8M8 13.5V2.5M13.5 13.5v-3.5"/></svg>Statistics</a>
+    <a href="#" data-view="writing"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 2.5 13.5 6 6.5 13H3v-3.5z"/><path d="M8.75 3.75 12.25 7.25"/></svg>Writing</a>
   </nav>
   <div class="navlabel">Library</div>
   <nav>
@@ -122,6 +123,36 @@
         <ul class="sources" id="st-sources"></ul>
       </figure>
     </div>
+  </section>
+
+  <!-- Writing -->
+  <section id="view-writing" hidden>
+    <h1>Writing</h1>
+    <div class="sub">Grammar checking in the text boxes you type into.</div>
+    <div class="iocards">
+      <div class="iocard">
+        <h3>Checking</h3>
+        <label class="wrtoggle"><input type="checkbox" id="wr-on">Check my writing as I type</label>
+        <p class="note">Text you type in a box on a page is sent to languagetool.org
+           to be checked.</p>
+      </div>
+      <div class="iocard">
+        <h3>Off on these sites</h3>
+        <ul class="wrhosts" id="wr-hosts"></ul>
+        <p class="note" id="wr-hosts-empty" hidden>Checking is on everywhere.</p>
+        <form class="wradd" id="wr-add">
+          <input id="wr-host" placeholder="mail.google.com" autocomplete="off" maxlength="120">
+          <button class="btn small">Add</button>
+        </form>
+      </div>
+    </div>
+    <div class="secthead wrhead">
+      <h2>Your recurring mistakes</h2>
+      <button class="btn ghost small" id="wr-reset">Reset</button>
+    </div>
+    <ul class="wrlist" id="wr-mistakes"></ul>
+    <p class="empty" id="wr-mistakes-empty" hidden>Mistakes will appear here once you have
+       written in a text box on a page with checking on.</p>
   </section>
 
   <!-- Import / export -->

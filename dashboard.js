@@ -1,13 +1,14 @@
 const $ = (id) => document.getElementById(id);
 const DASH = VT.DASH;
 const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-const VIEWS = ['overview', 'words', 'review', 'stats', 'io'];
+const VIEWS = ['overview', 'words', 'review', 'stats', 'writing', 'io'];
 
 // One in-memory snapshot per render pass. Every view reads from this rather
 // than hitting storage per row, and refresh() is the single place that
 // reloads it, so a write anywhere is followed by exactly one re-read.
 let words = {};
 let folders = {};
+let writing = { on: true, off: [], mistakes: {} };
 let activeFolder = null;   // null = all words
 
 function showView(name) {
@@ -31,7 +32,7 @@ for (const a of document.querySelectorAll('nav a')) {
 }
 
 async function refresh() {
-  [words, folders] = await Promise.all([getWords(), getFolders()]);
+  [words, folders, writing] = await Promise.all([getWords(), getFolders(), getWriting()]);
   render();
 }
 
@@ -42,6 +43,7 @@ function render() {
   renderStreak(all);
   renderStats(all);
   renderCard();
+  renderWriting();
 }
 
 /* ---------- overview ---------- */
@@ -479,7 +481,11 @@ $('review-btn').addEventListener('click', () => {
 // Another surface (the side panel, or a lookup from a page) can write while
 // this tab is open; re-read rather than showing a stale list.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.words || changes.folders)) refresh();
+  if (area !== 'local') return;
+  // writeMistakes lands here while you are typing in another tab, which is the
+  // only way this page ever sees the counts move.
+  if (changes.words || changes.folders ||
+      changes.writeOn || changes.writeOff || changes.writeMistakes) refresh();
 });
 
 /* ---------- words captured from other Mac apps ---------- */
@@ -775,3 +781,90 @@ function renderStats(all) {
     list.appendChild(li);
   }
 }
+
+/* ---------- writing ---------- */
+
+async function getWriting() {
+  const got = await chrome.storage.local.get(['writeOn', 'writeOff', 'writeMistakes']);
+  // `?? true`, not `||` and not a truthiness test: a profile that has never
+  // opened this page has no writeOn key at all, and reading that absence as
+  // false would ship the feature switched off for everyone who never touched it.
+  return {
+    on: got.writeOn ?? true,
+    off: got.writeOff ?? [],
+    mistakes: got.writeMistakes ?? {}
+  };
+}
+
+// LanguageTool's category ids arrive as SCREAMING_SNAKE ("CONFUSED_WORDS").
+// Printed raw next to a sentence of English they read as a log line.
+function titleCase(raw) {
+  return String(raw ?? '').toLowerCase().split(/[_\s]+/).filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1)).join(' ') || DASH;
+}
+
+async function setWriteOff(hosts) {
+  await chrome.storage.local.set({ writeOff: [...new Set(hosts)] });
+  await refresh();
+}
+
+function renderWriting() {
+  $('wr-on').checked = writing.on;
+
+  const hosts = $('wr-hosts');
+  hosts.replaceChildren();
+  for (const host of writing.off) {
+    const row = document.createElement('li');
+    const remove = el('button', 'rowdel', '×');
+    remove.title = `Check on ${host} again`;
+    remove.addEventListener('click', () => setWriteOff(writing.off.filter((h) => h !== host)));
+    row.append(el('span', null, host), remove);
+    hosts.appendChild(row);
+  }
+  $('wr-hosts-empty').hidden = writing.off.length > 0;
+
+  // Top 12 only. Below that the list is one-off typos you will never make
+  // again, and a list of habits you cannot read in one screen is not a habit.
+  const top = Object.values(writing.mistakes)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 12);
+  const list = $('wr-mistakes');
+  list.replaceChildren();
+  for (const mistake of top) {
+    const row = document.createElement('li');
+    row.append(
+      el('span', 'n', mistake.n),
+      el('span', 'tag', titleCase(mistake.cat)),
+      el('span', 'm', mistake.msg ?? '')
+    );
+    list.appendChild(row);
+  }
+  // An empty <ul> still paints its panel border, which reads as a broken panel
+  // rather than as nothing to show.
+  list.hidden = top.length === 0;
+  $('wr-mistakes-empty').hidden = top.length > 0;
+}
+
+$('wr-on').addEventListener('change', async (event) => {
+  await chrome.storage.local.set({ writeOn: event.target.checked });
+  await refresh();
+});
+
+$('wr-add').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const raw = $('wr-host').value.trim();
+  if (!raw) return;
+  let host;
+  // Through URL rather than a regex: someone will paste a whole address, and
+  // storing "https://mail.google.com/chat" as a hostname would match nothing.
+  try { host = new URL(raw.includes('://') ? raw : `https://${raw}`).hostname; }
+  catch { return; }
+  $('wr-host').value = '';
+  setWriteOff([...writing.off, host]);
+});
+
+$('wr-reset').addEventListener('click', async () => {
+  if (!confirm('Forget every mistake counted so far? This cannot be undone.')) return;
+  await chrome.storage.local.set({ writeMistakes: {} });
+  await refresh();
+});

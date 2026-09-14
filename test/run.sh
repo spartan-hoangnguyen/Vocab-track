@@ -37,12 +37,23 @@ DASH=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
        --window-size=1400,900 --dump-dom "http://localhost:$PORT/test/dashboard-probe.html" 2>/dev/null \
        | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# The writer probe renders writer.js's textarea mirror over two real fields and
+# measures whether the mirror's CONTENT box matches the field's. That is the
+# invariant the whole feature rests on: a content box even a few pixels out
+# wraps the sentence at a different word and every underline below the first
+# line lands under the wrong one.
+WRITER=$("$CHROME" --headless --disable-gpu --virtual-time-budget=6000 \
+         --window-size=1400,900 --dump-dom "http://localhost:$PORT/test/writer-probe.html" 2>/dev/null \
+         | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
 echo "$PROBE"
 echo "$READER"
 echo "$DASH"
+echo "$WRITER"
 echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PROBE"  | grep -qE '^0 failure\(s\)' || exit 1
 echo "$READER" | grep -qE '^0 failure\(s\)' || exit 1
 echo "$DASH"   | grep -qE '^0 failure\(s\)' || exit 1
+echo "$WRITER" | grep -qE '^0 failure\(s\)' || exit 1
 exit 0

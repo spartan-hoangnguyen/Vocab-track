@@ -9,6 +9,7 @@
     <a href="#" data-view="words"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>All words</a>
     <a href="#" data-view="review"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="10" height="9" rx="2"/><path d="M5 1.5h7.5a2 2 0 0 1 2 2V11"/></svg>Review</a>
     <a href="#" data-view="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5V8M8 13.5V2.5M13.5 13.5v-3.5"/></svg>Statistics</a>
+    <a href="#" data-view="writing"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 2.5 13.5 6 6.5 13H3v-3.5z"/><path d="M8.75 3.75 12.25 7.25"/></svg>Writing</a>
   </nav>
   <div class="navlabel">Library</div>
   <nav>
@@ -122,6 +123,36 @@
     </div>
   </section>
 
+  <!-- Writing -->
+  <section id="view-writing" hidden>
+    <h1>Writing</h1>
+    <div class="sub">Grammar checking in the text boxes you type into.</div>
+    <div class="iocards">
+      <div class="iocard">
+        <h3>Checking</h3>
+        <label class="wrtoggle"><input type="checkbox" id="wr-on">Check my writing as I type</label>
+        <p class="note">Text you type in a box on a page is sent to languagetool.org
+           to be checked.</p>
+      </div>
+      <div class="iocard">
+        <h3>Off on these sites</h3>
+        <ul class="wrhosts" id="wr-hosts"></ul>
+        <p class="note" id="wr-hosts-empty" hidden>Checking is on everywhere.</p>
+        <form class="wradd" id="wr-add">
+          <input id="wr-host" placeholder="mail.google.com" autocomplete="off" maxlength="120">
+          <button class="btn small">Add</button>
+        </form>
+      </div>
+    </div>
+    <div class="secthead wrhead">
+      <h2>Your recurring mistakes</h2>
+      <button class="btn ghost small" id="wr-reset">Reset</button>
+    </div>
+    <ul class="wrlist" id="wr-mistakes"></ul>
+    <p class="empty" id="wr-mistakes-empty" hidden>Mistakes will appear here once you have
+       written in a text box on a page with checking on.</p>
+  </section>
+
   <!-- Import / export -->
   <section id="view-io" hidden>
     <h1>Import &amp; export</h1>
@@ -187,10 +218,20 @@ for (const [word, level, ipa, vi, def] of seed) {
     ease:2.5, interval:0, reps:0, due: Date.now() - 1000 };
 }
 const listeners = [];
+// A real chrome.storage.local, minus persistence: get takes a key or an array
+// of them and omits what is absent, which is the whole point of the writeOn
+// tests — `{}` back from get is what "the user has never touched this" looks like.
+const STORE = { words: WORDS };
 window.chrome = {
   storage:{ local:{
-      get: async (k) => (k === 'words' ? { words: WORDS } : {}),
-      set: async () => {} },
+      get: async (keys) => {
+        const out = {};
+        for (const k of (Array.isArray(keys) ? keys : [keys])) {
+          if (k in STORE) out[k] = STORE[k];
+        }
+        return out;
+      },
+      set: async (patch) => { Object.assign(STORE, patch); } },
     onChanged:{ addListener:(f)=>listeners.push(f) } },
   runtime:{ sendNativeMessage: async () => { throw new Error('no host'); },
             sendMessage(){}, onMessage:{ addListener(){} } }
@@ -210,7 +251,7 @@ const check = (name, cond, detail) => {
 };
 const cs = (el) => getComputedStyle(el);
 
-setTimeout(() => {
+setTimeout(async () => {
   /* ---- view switching ----
      The trap this guards: any author `display` on a view section beats the UA
      stylesheet's [hidden]{display:none}, so #view-review{display:flex} without
@@ -264,7 +305,59 @@ setTimeout(() => {
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
   check('every nav item has its own icon',
-        icons.length === 5 && new Set(icons).size === 5, `${new Set(icons).size} distinct of ${icons.length}`);
+        icons.length === 6 && new Set(icons).size === 6, `${new Set(icons).size} distinct of ${icons.length}`);
+
+  /* ---- writing: the settings and the mistake list ----
+     Driven through STORE + refresh() rather than the initial load, so each
+     case states the storage it is asserting about. */
+  const rows = () => [...document.querySelectorAll('#wr-mistakes li')];
+
+  delete STORE.writeOn;
+  delete STORE.writeOff;
+  delete STORE.writeMistakes;
+  await refresh();
+  // The one that would ship the feature off for every existing profile.
+  check('an absent writeOn renders the toggle as on', document.getElementById('wr-on').checked);
+  check('an absent writeOff says checking is on everywhere',
+        !document.getElementById('wr-hosts-empty').hidden
+        && document.getElementById('wr-hosts').children.length === 0,
+        `${document.getElementById('wr-hosts').children.length} host rows`);
+  check('an absent writeMistakes shows the empty line and no panel',
+        !document.getElementById('wr-mistakes-empty').hidden
+        && document.getElementById('wr-mistakes').hidden,
+        `${rows().length} rows`);
+
+  STORE.writeOn = false;
+  await refresh();
+  check('writeOn false renders the toggle as off', !document.getElementById('wr-on').checked);
+
+  STORE.writeOff = ['mail.google.com', 'docs.google.com'];
+  await refresh();
+  check('writeOff renders one removable row per host and hides the empty line',
+        document.getElementById('wr-hosts').children.length === 2
+        && document.getElementById('wr-hosts-empty').hidden
+        && document.querySelectorAll('#wr-hosts .rowdel').length === 2);
+
+  // 15 rules, counts 1..15, inserted in ascending order so insertion order is
+  // the wrong answer and only a sort by n can pass.
+  STORE.writeMistakes = {};
+  for (let i = 1; i <= 15; i++) {
+    STORE.writeMistakes[`RULE_${i}`] = { n: i, msg: `message ${i}`, cat: 'CONFUSED_WORDS' };
+  }
+  await refresh();
+  const counts = rows().map((li) => Number(li.querySelector('.n').textContent));
+  check('the mistake list caps at 12', counts.length === 12, `${counts.length} rows`);
+  check('the mistake list is ordered by count, highest first',
+        counts.length === 12 && counts[0] === 15
+        && counts.every((n, i) => i === 0 || counts[i - 1] >= n),
+        counts.join(','));
+  check('the category is title-cased, not a raw rule id',
+        rows()[0]?.querySelector('.tag').textContent === 'Confused Words',
+        rows()[0]?.querySelector('.tag').textContent);
+  // The count is the point of the panel; at body size it reads as a debug dump.
+  check('the count reads as a stat, not as body text',
+        parseFloat(cs(rows()[0].querySelector('.n')).fontSize) >= 20,
+        cs(rows()[0].querySelector('.n')).fontSize);
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

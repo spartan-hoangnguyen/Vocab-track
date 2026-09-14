@@ -1,0 +1,309 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vocab-track — writer probe</title>
+<!--
+  Loads the real writer.js against a stubbed chrome API and measures the result.
+  Three things live here that test.js cannot reach, because all three are
+  layout or DOM:
+
+    1. The textarea mirror. Its whole job is to put a wavy underline over the
+       same pixels the field paints the word on, and nothing about that is
+       checkable without rendering it.
+    2. The contenteditable offset index, which has to survive nested block
+       markup and map back to the exact text node.
+    3. The user's own typing going through the mirror as text and never as
+       markup.
+-->
+<style>
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif }
+  /* Two boxes, deliberately different, because the mirror has to match either.
+     The content-box one is the case that catches a mirror sized as if every
+     field on the web were border-box. */
+  #ta-content {
+    box-sizing: content-box;
+    width: 300px; height: 90px;
+    padding: 7px 11px; border: 3px solid #888;
+    font: 15px/1.6 Georgia, serif;
+  }
+  #ta-border {
+    box-sizing: border-box;
+    width: 340px; height: 100px;
+    padding: 4px 9px; border: 1px solid #888;
+    font: 13px/1.4 system-ui, sans-serif;
+  }
+  #ce { width: 320px; padding: 6px; border: 1px solid #888; font: 15px/1.5 Georgia, serif }
+</style>
+
+<textarea id="ta-content"></textarea>
+<textarea id="ta-border"></textarea>
+<input id="in-text" type="text" size="40">
+<input id="in-pass" type="password">
+<input id="in-mail" type="email">
+<input id="in-find" type="search">
+<div id="ce" contenteditable="true"><div><p>I have went to the store.</p></div><p>She dont like it.</p></div>
+<form autocomplete="off"><textarea id="ta-secret"></textarea></form>
+
+<pre id="out"></pre>
+
+<script>
+  // Stubbed before writer.js loads: it reads settings and attaches to whatever
+  // already has focus the moment it runs.
+  const store = {};
+  let sent = null;
+  let reply = { matches: [] };
+  window.chrome = {
+    storage: {
+      local: {
+        get: (keys) => {
+          const list = Array.isArray(keys) ? keys : [keys];
+          const out = {};
+          for (const key of list) if (key in store) out[key] = store[key];
+          return Promise.resolve(out);
+        },
+        set: (obj) => { Object.assign(store, obj); return Promise.resolve(); }
+      },
+      onChanged: { addListener() {} }
+    },
+    runtime: {
+      sendMessage: (message) => { sent = message; return Promise.resolve(reply); }
+    }
+  };
+</script>
+<script src="../writer.js"></script>
+<script>
+const out = [];
+const t = (name, ok, detail) => out.push((ok ? 'ok   ' : 'FAIL ') + name + (detail === undefined ? '' : ' -> ' + detail));
+const near = (a, b, slack) => Math.abs(a - b) <= slack;
+
+const PROSE = 'I have went to the store yesterday and buyed three apple for the party tonight.';
+// Offsets into PROSE, asserted below rather than trusted: an off-by-one here
+// would quietly make every mirror and replacement assertion test the wrong word.
+const WENT = { offset: 7, length: 4, message: 'Past participle', replacements: ['gone'], ruleId: 'R1', cat: 'GRAMMAR' };
+const BUYED = { offset: 39, length: 5, message: 'Spelling', replacements: ['bought', 'buyer'], ruleId: 'R2', cat: 'TYPOS' };
+
+t('PROSE offsets name the words the matches claim',
+  PROSE.slice(WENT.offset, WENT.offset + WENT.length) === 'went'
+  && PROSE.slice(BUYED.offset, BUYED.offset + BUYED.length) === 'buyed',
+  JSON.stringify([PROSE.slice(WENT.offset, WENT.offset + WENT.length),
+                  PROSE.slice(BUYED.offset, BUYED.offset + BUYED.length)]));
+
+
+/* ---------- which fields are checkable ---------- */
+
+
+t('a textarea is checkable', writeKind(document.getElementById('ta-content')) === 'plain');
+t('a bare text input is checkable', writeKind(document.getElementById('in-text')) === 'plain');
+t('a contenteditable is checkable', writeKind(document.getElementById('ce')) === 'rich');
+t('a password field is refused', writeKind(document.getElementById('in-pass')) === null);
+t('an email field is refused', writeKind(document.getElementById('in-mail')) === null);
+t('a search field is refused', writeKind(document.getElementById('in-find')) === null);
+
+
+/* ---------- the offset index ---------- */
+
+
+const ce = document.getElementById('ce');
+const idx = writeIndexOf(ce, 'rich');
+
+// <div><p>first</p></div><p>second</p> — the reader sees ONE break between the
+// two sentences, so the index must emit one newline and not two.
+t('nested block markup emits one newline, not two',
+  idx.text === 'I have went to the store.\nShe dont like it.', JSON.stringify(idx.text));
+
+t('the index records every text node', idx.nodes.length === 2, idx.nodes.length);
+
+// The round trip: an offset in the flat string must come back as the exact
+// characters in the exact node.
+const r1 = writeRangeFor(idx, 7, 4);
+t('writeRangeFor(7,4) is "went" in the first block', r1 && r1.toString() === 'went', r1 && r1.toString());
+const r2 = writeRangeFor(idx, 26, 3);
+t('writeRangeFor across the newline lands in the second block',
+  r2 && r2.toString() === 'She', r2 && r2.toString());
+t('writeOffsetOf inverts writeRangeFor',
+  writeOffsetOf(idx, r1.startContainer, r1.startOffset) === 7,
+  writeOffsetOf(idx, r1.startContainer, r1.startOffset));
+t('an offset inside the synthetic newline maps to no node',
+  writeRangeFor(idx, 25, 1) === null || writeRangeFor(idx, 25, 1).toString() !== 'S');
+
+
+/* ---------- the mirror: it must match the field it covers ---------- */
+
+
+// The invariant that makes a mirror work is its CONTENT box, not its border
+// box: the content box is what the text lays out inside, so if it differs by
+// even a few pixels the same sentence wraps at a different word and every
+// underline after the first line sits under the wrong thing.
+function mirrorFor(id, text) {
+  const el = document.getElementById(id);
+  el.value = text;
+  el.focus();
+  writeAttach(el);
+  writeIndex = writeIndexOf(el, 'plain');
+  writeMatches = [WENT, BUYED];
+  writeRender();
+  return { el, mirror: writeMirrorEl };
+}
+
+function contentBox(el) {
+  const s = getComputedStyle(el);
+  return {
+    w: el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
+    h: el.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom)
+  };
+}
+
+for (const id of ['ta-content', 'ta-border']) {
+  const { el, mirror } = mirrorFor(id, PROSE);
+  t(`#${id}: a mirror is built`, !!mirror);
+  if (!mirror) continue;
+
+  const field = contentBox(el);
+  const copy = contentBox(mirror);
+  t(`#${id}: the mirror's content width matches the field's`,
+    near(field.w, copy.w, 1), `field ${field.w} vs mirror ${copy.w}`);
+
+  const fr = el.getBoundingClientRect();
+  const mr = mirror.getBoundingClientRect();
+  t(`#${id}: the mirror sits exactly over the field`,
+    near(fr.left, mr.left, 1) && near(fr.top, mr.top, 1) && near(fr.width, mr.width, 1),
+    `${JSON.stringify([fr.left, fr.top, fr.width])} vs ${JSON.stringify([mr.left, mr.top, mr.width])}`);
+
+  // The font is what decides where every character lands. `font` serialises to
+  // the empty string on most real pages, so this is really a check that the
+  // longhand fallback fired.
+  const fs = getComputedStyle(el), ms = getComputedStyle(mirror);
+  t(`#${id}: the mirror copied the field's font`,
+    fs.fontFamily === ms.fontFamily && fs.fontSize === ms.fontSize,
+    `${fs.fontSize} ${fs.fontFamily} vs ${ms.fontSize} ${ms.fontFamily}`);
+  t(`#${id}: the mirror copied the field's line-height`,
+    fs.lineHeight === ms.lineHeight, `${fs.lineHeight} vs ${ms.lineHeight}`);
+
+  const spans = mirror.querySelectorAll('span');
+  t(`#${id}: one span per match`, spans.length === 2, spans.length);
+  t(`#${id}: the spans wrap the erroneous words`,
+    spans[0]?.textContent === 'went' && spans[1]?.textContent === 'buyed',
+    JSON.stringify([spans[0]?.textContent, spans[1]?.textContent]));
+  t(`#${id}: the mirror's text is the field's text, unchanged`,
+    mirror.textContent === el.value);
+  t(`#${id}: the mirror is not clickable`,
+    getComputedStyle(mirror).pointerEvents === 'none');
+  t(`#${id}: the mirror's own text is invisible`,
+    getComputedStyle(mirror).color === 'rgba(0, 0, 0, 0)',
+    getComputedStyle(mirror).color);
+
+  // The second underline is on the second line at these widths. If the content
+  // box were wrong the line would break elsewhere and this y would move.
+  const s0 = spans[0].getBoundingClientRect(), s1 = spans[1].getBoundingClientRect();
+  t(`#${id}: the underlines are inside the field's box`,
+    s0.left >= fr.left - 1 && s0.right <= fr.right + 1 && s1.left >= fr.left - 1 && s1.right <= fr.right + 1,
+    `${JSON.stringify([s0.left, s0.right])} ${JSON.stringify([s1.left, s1.right])} in ${JSON.stringify([fr.left, fr.right])}`);
+  t(`#${id}: the first underline starts at the field's first line`,
+    near(s0.top, fr.top + parseFloat(fs.borderTopWidth) + parseFloat(fs.paddingTop), 3),
+    `${s0.top} vs ${fr.top + parseFloat(fs.borderTopWidth) + parseFloat(fs.paddingTop)}`);
+}
+
+
+/* ---------- the user's typing is text, never markup ---------- */
+
+
+{
+  const hostile = 'Dear team, here is the tag I meant: <img src=x onerror=alert(1)> and I have went home.';
+  const { mirror } = mirrorFor('ta-content', hostile);
+  t('a tag typed into the field stays text in the mirror',
+    mirror.querySelectorAll('img').length === 0, mirror.querySelectorAll('img').length);
+  t('and survives verbatim', mirror.textContent === hostile);
+}
+
+
+/* ---------- the popover ---------- */
+
+
+{
+  const el = document.getElementById('ta-content');
+  el.value = PROSE;
+  el.focus();
+  writeAttach(el);
+  writeIndex = writeIndexOf(el, 'plain');
+  writeMatches = [WENT, BUYED];
+  writeRender();
+  writeOpenPop(BUYED);
+
+  t('the popover is in the page', !!writePopEl && document.body.contains(writePopEl));
+  t('it shows LanguageTool\'s message', writePopEl.textContent.includes('Spelling'));
+  const buttons = writePopEl.querySelectorAll('button');
+  t('one button per replacement, plus Dismiss', buttons.length === 3, buttons.length);
+  t('the replacements are offered in order',
+    buttons[0].textContent === 'bought' && buttons[1].textContent === 'buyer',
+    JSON.stringify([buttons[0].textContent, buttons[1].textContent]));
+  t('it is above everything', getComputedStyle(writePopEl).zIndex === '2147483647');
+
+  // A page dispatching its own click must not be able to rewrite the field.
+  // This is also why the apply below is called directly: a synthetic MouseEvent
+  // carries isTrusted:false and the guard refuses it, which is correct and
+  // makes the button undrivable from a test.
+  buttons[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  t('a synthetic click on a replacement is refused', el.value === PROSE);
+
+  // Applying selects the match first: execCommand writes into the selection,
+  // so a wrong selection silently replaces the wrong word.
+  writeApply(BUYED, 'bought');
+  t('applying a replacement fixes the word',
+    el.value.includes('bought three apple'), JSON.stringify(el.value.slice(30, 60)));
+  t('and leaves the rest of the sentence alone', el.value.startsWith('I have went to the store'));
+  t('and closes the popover', writePopEl === null);
+  t('and drops the now-stale underlines', writeMirrorEl === null && writeMatches.length === 0);
+}
+
+
+/* ---------- the privacy guards ---------- */
+
+
+{
+  writeDetach();
+  const secret = document.getElementById('ta-secret');
+  secret.focus();
+  writeAttach(secret);
+  t('a field under autocomplete=off is never attached to', writeEl === null);
+}
+
+// The 40-character floor is what keeps a search box, a username or a one-time
+// code off the network. Nothing else stops a short string being sent.
+(async () => {
+  writeDetach();
+  const el = document.getElementById('ta-border');
+  el.value = 'too short to be prose';
+  el.focus();
+  writeAttach(el);
+  sent = null;
+  await writeCheck();
+  t('a field under 40 characters is never sent', sent === null, JSON.stringify(sent));
+
+  el.value = PROSE;
+  reply = { matches: [WENT] };
+  await writeCheck();
+  t('a field over 40 characters is sent', sent?.type === 'grammar' && sent.text === PROSE);
+
+  // Counted once per distinct mistake per field, not once per debounce: a
+  // recurring-mistakes list that counted every 1.2s pause would say you make
+  // the same error eight times when you made it once.
+  delete store.writeMistakes;
+  // A fresh focus on the field: the dedupe set is per-attach, and the check
+  // above already counted R1 against it.
+  writeCounted = new Set();
+  writeLast = '';
+  await writeCheck();
+  writeLast = '';
+  await writeCheck();
+  writeLast = '';
+  await writeCheck();
+  await new Promise((r) => setTimeout(r, 0));
+  t('one mistake sitting still is counted once, not once per check',
+    store.writeMistakes?.R1?.n === 1, JSON.stringify(store.writeMistakes));
+  t('and it records the category the dashboard groups by',
+    store.writeMistakes?.R1?.cat === 'GRAMMAR', store.writeMistakes?.R1?.cat);
+
+  document.getElementById('out').textContent =
+    out.join('\n') + '\n' + out.filter((line) => line.startsWith('FAIL')).length
+    + ' failure(s), ' + out.length + ' check(s)';
+})();
+</script>

@@ -189,6 +189,47 @@ Open it from **Open dashboard →** in the side panel.
     "Save to Vocab-track" is gone from System Settings → Services, and that the
     dashboard still opens without errors.
 
+## Writing
+
+These need a reload of the extension: `nativeMessaging` aside, the writing
+check adds a new `host_permission` and a new content script, and Chrome does
+not apply either to a tab that was already open.
+
+32. **It underlines in a plain textarea.** Open a GitHub issue comment box,
+    type two sentences with a mistake in each (`I have went there and buyed
+    two apple.`), stop typing. About a second later the wrong words get a red
+    wavy underline, and the underline sits **under those words**, not beside
+    them. Scroll the textarea: the underlines scroll with the text.
+
+33. **It underlines in a rich editor.** Same in a Gmail compose window. Then
+    resize the window — the underlines must stay on their words.
+
+34. **The fix applies and undoes.** Click an underlined word, pick a
+    replacement. The field text changes, and **Cmd-Z puts it back**. In Gmail,
+    confirm the draft still sends the corrected text (it is the framework
+    seeing the edit that this checks).
+
+35. **Short and secret fields are never checked.** Type into a search box, a
+    username field and a password field. Nothing is ever underlined, and the
+    worker console shows no request for them. Then type 40+ characters into a
+    search box — still nothing.
+
+36. **The switch works everywhere at once.** With a compose window open in one
+    tab, turn the toggle off in **Dashboard → Writing**. Go back and type: no
+    underlines, without reloading the tab. Turn it back on.
+
+37. **Per-site off.** Add the hostname in **Dashboard → Writing**, then type on
+    that site. Nothing is checked. Remove it again.
+
+38. **The mistake count is the point.** After correcting a few errors, open
+    **Dashboard → Writing**. The list names rules you actually broke, ordered
+    by how often. Leave one error uncorrected and keep typing around it for
+    half a minute: its count must **not** climb with every pause.
+
+39. **The rate limiter holds.** Open five tabs with compose boxes and type in
+    all of them. Nothing breaks, and at worst a check is skipped and comes
+    back on the next pause; the worker console must not fill with 429s.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

@@ -7,7 +7,8 @@
   "permissions": ["storage", "sidePanel", "nativeMessaging"],
   "host_permissions": [
     "https://dictionary.cambridge.org/*",
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://api.languagetool.org/*"
   ],
   "background": { "service_worker": "service-worker.js" },
   "side_panel": { "default_path": "sidepanel.html" },
@@ -21,7 +22,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["lib.js", "content-script.js", "reader.js"],
+      "js": ["lib.js", "content-script.js", "reader.js", "writer.js"],
       "run_at": "document_idle"
     }
   ]

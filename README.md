@@ -33,6 +33,10 @@ Built for one person. No accounts, no sync, no server.
 - **Save from any Mac app.** Select a word in Kindle, Preview, Notes, Mail or
   Slack and press a hotkey — a macOS Quick Action queues it, and the dashboard
   looks it up next time you open it. See *Saving from outside Chrome* below.
+- **Write better.** Type in any text box on any site and mistakes are underlined
+  in place; click one for the fix. The dashboard's *Writing* view keeps a count
+  of the rules you break most often, which is the part a grammar checker does
+  not normally tell you. See *Writing* below.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
 - **Review.** SM-2 spaced repetition, in the dashboard or the panel.
@@ -82,6 +86,33 @@ service worker has no `DOMParser`, so it cannot run the Cambridge parser at all.
 Re-run `install-macos.sh` if you ever move the repository: an unpacked
 extension's id is derived from its folder path, and the host manifest names it.
 
+## Writing
+
+Focus a textarea or a rich editor, type at least 40 characters, and a second
+after you stop the mistakes are underlined. Click one for LanguageTool's
+explanation and up to three replacements; picking one edits the field through
+the browser's own editing pipeline, so the page's editor sees it and Cmd-Z
+takes it back.
+
+Every error is also tallied by rule in **Dashboard → Writing**, so the list
+answers "which mistakes do I keep making" rather than "what did I get wrong
+just now". A mistake left uncorrected while you keep typing is counted once,
+not once per re-check.
+
+**What leaves your machine.** The text in the field is sent to
+`api.languagetool.org` to be checked. Nothing else is sent, and these never
+are:
+
+- password, email, URL, telephone, number and search fields
+- anything inside `autocomplete="off"` or `autocomplete="one-time-code"`
+- anything under 40 characters, which is what keeps search queries, usernames
+  and 2FA codes off the network
+
+Turn it off globally, or per site, in **Dashboard → Writing**. The switch takes
+effect in every open tab straight away. LanguageTool is open source and
+self-hostable; pointing `LT_URL` in `service-worker.js` at your own container
+is the whole change if you ever want nothing to leave the machine at all.
+
 ## How it is put together
 
 | File | Responsibility |
@@ -106,7 +137,7 @@ content script gets no bypass.
 bash test/run.sh
 ```
 
-Serves the repo, runs four pages in headless Chrome, and exits non-zero unless
+Serves the repo, runs five pages in headless Chrome, and exits non-zero unless
 every assertion passes:
 
 | Page | Checks |
@@ -115,8 +146,9 @@ every assertion passes:
 | `yt-probe.html` | That a caret still reads caption text through YouTube's `user-select:none`. |
 | `reader-probe.html` | Article extraction against a page of nav, footer and comment junk, and that the RSVP focal letter does not move. |
 | `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, no text under the shortcut badge. |
+| `writer-probe.html` | The textarea mirror over a content-box and a border-box field, the contenteditable offset index, and that a tag typed into a field stays text. |
 
-The last three exist because these are failures no unit test can see: they are
+The last four exist because these are failures no unit test can see: they are
 about what the browser actually renders.
 
 Chrome-facing behaviour cannot be tested this way — `docs/smoke-test.md` is the
@@ -131,6 +163,25 @@ manual checklist for it.
 - **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
 - **Storage is local to this Chrome profile.** Export is the only backup.
+- **The writing check sends your text to a third party.** `api.languagetool.org`,
+  subject to the exclusions above. It is the one part of this extension that
+  shows anything you write to a server you do not run.
+- **LanguageTool's free tier allows 20 requests a minute per IP.** The worker
+  holds one bucket across every tab and refuses at 18; over that, a check is
+  silently skipped and retried on your next pause.
+- **It does not catch everything.** Measured on a sentence with eight planted
+  errors it found six: verb forms and spelling reliably, agreement (`three
+  apple`) and confusion pairs (`their`/`they're`) not always.
+- **Google Docs is a `<canvas>`** and cannot be underlined by any extension.
+  Editors that rebuild their DOM under the highlights drop them; they come back
+  on the next pause.
+- **`<input>` fields are underlined by the same mirror as a textarea**, which
+  is a plain block. An input centres its single line vertically inside a tall
+  box and a block does not, so on an unusually tall input the underline can sit
+  high. Rare in practice: almost every input is under the 40-character floor.
+- **The textarea mirror follows the field on scroll and resize only.** A
+  textarea dragged by its resize grip leaves its underlines behind until the
+  next check.
 - **YouTube subtitles are not highlighted on return.** A caption exists only
   while it is on screen, so there is nothing to paint over when you come back —
   the *On this page* tab is how you find those words again.

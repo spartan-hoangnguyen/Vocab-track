@@ -266,3 +266,30 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
 /* Words that arrived from another Mac app while the dashboard was shut. */
 .capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);
   border-radius:11px;background:var(--ochre);color:var(--ochre-ink);font-size:13px}
+
+/* ---- writing ----
+   No `display` on #view-writing: the section must stay a plain block so the UA
+   stylesheet's [hidden]{display:none} keeps winning. */
+.wrtoggle{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;
+          /* `.iocard p` is (0,1,1) and beats `.note`'s (0,1,0), so the sentence
+             below arrives with margin-top:0 however late .note is declared. */
+          margin-bottom:12px}
+.wrtoggle input{width:17px;height:17px;accent-color:var(--ink);cursor:pointer}
+.wrhosts{list-style:none;margin:0;padding:0}
+.wrhosts li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+            padding:7px 0;border-bottom:1px solid var(--rule);font-size:13.5px}
+.wrhosts li:last-child{border-bottom:0}
+.wradd{display:flex;gap:8px;margin-top:14px}
+.wradd input{flex:1;min-width:0;padding:8px 11px;border:1px solid var(--rule);
+             border-radius:9px;background:#fff;font:400 13.5px Inter;color:var(--ink)}
+.wrhead{margin-top:32px}
+.wrlist{list-style:none;margin:0;padding:2px 22px;border:1px solid var(--rule);
+        border-radius:14px;background:#fff}
+/* auto for the category: a grid column is shared by every row, so the messages
+   still line up even though the labels differ in length. */
+.wrlist li{display:grid;grid-template-columns:52px auto 1fr;gap:16px;align-items:baseline;
+           padding:14px 0;border-bottom:1px solid var(--rule)}
+.wrlist li:last-child{border-bottom:0}
+.wrlist .n{font:600 26px/1 Fraunces,Georgia,serif;letter-spacing:-.02em;
+           font-variant-numeric:tabular-nums;text-align:right}
+.wrlist .m{color:var(--ink2);font-size:13.5px;line-height:1.55}
