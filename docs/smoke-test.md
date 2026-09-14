@@ -10,7 +10,8 @@ Ranked by how likely it is to break, from the final whole-branch review.
 
 1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
 2. Select `~/work/Vocab-track` (the folder containing `manifest.json`)
-3. Pin the extension — the toolbar icon is how you open a review session
+3. Pin the extension — the toolbar icon toggles the side panel, and is how you
+   open a review session
 
 While iterating: reload the card after changing `manifest.json` or
 `service-worker.js`; reload the card *and* the page after changing
@@ -188,6 +189,17 @@ Open it from **Open dashboard →** in the side panel.
 31. **Uninstall is clean.** `./tools/uninstall-macos.sh`, then confirm
     "Save to Vocab-track" is gone from System Settings → Services, and that the
     dashboard still opens without errors.
+
+## The toolbar icon
+
+40. **It toggles.** Click the pinned icon: the side panel opens. Click it
+    again: the panel closes. A third click reopens it. This needs the
+    extension reloaded — `openPanelOnActionClick` is set on worker wake, so a
+    profile that ran an older build keeps the old behaviour until then.
+
+41. **The dashboard is still reachable.** With the panel open, click
+    **Open dashboard →**. It opens, and clicking it again from the panel
+    returns to that same tab rather than opening a second one.
 
 ## Writing
 

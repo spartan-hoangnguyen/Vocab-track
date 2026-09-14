@@ -1,18 +1,20 @@
 // At top level, not in onInstalled: the setting persists per extension, so an
-// install that already set it to true would keep opening the panel on click
-// until it was reinstalled. Running on every worker wake is cheap and makes a
-// plain reload enough.
+// install that set it once would keep the old behaviour until it was
+// reinstalled. Running on every worker wake is cheap and makes a plain reload
+// enough to change it.
 //
-// Explicitly false, because with it on Chrome swallows the action click to
-// open the side panel and action.onClicked never fires. The panel is now only
-// the lookup surface, reached by the button on the page; the toolbar icon goes
-// to the dashboard, where browsing and review live.
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
+// True, so the toolbar icon toggles the side panel: Chrome opens the panel on
+// the click and closes it on the next one, which is the behaviour a panel
+// button is expected to have and which an extension cannot implement itself —
+// there is no API that reports whether the panel is currently open.
+//
+// The cost is that action.onClicked never fires at all with this on: Chrome
+// consumes the click to work the panel. So the toolbar icon can no longer be
+// the way to the dashboard, and the panel's own "Open dashboard →" button is.
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
   .catch((err) => console.error('[vocab-track] setPanelBehavior failed', err));
 
 const DASHBOARD = 'dashboard.html';
-
-chrome.action.onClicked.addListener(() => openDashboard());
 
 async function openDashboard() {
   const url = chrome.runtime.getURL(DASHBOARD);

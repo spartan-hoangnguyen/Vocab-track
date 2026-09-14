@@ -227,8 +227,8 @@ chrome.storage.session.onChanged.addListener((changes) => {
 
 
 $('open-dashboard').addEventListener('click', () => {
-  // Via the worker, so this reuses the same dashboard tab the toolbar icon does
-  // instead of opening a second one.
+  // Via the worker, so every route to the dashboard lands on the one tab it
+  // remembers instead of opening a second one.
   chrome.runtime.sendMessage({ type: 'open-dashboard' });
 });
 

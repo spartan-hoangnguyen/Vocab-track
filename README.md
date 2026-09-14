@@ -48,7 +48,8 @@ No build step.
 
 1. `chrome://extensions` → enable **Developer mode**
 2. **Load unpacked** → select this folder
-3. Pin it. The toolbar icon opens the dashboard.
+3. Pin it. The toolbar icon toggles the side panel; the dashboard is one click
+   further, from the panel's **Open dashboard →**.
 
 Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 
