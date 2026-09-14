@@ -106,10 +106,18 @@ content script gets no bypass.
 bash test/run.sh
 ```
 
-Serves the repo, runs `test/test.html` in headless Chrome, and exits non-zero
-unless every assertion passes. The Cambridge parser is checked against four
-real saved pages, including one with no CEFR level and one that is not a
-dictionary entry at all.
+Serves the repo, runs four pages in headless Chrome, and exits non-zero unless
+every assertion passes:
+
+| Page | Checks |
+|---|---|
+| `test.js` | Pure logic. The Cambridge parser runs against four real saved pages, including one with no CEFR level and one that is not a dictionary entry at all. |
+| `yt-probe.html` | That a caret still reads caption text through YouTube's `user-select:none`. |
+| `reader-probe.html` | Article extraction against a page of nav, footer and comment junk, and that the RSVP focal letter does not move. |
+| `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, no text under the shortcut badge. |
+
+The last three exist because these are failures no unit test can see: they are
+about what the browser actually renders.
 
 Chrome-facing behaviour cannot be tested this way — `docs/smoke-test.md` is the
 manual checklist for it.

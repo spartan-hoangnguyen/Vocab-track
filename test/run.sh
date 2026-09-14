@@ -29,10 +29,20 @@ READER=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
          --window-size=1200,900 --dump-dom "http://localhost:$PORT/test/reader-probe.html" 2>/dev/null \
          | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# The dashboard probe loads the real dashboard against a stubbed chrome API and
+# measures the result, which is the only way to catch layout regressions — a
+# view section that ignores [hidden], a control that stretches, a placeholder
+# running under the shortcut badge.
+DASH=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
+       --window-size=1400,900 --dump-dom "http://localhost:$PORT/test/dashboard-probe.html" 2>/dev/null \
+       | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
 echo "$PROBE"
 echo "$READER"
+echo "$DASH"
 echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PROBE"  | grep -qE '^0 failure\(s\)' || exit 1
 echo "$READER" | grep -qE '^0 failure\(s\)' || exit 1
+echo "$DASH"   | grep -qE '^0 failure\(s\)' || exit 1
 exit 0

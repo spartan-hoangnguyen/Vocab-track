@@ -1,7 +1,5 @@
-<!doctype html>
-<meta charset="utf-8">
-<title>Vocab-track</title>
-<link rel="stylesheet" href="dashboard.css">
+<!doctype html><meta charset="utf-8"><title>Vocab-track</title>
+<link rel="stylesheet" href="../dashboard.css">
 <body>
 <aside>
   <div class="brand"><span class="mark">V</span><b>Vocab-track</b></div>
@@ -165,8 +163,112 @@
   </form>
 </dialog>
 
-<script src="lib.js"></script>
-<script src="store.js"></script>
-<script src="lookup.js"></script>
-<script src="dashboard.js"></script>
+
+<script>
+const WORDS = {};
+const seed = [
+  ['strategy','B2','ˈstræt.ə.dʒi','chiến lược','a detailed plan for achieving success in situations such as war, business or politics'],
+  ['resilient','C1','rɪˈzɪl.i.ənt','kiên cường','able to quickly return to a previous good condition'],
+  ['ubiquitous','C2','juːˈbɪk.wɪ.təs','phổ biến','seeming to be everywhere at the same time'],
+  ['commemorate','C1','kəˈmem.ə.reɪt','tưởng niệm','to remember officially and give respect to a great person or event'],
+  ['tentative','B2','ˈten.tə.tɪv','dè dặt','not certain or agreed, or uncertain and slightly nervous'],
+  ['ambiguous','C1','æmˈbɪɡ.ju.əs','mơ hồ','having more than one possible meaning'],
+  ['leverage','B2','ˈliː.vər.ɪdʒ','đòn bẩy','to use something you already have in order to achieve something new'],
+  ['nuance','C1','ˈnjuː.ɑːns','sắc thái','a very slight difference in appearance, meaning or sound'],
+  ['pragmatic','C1','præɡˈmæt.ɪk','thực dụng','solving problems in a sensible way that suits the conditions'],
+  ['candid','C1','ˈkæn.dɪd','thẳng thắn','truthful and honest, especially about something difficult'],
+  ['scarce','B2','skeəs','khan hiếm','not easy to find or get']
+];
+for (const [word, level, ipa, vi, def] of seed) {
+  WORDS[word] = { word, level, ipa, vi, def, folders:['reading'], senses:[], synonyms:[], related:[],
+    context: word === 'strategy'
+      ? 'The company announced a new long-term strategy for the European market this morning.' : null,
+    sources:['https://example.com/a'], added: Date.now() - 86400000,
+    ease:2.5, interval:0, reps:0, due: Date.now() - 1000 };
+}
+const listeners = [];
+window.chrome = {
+  storage:{ local:{
+      get: async (k) => (k === 'words' ? { words: WORDS } : {}),
+      set: async () => {} },
+    onChanged:{ addListener:(f)=>listeners.push(f) } },
+  runtime:{ sendNativeMessage: async () => { throw new Error('no host'); },
+            sendMessage(){}, onMessage:{ addListener(){} } }
+};
+</script>
+
+<script src="../lib.js"></script>
+<script src="../store.js"></script>
+<script src="../lookup.js"></script>
+<script src="../dashboard.js"></script>
+<script>
+let failures = 0;
+const log = [];
+const check = (name, cond, detail) => {
+  if (cond) log.push('PASS  ' + name);
+  else { failures++; log.push('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
+};
+const cs = (el) => getComputedStyle(el);
+
+setTimeout(() => {
+  /* ---- view switching ----
+     The trap this guards: any author `display` on a view section beats the UA
+     stylesheet's [hidden]{display:none}, so #view-review{display:flex} without
+     a :not([hidden]) makes the review card render on top of every other view. */
+  for (const target of VIEWS) {
+    showView(target);
+    for (const other of VIEWS) {
+      const el = document.getElementById(`view-${other}`);
+      const shown = cs(el).display !== 'none';
+      check(`showView(${target}) ${other === target ? 'shows' : 'hides'} ${other}`,
+            shown === (other === target), `display: ${cs(el).display}`);
+    }
+  }
+
+  /* ---- the top bar must not offer Review while you are reviewing ---- */
+  showView('review');
+  check('the review CTA is hidden inside the review', document.getElementById('review-btn').hidden);
+  showView('overview');
+  check('the review CTA is back outside it', !document.getElementById('review-btn').hidden);
+
+  /* ---- the search placeholder must not run under the shortcut badge ---- */
+  const input = document.getElementById('q');
+  const badge = document.querySelector('.search .kbd');
+  const textEdge = input.getBoundingClientRect().right
+    - parseFloat(cs(input).paddingRight);
+  check('the search field reserves room for the ⌘K badge',
+        textEdge <= badge.getBoundingClientRect().left + 1,
+        `text ends at ${textEdge.toFixed(1)}, badge starts at ${badge.getBoundingClientRect().left.toFixed(1)}`);
+
+  /* ---- the review card must use the viewport, not float in its top third ---- */
+  startReview(null);
+  showView('review');
+  render();
+  const card = document.getElementById('rv-card').getBoundingClientRect();
+  const above = card.top;
+  const below = window.innerHeight - card.bottom;
+  check('the review card is on screen', card.height > 0 && card.top < window.innerHeight);
+  // Centred, not top-anchored: before this work the card sat under the heading
+  // with roughly three times as much empty space below it as above.
+  check(`the review card is vertically centred (${above.toFixed(0)}px above, ${below.toFixed(0)}px below)`,
+        Math.abs(above - below) < Math.max(above, below) * 0.6,
+        `above ${above.toFixed(0)}, below ${below.toFixed(0)}`);
+
+  /* ---- the reveal button is an action, not a banner ---- */
+  const reveal = document.getElementById('rv-reveal');
+  const cardBox = document.getElementById('rv-card');
+  check('Show answer hugs its label rather than stretching',
+        reveal.getBoundingClientRect().width < cardBox.clientWidth * 0.75,
+        `${reveal.getBoundingClientRect().width.toFixed(0)}px of ${cardBox.clientWidth}px`);
+
+  /* ---- nav icons must be distinguishable from one another ---- */
+  const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
+  check('every nav item has its own icon',
+        icons.length === 5 && new Set(icons).size === 5, `${new Set(icons).size} distinct of ${icons.length}`);
+
+  document.getElementById('out').textContent =
+    log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+}, 80);
+</script>
+<pre id="out">running…</pre>
 </body>

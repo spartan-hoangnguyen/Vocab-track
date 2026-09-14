@@ -27,7 +27,9 @@ nav a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9p
       color:var(--ink);text-decoration:none;font-weight:500;font-size:14px}
 nav a:hover{background:#0000000a}
 nav a.on{background:var(--ink);color:var(--paper)}
-nav a i{width:15px;height:15px;border:1.6px solid currentColor;border-radius:3px;opacity:.7}
+nav a svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;
+          stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
+nav a.on svg{opacity:1}
 .streak{margin-top:auto;background:var(--paper);border:1px solid var(--rule);
         border-radius:12px;padding:14px}
 .streak .d{font:600 22px/1 Fraunces,Georgia,serif}
@@ -37,10 +39,11 @@ nav a i{width:15px;height:15px;border:1.6px solid currentColor;border-radius:3px
            background:var(--rule)}
 .dots span.on{background:var(--ink)}
 
-main{flex:1;min-width:0;padding:22px 34px 64px}
+main{flex:1;min-width:0;padding:22px 34px 64px;display:flex;flex-direction:column}
+main > section{flex:1 0 auto}
 .top{display:flex;align-items:center;gap:16px;margin-bottom:32px}
 .search{flex:1;max-width:520px;position:relative}
-.search input{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--rule);
+.search input{width:100%;padding:11px 62px 11px 38px;border:1px solid var(--rule);
               border-radius:11px;background:#fff;font:400 14px Inter;color:var(--ink)}
 .search input::placeholder{color:var(--ink3)}
 .search input:focus{outline:2px solid var(--bar);outline-offset:-1px}
@@ -137,14 +140,40 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
 }
 
 /* ---- review ---- */
-.rvhead{margin-bottom:26px}
+/* Review fills the space the top bar leaves and centres its card in it. The
+   card used to sit under the heading with two thirds of the viewport empty
+   below it, which read as an unfinished page rather than a focus mode. */
+#view-review:not([hidden]){display:flex;flex-direction:column;min-height:calc(100vh - 108px)}
+.rvhead{margin-bottom:0;flex:none}
+.rvhead-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.rvhead h1{font-size:24px}
+.rvcount{color:var(--ink2);font-size:13px;font-variant-numeric:tabular-nums;flex:none}
+.rvexit{flex:none;text-align:center;color:var(--ink3);font-size:12px;margin:22px 0 0}
+.rvexit kbd{font:500 11px Inter;border:1px solid var(--rule);border-radius:5px;
+            padding:2px 6px;background:var(--panel);color:var(--ink2)}
 .rvempty{border:1px solid var(--rule);border-radius:16px;background:#fff;
          padding:56px 24px;text-align:center;color:var(--ink2)}
 .rvempty p{margin:0 0 18px;font-size:15px}
-.rvcard{max-width:660px;margin:0 auto;border:1px solid var(--rule);border-radius:20px;
-        background:#fff;padding:40px 44px 44px;text-align:center}
-.rvprog{height:4px;border-radius:2px;background:var(--panel);overflow:hidden;margin-bottom:34px}
-.rvprog span{display:block;height:100%;background:var(--ink);transition:width .18s ease}
+.rvcard{max-width:620px;width:100%;margin:0 auto;border:1px solid var(--rule);
+        border-radius:20px;background:#fff;padding:44px 44px 40px;text-align:center;
+        box-shadow:0 1px 2px #1c1a1708,0 12px 32px -18px #1c1a1726;
+        /* Reserved, so revealing the answer grows the card from a settled
+           height rather than jerking the word upward as the page re-centres. */
+        min-height:380px;display:flex;flex-direction:column;justify-content:center}
+/* The card is a flex column, which would otherwise stretch this button to the
+   full content width and make it read as a banner rather than an action. */
+#rv-reveal{align-self:center}
+/* The word changes identity on every grade; a short fade makes that legible
+   instead of looking like a mis-click. */
+@keyframes rvin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.rvcard.fresh{animation:rvin .18s ease-out}
+@media (prefers-reduced-motion:reduce){.rvcard.fresh{animation:none}}
+/* The wrapper is what centres the card; the section itself has the header
+   pinned at its top. */
+.rvbody{flex:1;display:flex;align-items:center;justify-content:center;padding:22px 0}
+.rvprog{height:3px;border-radius:2px;background:var(--rule);overflow:hidden;margin-top:14px}
+.rvprog span{display:block;height:100%;background:var(--ink);border-radius:2px;
+             transition:width .22s ease}
 .rvmeta{display:flex;align-items:center;justify-content:center;gap:10px;
         color:var(--ink2);font-size:13.5px;min-height:26px}
 .rvplay{background:none;border:1px solid var(--rule);border-radius:8px;cursor:pointer;
@@ -161,7 +190,11 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
                  background:var(--paper);cursor:pointer;font:500 13.5px Inter;color:var(--ink)}
 .rvgrades button:hover{background:var(--panel)}
 .rvgrades button b{display:block;font-weight:600}
-.rvgrades button span{display:block;color:var(--ink3);font-size:11.5px;margin-top:4px}
+.rvgrades button span{display:block;color:var(--ink3);font-size:11.5px;margin-top:5px}
+.rvgrades button kbd{font:500 10.5px Inter;border:1px solid var(--rule);border-radius:4px;
+                     padding:1px 5px;margin-right:5px;background:var(--panel);color:var(--ink2)}
+.rvgrades button:hover kbd{background:#fff}
+.rvgrades button:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
 kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px 6px;
     margin-left:7px;opacity:.75}
 

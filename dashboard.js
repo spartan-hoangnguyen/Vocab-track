@@ -12,6 +12,9 @@ let activeFolder = null;   // null = all words
 
 function showView(name) {
   for (const view of VIEWS) $(`view-${view}`).hidden = view !== name;
+  // Redundant once you are in the review, and it competes with Show answer
+  // for the same attention and roughly the same click.
+  $('review-btn').hidden = name === 'review';
   for (const a of document.querySelectorAll('nav a')) {
     a.classList.toggle('on', a.dataset.view === name);
   }
@@ -571,7 +574,9 @@ function renderCard() {
   if (!queue.length) {
     $('rv-card').hidden = true;
     $('rv-empty').hidden = false;
+    $('rv-exit').hidden = true;
     $('rv-sub').textContent = '';
+    $('rv-prog-fill').style.width = sessionTotal ? '100%' : '0%';
     $('rv-empty-text').textContent = sessionTotal
       ? `Done — ${sessionTotal} card${sessionTotal === 1 ? '' : 's'} reviewed.`
       : 'Nothing due. Come back later.';
@@ -582,8 +587,20 @@ function renderCard() {
   const done = sessionTotal - queue.length;
   $('rv-empty').hidden = true;
   $('rv-card').hidden = false;
+  $('rv-exit').hidden = false;
   $('rv-sub').textContent = `${done + 1} of ${sessionTotal}`;
   $('rv-prog-fill').style.width = `${(done / sessionTotal) * 100}%`;
+
+  // Replay the entry animation only when the card is showing a different word.
+  // Re-running it on reveal would animate the answer appearing, which reads as
+  // a glitch rather than as progress.
+  const card = $('rv-card');
+  if (card.dataset.word !== entry.word) {
+    card.dataset.word = entry.word;
+    card.classList.remove('fresh');
+    void card.offsetWidth;   // forces the restart; without it the class re-adds in the same frame and nothing plays
+    card.classList.add('fresh');
+  }
 
   $('rv-word').textContent = entry.word;
   $('rv-level').textContent = entry.level ?? DASH;
@@ -637,7 +654,9 @@ for (const g of GRADES) {
   const label = document.createElement('b');
   label.textContent = g.label;
   const hint = document.createElement('span');
-  hint.textContent = `${g.key} · ${g.hint}`;
+  const key = document.createElement('kbd');
+  key.textContent = g.key;
+  hint.append(key, g.hint);
   button.append(label, hint);
   button.addEventListener('click', () => grade(g.q));
   $('rv-grades').appendChild(button);
@@ -648,6 +667,12 @@ $('rv-back').addEventListener('click', () => { showView('overview'); render(); }
 
 document.addEventListener('keydown', (event) => {
   if ($('view-review').hidden || document.activeElement === $('q')) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    showView('overview');
+    render();
+    return;
+  }
   if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); reveal(); return; }
   const g = GRADES.find((x) => x.key === event.key);
   if (g) { event.preventDefault(); grade(g.q); }
