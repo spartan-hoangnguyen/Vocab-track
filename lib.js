@@ -297,6 +297,30 @@ const VT = {
     return Math.round(ms);
   },
 
+  // A word captured from another Mac app arrives as whatever was selected,
+  // which is a single word if you double-clicked one and a phrase if you
+  // dragged. Returns { word, context } or null.
+  //
+  // For a phrase, the LONGEST candidate word wins rather than the first: the
+  // word you stopped to look up is almost never "the", and length is the one
+  // signal available without a dictionary call.
+  captureWord(selection) {
+    const text = String(selection ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) return null;
+
+    const candidates = VT.tokenise(text)
+      .map((token) => VT.normaliseWord(token.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')))
+      .filter((word) => VT.isLookupCandidate(word));
+    if (!candidates.length) return null;
+
+    const word = candidates.reduce((a, b) => (b.length > a.length ? b : a));
+    // A one-word selection carries no sentence; a phrase is its own context.
+    const context = VT.tokenise(text).length > 1
+      ? VT.sentenceAround(text, word) ?? text.slice(0, VT.MAX_CONTEXT)
+      : null;
+    return { word, context };
+  },
+
   // A link back to the exact place the word was read, using Chrome's native
   // scroll-to-text-fragment (`#:~:text=`). The page needs no cooperation and
   // nothing extra is stored — the saved sentence is the anchor.
@@ -308,6 +332,12 @@ const VT = {
   // on the right occurrence without being brittle.
   sourceLink(url, context, word) {
     if (!url) return null;
+    // Only a web page can be navigated back to. A word captured from Kindle or
+    // Preview records the app it came from, which is not a link — rendering it
+    // as one would give a dead anchor in the panel and the dashboard.
+    let scheme = null;
+    try { scheme = new URL(url).protocol; } catch { return null; }
+    if (scheme !== 'http:' && scheme !== 'https:') return null;
     // A video URL already points at the moment the word was said. A text
     // fragment on top of that would match nothing — the caption is not in the
     // page's text — and Chrome would silently drop the whole link.

@@ -167,6 +167,28 @@ Open it from **Open dashboard →** in the side panel.
     site with a sticky header — and confirm the reader's own type, colours and
     layout are untouched, and that it covers the page completely.
 
+27. **Mac capture, end to end.** Run `./tools/install-macos.sh`, assign the
+    hotkey in System Settings, then select a word in **Preview or Kindle** — not
+    Chrome — and press it. A notification must say "Saved to Vocab-track". Open
+    the dashboard: a note at the top of Overview must report the word being
+    looked up, and it must then appear in All words with its CEFR level.
+
+28. **Capture with Chrome quit.** Quit Chrome entirely, capture two words, then
+    start Chrome and open the dashboard. Both must arrive — the queue is a file,
+    not a message to a running browser.
+
+29. **A phrase, not a word.** Select "the resilient supply chains" and capture
+    it. It must save **resilient** (the longest candidate, since nobody looks up
+    "the") and keep the whole phrase as the "seen in" context.
+
+30. **No dead links.** A word captured from Preview must show no `↩` source link
+    in the panel or the dashboard — there is no page to go back to. Words saved
+    from web pages must still show theirs.
+
+31. **Uninstall is clean.** `./tools/uninstall-macos.sh`, then confirm
+    "Save to Vocab-track" is gone from System Settings → Services, and that the
+    dashboard still opens without errors.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

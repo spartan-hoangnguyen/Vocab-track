@@ -30,6 +30,9 @@ Built for one person. No accounts, no sync, no server.
   word at a time at a fixed focal point, so your eyes never travel. It reads
   your selection, or extracts the article if you have not selected anything.
   Escape drops you back at the paragraph you stopped in.
+- **Save from any Mac app.** Select a word in Kindle, Preview, Notes, Mail or
+  Slack and press a hotkey — a macOS Quick Action queues it, and the dashboard
+  looks it up next time you open it. See *Saving from outside Chrome* below.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
 - **Review.** SM-2 spaced repetition, in the dashboard or the panel.
@@ -45,6 +48,40 @@ No build step.
 
 Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 
+## Saving from outside Chrome
+
+```bash
+./tools/install-macos.sh
+```
+
+Then assign the hotkey by hand — macOS does not let a script do this:
+
+> System Settings → Keyboard → **Keyboard Shortcuts…** → **Services** → **Text**
+> → tick **Save to Vocab-track** and click at its right to set a key.
+
+Select a word anywhere and press it. A notification confirms the capture; the
+word is looked up the next time you open the dashboard.
+
+**How it fits together**, and why it is built this way:
+
+| Piece | Job |
+|---|---|
+| `tools/vocab-capture.sh` | Appends the selection to a queue file, then exits |
+| `tools/vocab-host.py` | Chrome native messaging host; hands the queue over and clears it |
+| `tools/install-macos.sh` | Builds the Quick Action, registers the host, verifies both |
+| `tools/uninstall-macos.sh` | Removes both |
+
+The capture script deliberately **does not talk to Chrome**. Chrome may not be
+running, and blocking on it would stall the app you are reading in. So captures
+are instant and offline, and the dashboard drains the queue when it opens —
+which is also when you are there to see a word that could not be found.
+
+The drain happens in the dashboard rather than the service worker because a
+service worker has no `DOMParser`, so it cannot run the Cambridge parser at all.
+
+Re-run `install-macos.sh` if you ever move the repository: an unpacked
+extension's id is derived from its folder path, and the host manifest names it.
+
 ## How it is put together
 
 | File | Responsibility |
@@ -54,6 +91,7 @@ Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 | `lookup.js` | Cambridge + translation pipeline, pronunciation |
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
+| `tools/` | The macOS capture: Quick Action, native messaging host, installer |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
@@ -103,4 +141,11 @@ manual checklist for it.
 - **The reader cannot open inside a page's own fullscreen video** other than by
   the top layer, and it does not open on `chrome://` pages, the web store, or a
   tab that has not been reloaded since the extension was installed.
+- **The Mac capture needs a selection.** Reading the word under the pointer
+  without selecting it needs the macOS Accessibility API and therefore a native
+  app; this is a Quick Action, so double-click the word first. Apple's own
+  three-finger-tap Look Up cannot be intercepted — it is resolved by the OS
+  through `NSTextInputClient` and never becomes a DOM event.
+- **Captures resolve when the dashboard opens**, not instantly. They queue
+  offline in the meantime, so nothing is lost if Chrome is shut.
 - Roughly 1 word in 8 has no synonyms on Cambridge.

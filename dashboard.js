@@ -479,7 +479,62 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.words || changes.folders)) refresh();
 });
 
-refresh();
+/* ---------- words captured from other Mac apps ---------- */
+
+
+// The Quick Action installed by tools/install-macos.sh queues whatever you
+// selected, in any app, and exits. It deliberately does not talk to Chrome —
+// Chrome may not even be running. So the queue is drained here, when you open
+// the dashboard, which is also when you are present to see a word that could
+// not be looked up.
+//
+// The service worker would be the obvious place instead, but it has no
+// DOMParser, so it cannot run the Cambridge parser at all.
+const CAPTURE_HOST = 'com.vocab_track.capture';
+
+async function drainCaptures() {
+  let reply;
+  try {
+    reply = await chrome.runtime.sendNativeMessage(CAPTURE_HOST, { cmd: 'drain' });
+  } catch (err) {
+    // Overwhelmingly the normal case: the host is not installed, which is fine
+    // — every other part of the extension works without it.
+    console.debug('[vocab-track] no capture host installed', err?.message ?? err);
+    return;
+  }
+  const items = reply?.items ?? [];
+  if (!items.length) return;
+
+  const note = $('capture-note');
+  note.hidden = false;
+  note.textContent =
+    `Looking up ${items.length} word${items.length === 1 ? '' : 's'} captured on your Mac…`;
+
+  const saved = [];
+  const missed = [];
+  for (const item of items) {
+    const parsed = VT.captureWord(item.text);
+    if (!parsed) { missed.push(item.text); continue; }
+    try {
+      // Serial, not Promise.all: these are scraped pages, and twenty parallel
+      // requests is how an IP gets rate-limited.
+      const source = item.app ? `macos:${item.app}` : null;
+      const result = await resolveWord(parsed.word, source, [], parsed.context);
+      (result.notFound ? missed : saved).push(parsed.word);
+    } catch (err) {
+      console.error('[vocab-track] capture lookup failed for', parsed.word, err);
+      missed.push(parsed.word);
+    }
+  }
+
+  note.textContent = [
+    saved.length ? `Added ${saved.length} from your Mac: ${saved.join(', ')}` : '',
+    missed.length ? `Not found: ${missed.join(', ')}` : ''
+  ].filter(Boolean).join('  ·  ') || 'Nothing to add.';
+  await refresh();
+}
+
+refresh().then(drainCaptures);
 
 
 /* ---------- review ---------- */

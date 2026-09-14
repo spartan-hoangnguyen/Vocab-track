@@ -229,3 +229,7 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
 .wc-link:hover{color:var(--ink);border-bottom-color:var(--ink3)}
 .tag.clickable{cursor:pointer}
 .tag.clickable:hover{background:#e8e1d4;color:var(--ink)}
+
+/* Words that arrived from another Mac app while the dashboard was shut. */
+.capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);
+  border-radius:11px;background:var(--ochre);color:var(--ochre-ink);font-size:13px}

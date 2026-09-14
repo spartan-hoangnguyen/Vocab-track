@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Look up English words while reading, and review them as flashcards.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "sidePanel"],
+  "permissions": ["storage", "sidePanel", "nativeMessaging"],
   "host_permissions": [
     "https://dictionary.cambridge.org/*",
     "https://translate.googleapis.com/*"

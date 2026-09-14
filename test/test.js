@@ -358,6 +358,33 @@ async function parserTests() {
   eq('a question mark is a sentence end', VT.holdFor('why?', BASE, false), 400);
   eq('a mid-word hyphen is not punctuation', VT.holdFor('well-known', BASE, false), 260);
 
+  // --- captureWord: text selected in some other Mac app
+  eq('a single selected word is the word', VT.captureWord('resilient').word, 'resilient');
+  eq('a single word carries no context', VT.captureWord('resilient').context, null);
+  eq('surrounding whitespace is trimmed', VT.captureWord('  ubiquitous \n').word, 'ubiquitous');
+  eq('trailing punctuation is stripped', VT.captureWord('resilient.').word, 'resilient');
+  eq('quotes around a word are stripped', VT.captureWord('"resilient"').word, 'resilient');
+  // A phrase: the longest candidate, not the first — nobody looks up "the".
+  eq('a phrase yields its longest word',
+     VT.captureWord('the resilient supply chains').word, 'resilient');
+  check('a phrase keeps itself as context',
+        VT.captureWord('the resilient supply chains').context.includes('supply chains'));
+  eq('a phrase with no real word is rejected', VT.captureWord('42 -- 7'), null);
+  eq('empty selection is rejected', VT.captureWord(''), null);
+  eq('whitespace-only selection is rejected', VT.captureWord('   '), null);
+  eq('null selection is rejected', VT.captureWord(null), null);
+  // Long selections are capped the same way a page context is — sentenceAround
+  // truncates at MAX_CONTEXT and then adds the ellipsis, so the cap is +1.
+  const longCap = VT.captureWord('resilient ' + 'padding '.repeat(200)).context;
+  check('a very long selection is capped', longCap.length <= VT.MAX_CONTEXT + 1, String(longCap.length));
+  check('and marked as truncated', longCap.endsWith('…'));
+
+  // --- sourceLink only links things a browser can open
+  eq('a mac app source is not a link', VT.sourceLink('macos:Kindle', 'a resilient b', 'resilient'), null);
+  eq('a non-url source is not a link', VT.sourceLink('Preview', null, 'x'), null);
+  eq('a file url is not a link', VT.sourceLink('file:///Users/me/a.pdf', null, 'x'), null);
+  check('an http url still links', VT.sourceLink('http://e.com/a', null, 'x') === 'http://e.com/a');
+
   // --- source guard: the Cambridge fetch must not send cookies
   // Not a behaviour test (the fetch needs Chrome), but this option is a
   // one-word deletion away from a silent 403 on every lookup, so it is worth
