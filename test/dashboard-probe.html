@@ -1,178 +1,67 @@
 <!doctype html><meta charset="utf-8"><title>Vocab-track</title>
 <link rel="stylesheet" href="../dashboard.css">
 <body>
-<aside>
-  <div class="brand"><span class="mark">V</span><b>Vocab-track</b></div>
-  <div class="navlabel">Learn</div>
-  <nav>
-    <a href="#" data-view="overview" class="on"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>Overview</a>
-    <a href="#" data-view="words"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>All words</a>
-    <a href="#" data-view="review"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="10" height="9" rx="2"/><path d="M5 1.5h7.5a2 2 0 0 1 2 2V11"/></svg>Review</a>
-    <a href="#" data-view="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5V8M8 13.5V2.5M13.5 13.5v-3.5"/></svg>Statistics</a>
-    <a href="#" data-view="writing"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 2.5 13.5 6 6.5 13H3v-3.5z"/><path d="M8.75 3.75 12.25 7.25"/></svg>Writing</a>
-  </nav>
-  <div class="navlabel">Library</div>
-  <nav>
-    <a href="#" data-view="io"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v7M8 1.5 5.5 4M8 1.5 10.5 4"/><path d="M2.5 10v3a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>Import &amp; export</a>
-  </nav>
-  <div class="streak">
-    <div class="d" id="streak-days">—</div>
-    <div class="l">Days with a new word</div>
-    <div class="dots" id="streak-dots"></div>
-  </div>
-</aside>
-
-<main>
-  <div class="top">
-    <div class="search">
-      <span class="ic"></span>
-      <input id="q" type="search" autocomplete="off"
-             placeholder="Search your words, or look up a new one…">
-      <span class="kbd">⌘K</span>
-    </div>
-    <span class="sp"></span>
-    <button class="btn" id="review-btn">Review</button>
-  </div>
-
-  <!-- Overview -->
-  <section id="view-overview">
-      <p class="capnote" id="capture-note" hidden></p>
-    <h1>Your vocabulary</h1>
-    <div class="sub" id="ov-sub"></div>
-    <div class="stats">
-      <div class="stat"><div class="n" id="ov-total">0</div><div class="l">Total words</div></div>
-      <div class="stat"><div class="n" id="ov-due">0</div><div class="l">Due today</div></div>
-      <div class="stat"><div class="n" id="ov-median">—</div><div class="l">Median level</div></div>
-      <div class="stat push">
-        <div class="l tight">By level</div>
-        <div class="bars" id="ov-bars"></div>
-      </div>
-    </div>
-    <div class="secthead"><h2>Folders</h2></div>
-    <div class="grid" id="ov-folders"></div>
-  </section>
-
-  <!-- Words table -->
-  <section id="view-words" hidden>
-    <h1 id="w-title">All words</h1>
-    <div class="sub" id="w-sub"></div>
-    <div class="cards" id="w-cards"></div>
-    <p class="empty" id="w-empty" hidden></p>
-  </section>
-
-  <!-- Review -->
-  <section id="view-review" hidden>
-    <div class="rvhead">
-      <div class="rvhead-row">
-        <h1 id="rv-title">Review</h1>
-        <div class="rvcount" id="rv-sub"></div>
-      </div>
-      <div class="rvprog"><span id="rv-prog-fill"></span></div>
-    </div>
-
-    <div class="rvbody">
-    <div class="rvempty" id="rv-empty" hidden>
-      <p id="rv-empty-text">Nothing due. Come back later.</p>
-      <button class="btn ghost" id="rv-back">Back to overview</button>
-    </div>
-
-    <div class="rvcard" id="rv-card" hidden>
-      <div class="rvmeta">
-        <span class="lvl" id="rv-level"></span>
-        <span id="rv-ipa"></span>
-        <button class="rvplay" id="rv-play" aria-label="Pronounce">▶</button>
-      </div>
-      <h2 class="rvword" id="rv-word"></h2>
-      <button class="btn" id="rv-reveal">Show answer <kbd>space</kbd></button>
-      <div id="rv-answer" hidden>
-        <p class="rvvi" id="rv-vi"></p>
-        <p class="rvdef" id="rv-def"></p>
-        <blockquote class="rvseen" id="rv-context" hidden></blockquote>
-        <div class="rvgrades" id="rv-grades"></div>
-      </div>
-    </div>
-    </div>
-
-    <p class="rvexit" id="rv-exit" hidden><kbd>esc</kbd> to finish for now</p>
-  </section>
-
-  <!-- Statistics -->
-  <section id="view-stats" hidden>
-    <h1>Statistics</h1>
-    <div class="sub" id="st-sub"></div>
-    <div class="charts">
-      <figure class="chart">
-        <figcaption>Words added · last 30 days</figcaption>
-        <div class="plot" id="st-added"></div>
-        <div class="axis"><span id="st-added-from"></span><span>today</span></div>
-      </figure>
-      <figure class="chart">
-        <figcaption>Review load · next 14 days</figcaption>
-        <div class="plot" id="st-due"></div>
-        <div class="axis"><span>today</span><span id="st-due-to"></span></div>
-      </figure>
-      <figure class="chart">
-        <figcaption>Words by level</figcaption>
-        <div class="plot tall" id="st-levels"></div>
-        <div class="axis" id="st-levels-axis"></div>
-      </figure>
-      <figure class="chart">
-        <figcaption>Where they came from</figcaption>
-        <ul class="sources" id="st-sources"></ul>
-      </figure>
-    </div>
-  </section>
-
-  <!-- Writing -->
-  <section id="view-writing" hidden>
-    <h1>Writing</h1>
-    <div class="sub">Grammar checking in the text boxes you type into.</div>
-    <div class="iocards">
-      <div class="iocard">
-        <h3>Checking</h3>
-        <label class="wrtoggle"><input type="checkbox" id="wr-on">Check my writing as I type</label>
-        <p class="note">Text you type in a box on a page is sent to languagetool.org
-           to be checked.</p>
-      </div>
-      <div class="iocard">
-        <h3>Off on these sites</h3>
-        <ul class="wrhosts" id="wr-hosts"></ul>
-        <p class="note" id="wr-hosts-empty" hidden>Checking is on everywhere.</p>
-        <form class="wradd" id="wr-add">
-          <input id="wr-host" placeholder="mail.google.com" autocomplete="off" maxlength="120">
-          <button class="btn small">Add</button>
-        </form>
-      </div>
-    </div>
-    <div class="secthead wrhead">
-      <h2>Your recurring mistakes</h2>
-      <button class="btn ghost small" id="wr-reset">Reset</button>
-    </div>
-    <ul class="wrlist" id="wr-mistakes"></ul>
-    <p class="empty" id="wr-mistakes-empty" hidden>Mistakes will appear here once you have
-       written in a text box on a page with checking on.</p>
-  </section>
-
-  <!-- Import / export -->
-  <section id="view-io" hidden>
-    <h1>Import &amp; export</h1>
-    <div class="sub">Your words live only in this browser profile. Export is the backup.</div>
-    <div class="iocards">
-      <div class="iocard">
-        <h3>Export</h3>
-        <p>Downloads every word and folder as one JSON file.</p>
-        <button class="btn" id="export-btn">Export JSON</button>
-      </div>
-      <div class="iocard">
-        <h3>Import</h3>
-        <p>Merges by word. Existing entries keep their review schedule;
-           folders are combined. Nothing is overwritten.</p>
-        <input type="file" id="import-file" accept="application/json,.json">
-        <div class="note" id="io-note"></div>
-      </div>
-    </div>
-  </section>
-</main>
+<!-- display:contents, so this wrapper adds no box of its own. dashboard.css
+     lays the page out as a flex body with <aside> and <main> as its direct
+     children; an ordinary <div> between them breaks that, and a probe whose
+     whole job is measuring layout would then be measuring a box tree the
+     product never renders. -->
+<style>#app{display:contents}</style>
+<div id="app"></div>
+<script>
+  // A probe that dies silently reports nothing and reads as a pass to anyone
+  // skimming. Surface it in the one place run.sh looks.
+  const died = (what) => {
+    document.getElementById('out').textContent =
+      'FAIL probe ' + what + '\n1 failure(s), 0 check(s)';
+  };
+  window.addEventListener('error', (e) => died('threw: ' + e.message + ' @' + e.filename + ':' + e.lineno));
+  // Both, because the assertions run in an async callback: a throw in there is
+  // a rejected promise, which never reaches the error event. Without this the
+  // page sits on "running…" and run.sh reports nothing at all.
+  window.addEventListener('unhandledrejection', (e) => died('rejected: ' + (e.reason?.stack ?? e.reason)));
+</script>
+<!-- The markup is the real dashboard.html, fetched rather than copied.
+     It used to be a copy, and the copy silently went stale the moment the
+     review card changed shape — a probe measuring markup the product no longer
+     ships cannot catch anything. -->
+<script>
+  // dashboard.js binds its listeners at load, so the markup has to be in the
+  // document before it runs. That ordering is why this page loads lib/store/
+  // lookup/dashboard itself, at the bottom, instead of with <script src>: a
+  // synchronous XMLHttpRequest would give the same ordering but stalls
+  // headless Chrome's virtual clock, so the assertions' timer never fired and
+  // the page sat on "running…" reporting nothing.
+  const ready = fetch('../dashboard.html')
+    .then((r) => r.text())
+    .then((page) => {
+      // Only what is inside <body>, and with its <script> tags stripped: this
+      // page loads those itself, after the chrome stub exists.
+      //
+      // Appended, never assigned to document.body.innerHTML: replacing the
+      // body while the parser is still inside it throws away every tag not yet
+      // read, which silently took out this page's own scripts.
+      const holder = document.createElement('div');
+      holder.innerHTML =
+        page.slice(page.indexOf('<body>') + 6, page.lastIndexOf('</body>'))
+            .replace(/<script[\s\S]*?<\/script>/g, '');
+      // Into a slot declared up front, not appended to the body. The fetch
+      // resolves after parsing finishes, so appending would put the whole
+      // dashboard after the results element at the foot of this page — and
+      // run.sh reads the results by slicing between that element's tags, so it
+      // would print the dashboard instead of the assertions.
+      document.getElementById('app').replaceChildren(...holder.childNodes);
+    })
+    .then(() => { return ['../lib.js', '../store.js', '../lookup.js', '../dashboard.js']
+      // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
+      .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = src;
+        tag.onload = resolve;
+        tag.onerror = () => reject(new Error('could not load ' + src));
+        document.head.append(tag);
+      })), Promise.resolve()); });
+</script>
 
 <dialog id="folder-dlg">
   <form method="dialog">
@@ -238,11 +127,12 @@ window.chrome = {
 };
 </script>
 
-<script src="../lib.js"></script>
-<script src="../store.js"></script>
-<script src="../lookup.js"></script>
-<script src="../dashboard.js"></script>
 <script>
+// Braced, so every helper below is block-scoped. These names sit in the same
+// global script scope as lib.js, store.js, lookup.js and dashboard.js, and a
+// bare `check` in this file collided with one added to dashboard.js — a
+// SyntaxError that takes out the whole page rather than failing one assertion.
+{
 let failures = 0;
 const log = [];
 const check = (name, cond, detail) => {
@@ -251,7 +141,9 @@ const check = (name, cond, detail) => {
 };
 const cs = (el) => getComputedStyle(el);
 
-setTimeout(async () => {
+// The markup and the four scripts are all fetched, so the assertions wait on
+// that chain; the short timer after it is for the dashboard's own first render.
+ready.then(() => setTimeout(async () => {
   /* ---- view switching ----
      The trap this guards: any author `display` on a view section beats the UA
      stylesheet's [hidden]{display:none}, so #view-review{display:flex} without
@@ -295,12 +187,65 @@ setTimeout(async () => {
         Math.abs(above - below) < Math.max(above, below) * 0.6,
         `above ${above.toFixed(0)}, below ${below.toFixed(0)}`);
 
-  /* ---- the reveal button is an action, not a banner ---- */
-  const reveal = document.getElementById('rv-reveal');
+  /* ---- the typing card ----
+     The prompt is the meaning and the answer is the word, so the single thing
+     that must never be true is the word being on screen before you commit. */
   const cardBox = document.getElementById('rv-card');
-  check('Show answer hugs its label rather than stretching',
-        reveal.getBoundingClientRect().width < cardBox.clientWidth * 0.75,
-        `${reveal.getBoundingClientRect().width.toFixed(0)}px of ${cardBox.clientWidth}px`);
+  const typeBox = document.getElementById('rv-input');
+  const wordEl = document.getElementById('rv-word');
+  const answer = document.getElementById('rv-answer');
+
+  check('the typing box is on the card and focused',
+        !!typeBox && cs(document.getElementById('rv-type')).display !== 'none'
+        && document.activeElement === typeBox,
+        document.activeElement?.id);
+  check('the answer block is hidden before you commit', answer.hidden);
+  check('the word itself is not on screen', wordEl.textContent === '', JSON.stringify(wordEl.textContent));
+  check('neither is its pronunciation',
+        document.getElementById('rv-ipa').hidden && document.getElementById('rv-play').hidden);
+  // A prompt containing its own answer is not a prompt. Every card here is
+  // seeded from `strategy`, whose saved sentence uses the word.
+  const shownContext = document.getElementById('rv-context').textContent;
+  check('the saved sentence has the word masked out',
+        !shownContext || !/\bstrategy\b/i.test(shownContext), shownContext);
+  check('the typing row takes the card width, unlike the grade buttons',
+        typeBox.getBoundingClientRect().width > cardBox.clientWidth * 0.4,
+        `${typeBox.getBoundingClientRect().width.toFixed(0)}px of ${cardBox.clientWidth}px`);
+
+  // Commit a wrong-but-close answer and read what the card says back.
+  typeBox.value = 'strategyy';
+  document.getElementById('rv-type').dispatchEvent(new Event('submit', { cancelable: true }));
+  await new Promise((r) => setTimeout(r, 20));
+
+  check('committing reveals the answer block', !answer.hidden);
+  check('and the word', document.getElementById('rv-word').textContent.length > 0,
+        document.getElementById('rv-word').textContent);
+  // Computed display, not the .hidden property: the property was true the whole
+  // time the row was still on screen, because an author display:flex outranks
+  // the UA [hidden] rule. Asserting the property tested nothing.
+  check('and the typing row is gone',
+        cs(document.getElementById('rv-type')).display === 'none',
+        cs(document.getElementById('rv-type')).display);
+  const diff = document.getElementById('rv-diff');
+  check('the diff marks only the wrong letters',
+        diff.querySelectorAll('u').length === 1 && diff.querySelector('u').textContent === 'y',
+        `${diff.querySelectorAll('u').length} marks, ${JSON.stringify(diff.querySelector('u')?.textContent)}`);
+  check('a one-letter slip reads as almost, not as wrong',
+        diff.className.includes('near'), diff.className);
+  // Typing already said how well it went, so Enter has a grade to take.
+  const picked = document.querySelectorAll('#rv-grades button.pick');
+  check('exactly one grade is marked as the one Enter takes', picked.length === 1, picked.length);
+  check('a near miss suggests Hard, not Good',
+        picked[0]?.querySelector('b').textContent === 'Hard',
+        picked[0]?.querySelector('b').textContent);
+  check('every grade still carries its own key',
+        [...document.querySelectorAll('#rv-grades button')].length === 4
+        && [...document.querySelectorAll('#rv-grades button kbd')].length === 5,
+        `${document.querySelectorAll('#rv-grades button kbd').length} keys`);
+  // The box must not keep focus once the grades are live, or 1-4 would type
+  // digits into it instead of grading.
+  check('focus leaves the box so the number keys can grade',
+        document.activeElement !== typeBox, document.activeElement?.id);
 
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
@@ -361,7 +306,14 @@ setTimeout(async () => {
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
-}, 80);
+}, 80));
+}
+</script>
+<script>
+  ready.catch((err) => {
+    document.getElementById('out').textContent =
+      'FAIL probe setup: ' + err.message + '\n1 failure(s), 0 check(s)';
+  });
 </script>
 <pre id="out">running…</pre>
 </body>

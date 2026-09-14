@@ -81,15 +81,26 @@
     <div class="rvcard" id="rv-card" hidden>
       <div class="rvmeta">
         <span class="lvl" id="rv-level"></span>
-        <span id="rv-ipa"></span>
-        <button class="rvplay" id="rv-play" aria-label="Pronounce">▶</button>
+        <span id="rv-ipa" hidden></span>
+        <button class="rvplay" id="rv-play" aria-label="Pronounce" hidden>▶ <kbd>r</kbd></button>
       </div>
-      <h2 class="rvword" id="rv-word"></h2>
-      <button class="btn" id="rv-reveal">Show answer <kbd>space</kbd></button>
+
+      <!-- The prompt. Stays on screen after the answer so you can still see
+           what you were asked. -->
+      <p class="rvvi" id="rv-vi"></p>
+      <p class="rvdef" id="rv-def"></p>
+      <blockquote class="rvseen" id="rv-context" hidden></blockquote>
+
+      <form class="rvtype" id="rv-type" autocomplete="off">
+        <input id="rv-input" type="text" autocapitalize="off" autocorrect="off"
+               spellcheck="false" placeholder="type the English word">
+        <button class="btn" type="submit">Check <kbd>enter</kbd></button>
+      </form>
+      <p class="rvtip" id="rv-tip">leave it blank and press <kbd>enter</kbd> if you don't know</p>
+
       <div id="rv-answer" hidden>
-        <p class="rvvi" id="rv-vi"></p>
-        <p class="rvdef" id="rv-def"></p>
-        <blockquote class="rvseen" id="rv-context" hidden></blockquote>
+        <p class="rvdiff" id="rv-diff"></p>
+        <h2 class="rvword" id="rv-word"></h2>
         <div class="rvgrades" id="rv-grades"></div>
       </div>
     </div>

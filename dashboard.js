@@ -560,6 +560,15 @@ let sessionTotal = 0;
 let reviewScope = null;     // folder id, or null for everything due
 let revealed = false;
 let grading = false;
+// What was typed for the card on screen, kept so the diff survives a re-render.
+let typed = '';
+// A card can only ask "type the word" if it has something to ask WITH. An entry
+// saved while the dictionary and the translator were both down has neither a
+// definition nor a Vietnamese gloss, and prompting with a blank card is
+// unanswerable — those fall back to the old recognition card.
+let canType = false;
+
+const GRADE_FOR = { exact: 4, near: 3, wrong: 0 };
 
 function startReview(folderId) {
   reviewScope = folderId;
@@ -571,6 +580,15 @@ function startReview(folderId) {
     .sort((a, b) => a.due - b.due);
   sessionTotal = queue.length;
   revealed = false;
+  typed = '';
+}
+
+// The prompt must not contain its own answer. The sentence a word was saved
+// from nearly always does, so it is blanked — wordRegex is the same
+// word-bounded matcher the page highlighter uses, so `read` does not blank
+// `already`.
+function maskContext(text, word) {
+  return String(text ?? '').replace(VT.wordRegex(word), '\u2026');
 }
 
 function renderCard() {
@@ -608,25 +626,102 @@ function renderCard() {
     card.classList.add('fresh');
   }
 
-  $('rv-word').textContent = entry.word;
+  canType = !!(entry.vi || entry.def);
   $('rv-level').textContent = entry.level ?? DASH;
+
+  // The prompt is the meaning; the word is what you produce. A card with
+  // nothing to prompt with shows the word instead and goes back to being a
+  // recognition card.
+  $('rv-vi').textContent = canType ? (entry.vi ?? '') : '';
+  $('rv-def').textContent = canType ? (entry.def ?? '') : '';
+  const seen = $('rv-context');
+  const context = entry.context
+    ? (revealed ? entry.context : maskContext(entry.context, entry.word))
+    : '';
+  seen.hidden = !context;
+  seen.textContent = context;
+
+  // The IPA and the play button are the answer's shape and the answer's sound.
+  // Both would hand it to you, so neither appears until you have committed.
+  $('rv-ipa').hidden = !(revealed && entry.ipa);
   $('rv-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : '';
+  $('rv-play').hidden = !revealed;
   $('rv-play').onclick = () => pronounce(entry);
+
+  $('rv-type').hidden = revealed;
+  $('rv-tip').hidden = revealed || !canType;
+  $('rv-input').hidden = !canType;
+  $('rv-type').querySelector('button').textContent = canType ? 'Check ' : 'Show answer ';
+  $('rv-type').querySelector('button').append(kbd('enter'));
+
+  if (!revealed) {
+    $('rv-input').value = '';
+    // Focused so the session is pure typing: no click is needed between cards.
+    if (canType) $('rv-input').focus();
+  }
 
   // The answer is only written into the DOM once revealed, so it is never
   // sitting in the page while you are still trying to recall it.
   $('rv-answer').hidden = !revealed;
-  $('rv-reveal').hidden = revealed;
-  $('rv-vi').textContent = revealed ? (entry.vi ?? DASH) : '';
-  $('rv-def').textContent = revealed ? (entry.def ?? DASH) : '';
-  const seen = $('rv-context');
-  seen.hidden = !(revealed && entry.context);
-  seen.textContent = revealed && entry.context ? entry.context : '';
+  $('rv-word').textContent = revealed ? entry.word : '';
+  renderDiff(revealed && canType ? VT.diffWord(typed, entry.word) : null);
+  renderGrades(revealed ? suggestedGrade() : null);
 }
 
-function reveal() {
+function kbd(text) {
+  const el = document.createElement('kbd');
+  el.textContent = text;
+  return el;
+}
+
+// Which grade Enter takes. Typing already said how well you knew it, so making
+// you also pick a number would be asking the same question twice; 1-4 still
+// override it.
+function suggestedGrade() {
+  if (!canType) return null;
+  const d = VT.diffWord(typed, queue[0]?.word);
+  if (d.exact) return GRADE_FOR.exact;
+  if (d.near) return GRADE_FOR.near;
+  return GRADE_FOR.wrong;
+}
+
+function renderDiff(diff) {
+  const node = $('rv-diff');
+  node.replaceChildren();
+  node.hidden = !diff;
+  if (!diff) return;
+
+  if (diff.exact) {
+    node.className = 'rvdiff good';
+    node.textContent = 'Correct';
+    return;
+  }
+  node.className = diff.near ? 'rvdiff near' : 'rvdiff bad';
+  // Marked up rather than described: seeing `pi[d]geon` is the correction.
+  // Built from nodes, never innerHTML — this string is whatever was typed.
+  const line = document.createElement('span');
+  for (const mark of diff.typed) {
+    const part = document.createElement(mark.ok ? 'span' : 'u');
+    part.textContent = mark.text;
+    line.append(part);
+  }
+  if (diff.typed.length) {
+    node.append(line, document.createTextNode(diff.near ? ' — almost' : ' — not this time'));
+  } else {
+    node.textContent = 'Skipped';
+  }
+}
+
+// Enter from the typing form. Commits whatever is in the box — including
+// nothing, which is how you say "no idea" without reaching for the mouse.
+function submitAnswer() {
   if (revealed || !queue.length) return;
+  typed = canType ? $('rv-input').value : '';
   revealed = true;
+  // Blurred before the grades appear, or 1-4 would type digits into the box
+  // instead of grading. This is what lets one set of keys serve both halves of
+  // the card.
+  $('rv-input').blur();
   renderCard();
   pronounce(queue[0]);
 }
@@ -648,6 +743,7 @@ async function grade(quality) {
       sessionTotal++;
     }
     revealed = false;
+    typed = '';
     words[entry.word] = entry;
     renderCard();
   } finally {
@@ -655,20 +751,32 @@ async function grade(quality) {
   }
 }
 
-for (const g of GRADES) {
-  const button = document.createElement('button');
-  const label = document.createElement('b');
-  label.textContent = g.label;
-  const hint = document.createElement('span');
-  const key = document.createElement('kbd');
-  key.textContent = g.key;
-  hint.append(key, g.hint);
-  button.append(label, hint);
-  button.addEventListener('click', () => grade(g.q));
-  $('rv-grades').appendChild(button);
+// Rebuilt per card rather than built once, because which button Enter will
+// press changes with what you typed and the marking has to move with it.
+function renderGrades(suggested) {
+  const host = $('rv-grades');
+  host.replaceChildren();
+  if (suggested === null) return;
+  for (const g of GRADES) {
+    const button = document.createElement('button');
+    const label = document.createElement('b');
+    label.textContent = g.label;
+    const hint = document.createElement('span');
+    hint.append(kbd(g.key), g.hint);
+    button.append(label, hint);
+    if (g.q === suggested) {
+      button.className = 'pick';
+      hint.replaceChildren(kbd(g.key), kbd('enter'));
+    }
+    button.addEventListener('click', () => grade(g.q));
+    host.appendChild(button);
+  }
 }
 
-$('rv-reveal').addEventListener('click', reveal);
+$('rv-type').addEventListener('submit', (event) => {
+  event.preventDefault();
+  submitAnswer();
+});
 $('rv-back').addEventListener('click', () => { showView('overview'); render(); });
 
 document.addEventListener('keydown', (event) => {
@@ -679,7 +787,24 @@ document.addEventListener('keydown', (event) => {
     render();
     return;
   }
-  if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); reveal(); return; }
+  // While the box has focus every other key belongs to it — a digit is a digit
+  // and `r` is a letter. Enter is the exception, and the form handles that.
+  if (document.activeElement === $('rv-input')) return;
+
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    if (!revealed) submitAnswer();
+    else if (suggestedGrade() !== null) grade(suggestedGrade());
+    return;
+  }
+  // Space still reveals, so a card with nothing to type against works exactly
+  // as it did before.
+  if (event.key === ' ' && !revealed) { event.preventDefault(); submitAnswer(); return; }
+  if ((event.key === 'r' || event.key === 'R') && revealed && queue.length) {
+    event.preventDefault();
+    pronounce(queue[0]);
+    return;
+  }
   const g = GRADES.find((x) => x.key === event.key);
   if (g) { event.preventDefault(); grade(g.q); }
 });

@@ -190,6 +190,35 @@ Open it from **Open dashboard →** in the side panel.
     "Save to Vocab-track" is gone from System Settings → Services, and that the
     dashboard still opens without errors.
 
+## Typing the answer
+
+42. **A card asks for the word, not the meaning.** Start a review. The card
+    shows the Vietnamese and the definition, the box has focus, and the word
+    itself is nowhere on the card. If the word was saved with a sentence, the
+    word is replaced by `…` in it.
+
+43. **A correct answer is one keystroke away from done.** Type the word, press
+    <kbd>enter</kbd>: it says Correct, Good is ringed, and a second
+    <kbd>enter</kbd> moves on. Two keys per card.
+
+44. **A near miss is marked, not just failed.** Type the word with one letter
+    wrong. The wrong letter is the only thing underlined, it says "almost", and
+    Hard is the ringed grade — not Good.
+
+45. **Blank means blank.** Press <kbd>enter</kbd> with an empty box: the answer
+    appears, it says Skipped, and Blank is ringed.
+
+46. **The number keys grade, they do not type.** After committing, press `3`.
+    It grades Good rather than putting a 3 in the box. Before committing, `3`
+    must type a 3.
+
+47. **`r` replays the pronunciation** after the answer is showing, and types an
+    `r` before it.
+
+48. **A word with no meaning still works.** Import a word whose `vi` and `def`
+    are both null. Its card shows the word with a Show answer button, as it did
+    before this change.
+
 ## The toolbar icon
 
 40. **It toggles.** Click the pinned icon: the side panel opens. Click it

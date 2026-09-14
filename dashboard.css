@@ -160,9 +160,41 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
         /* Reserved, so revealing the answer grows the card from a settled
            height rather than jerking the word upward as the page re-centres. */
         min-height:380px;display:flex;flex-direction:column;justify-content:center}
-/* The card is a flex column, which would otherwise stretch this button to the
-   full content width and make it read as a banner rather than an action. */
-#rv-reveal{align-self:center}
+/* The card is a flex column, which stretches a child to the full content width
+   and makes a button read as a banner rather than an action. The typing row is
+   the one child that WANTS the width; its button is pulled back in below. */
+/* :not([hidden]) is load-bearing. The UA rule is [hidden]{display:none} at
+   its lowest specificity, so ANY author `display` declaration beats it and the
+   typing row went on rendering after the answer was committed — with the wrong
+   answer still sitting in the box under the diff. Same trap as #view-review. */
+.rvtype:not([hidden]){display:flex;gap:9px;justify-content:center;margin:26px auto 0;
+        width:100%;max-width:420px}
+.rvtype input{flex:1;min-width:0;padding:12px 15px;border:1px solid var(--rule);
+              border-radius:11px;background:var(--paper);color:var(--ink);
+              font:500 17px Inter,sans-serif;text-align:center}
+.rvtype input::placeholder{color:var(--ink3);font-weight:400}
+.rvtype input:focus{outline:none;border-color:var(--bar);background:#fff;
+                    box-shadow:0 0 0 3px #2a78d61f}
+.rvtype button{flex:none;align-self:stretch}
+/* Sits under the box as a quiet instruction, not as a control. */
+.rvtip{margin:10px 0 0;color:var(--ink3);font-size:12px}
+.rvtip kbd{border-color:var(--rule);color:var(--ink2);background:var(--panel);opacity:1}
+
+/* The correction itself. `u` is the wrong letters — an underline reads as a
+   correction mark and survives being screenshotted in greyscale, which colour
+   alone does not. */
+.rvdiff{margin:18px 0 0;font:500 15px Inter,sans-serif;color:var(--ink2)}
+.rvdiff span{font:600 19px/1.4 'SF Mono',ui-monospace,Menlo,monospace;
+             letter-spacing:.01em;color:var(--ink);margin-right:.4em}
+.rvdiff u{text-decoration:underline wavy currentColor;text-underline-offset:3px}
+.rvdiff.good{color:var(--sage-ink);font-weight:600}
+.rvdiff.near u{color:var(--ochre-ink)}
+.rvdiff.bad u{color:var(--danger)}
+
+/* The grade Enter will take. Marked with weight and a ring rather than a fill,
+   so the other three stay equally reachable. */
+.rvgrades button.pick{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.rvgrades button.pick b{font-weight:600}
 /* The word changes identity on every grade; a short fade makes that legible
    instead of looking like a mis-click. */
 @keyframes rvin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -178,12 +210,18 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
         color:var(--ink2);font-size:13.5px;min-height:26px}
 .rvplay{background:none;border:1px solid var(--rule);border-radius:8px;cursor:pointer;
         padding:3px 9px;font-size:12px;color:var(--ink)}
+/* The bare kbd rule is written for the dark side panel: a white border at 30%
+   alpha, which on this paper background is invisible and leaves the key
+   reading as a stray letter next to the play triangle. */
+.rvplay kbd{border-color:var(--rule);background:var(--panel);color:var(--ink2);opacity:1;
+            margin-left:5px}
 .rvplay:hover{background:var(--panel)}
 /* Explicitly undoes the section-heading h2 rule (uppercase, muted, small):
    this is an h2 semantically but the card's own headline visually. */
-.rvword{font:600 46px/1.1 Fraunces,Georgia,serif;margin:14px 0 28px;
+.rvword{font:600 46px/1.1 Fraunces,Georgia,serif;margin:6px 0 0;
         letter-spacing:-.02em;text-transform:none;color:var(--ink)}
-.rvvi{font:600 24px/1.3 Inter,sans-serif;margin:26px 0 10px}
+/* The prompt now, so it carries the card. */
+.rvvi{font:600 28px/1.3 Inter,sans-serif;margin:18px 0 10px}
 .rvdef{color:var(--ink2);font-size:15px;margin:0 auto;max-width:48ch;line-height:1.6}
 .rvgrades{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:32px}
 .rvgrades button{padding:13px 8px;border:1px solid var(--rule);border-radius:11px;

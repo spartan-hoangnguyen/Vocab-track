@@ -156,6 +156,76 @@ const VT = {
   // existed have no `folders` field at all. A missing field reads as "in
   // From reading" rather than "in nothing", so old entries need no
   // migration pass and can never become orphans.
+  // What you typed against what the card wanted, as runs of matching and
+  // non-matching characters — the thing that turns "wrong" into "one letter
+  // out". Returns a mark-up of BOTH strings: the typed one so you can see
+  // which letters to unlearn, the answer so you can see what belonged there.
+  //
+  // Character-level, not word-level, because a review answer is one word and
+  // the interesting failure is a transposition or a doubled letter. A plain
+  // equality test would call `pidgeon` and `elephant` equally wrong, and they
+  // are not — one is a spelling slip you should grade Hard and the other is a
+  // blank you should grade Blank.
+  //
+  // Longest common subsequence, the same shape Anki uses. O(n*m) over two
+  // strings that are single words, so the table is tiny.
+  diffWord(typed, answer) {
+    const a = String(typed ?? '');
+    const b = String(answer ?? '');
+    // Case and surrounding space are never the point of a vocabulary review.
+    const x = a.trim().toLowerCase();
+    const y = b.trim().toLowerCase();
+    if (x === y) {
+      return { exact: true, near: false,
+               typed: a ? [{ text: a, ok: true }] : [],
+               answer: [{ text: b, ok: true }] };
+    }
+
+    // lcs[i][j] = length of the longest common subsequence of x[i:] and y[j:].
+    // Built from the end so the walk below reads forwards, which is the order
+    // the marks have to come out in.
+    const lcs = Array.from({ length: x.length + 1 }, () => new Array(y.length + 1).fill(0));
+    for (let i = x.length - 1; i >= 0; i--) {
+      for (let j = y.length - 1; j >= 0; j--) {
+        lcs[i][j] = x[i] === y[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      }
+    }
+
+    const typedMarks = [];
+    const answerMarks = [];
+    // Runs, not single characters: three wrong letters in a row is one mistake
+    // to look at, and marking each separately would render as confetti.
+    const push = (marks, ch, ok) => {
+      const last = marks[marks.length - 1];
+      if (last && last.ok === ok) last.text += ch;
+      else marks.push({ text: ch, ok });
+    };
+
+    let i = 0, j = 0, wrong = 0;
+    while (i < x.length && j < y.length) {
+      if (x[i] === y[j]) {
+        push(typedMarks, a[i], true);
+        push(answerMarks, b[j], true);
+        i++; j++;
+      } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+        push(typedMarks, a[i], false);   // typed something that does not belong
+        i++; wrong++;
+      } else {
+        push(answerMarks, b[j], false);  // missed something that did
+        j++; wrong++;
+      }
+    }
+    while (i < x.length) { push(typedMarks, a[i], false); i++; wrong++; }
+    while (j < y.length) { push(answerMarks, b[j], false); j++; wrong++; }
+
+    // "Near" is what decides whether the UI says "almost" or just "no". Two
+    // edits on a long word is a slip; two on a three-letter word is a
+    // different word. Requiring an answer of at least 4 characters keeps
+    // `cat`/`cut` out of it.
+    return { exact: false, near: wrong > 0 && wrong <= 2 && y.length >= 4,
+             typed: typedMarks, answer: answerMarks };
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

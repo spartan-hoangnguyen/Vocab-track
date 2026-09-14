@@ -88,6 +88,49 @@ async function parserTests() {
   eq('empty def', empty.def, null);
   eq('empty audio', empty.audio, null);
 
+  // --- diffWord
+  const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');
+
+  const same = VT.diffWord('pigeon', 'pigeon');
+  eq('diffWord: an exact answer is exact', same.exact, true);
+  eq('diffWord: an exact answer is not also "near"', same.near, false);
+  // Case and stray space are never what a vocabulary review is testing.
+  eq('diffWord: case and space do not make it wrong', VT.diffWord('  PIGEON ', 'pigeon').exact, true);
+  eq('diffWord: the typed text is echoed as typed, not lowercased',
+     shown(VT.diffWord('  PIGEON ', 'pigeon').typed), '  PIGEON ');
+
+  const slip = VT.diffWord('pidgeon', 'pigeon');
+  eq('diffWord: one extra letter marks just that letter', shown(slip.typed), 'pi[d]geon');
+  eq('diffWord: and leaves the answer unmarked', shown(slip.answer), 'pigeon');
+  eq('diffWord: one letter out is near', slip.near, true);
+
+  const missing = VT.diffWord('runing', 'running');
+  eq('diffWord: a dropped letter is marked on the answer', shown(missing.answer), 'run[n]ing');
+  eq('diffWord: and the typed word stays clean', shown(missing.typed), 'runing');
+
+  // A transposition is two edits, which is the boundary `near` is drawn at.
+  eq('diffWord: i-before-e is still near', VT.diffWord('recieve', 'receive').near, true);
+
+  // Runs, not confetti: three consecutive wrong letters are one thing to look
+  // at, so they must come back as one mark.
+  const runs = VT.diffWord('pigeonxyz', 'pigeon');
+  eq('diffWord: consecutive wrong letters collapse into one mark', shown(runs.typed), 'pigeon[xyz]');
+  eq('diffWord: three letters out is not near', runs.near, false);
+
+  const other = VT.diffWord('elephant', 'pigeon');
+  eq('diffWord: a different word is not near', other.near, false);
+
+  // Short answers are excluded from "near" deliberately: on a three-letter
+  // word a single edit is a different word, not a slip.
+  eq('diffWord: one edit on a 3-letter word is not near', VT.diffWord('cut', 'cat').near, false);
+  eq('diffWord: the same edit on a longer word is', VT.diffWord('breed', 'bread').near, true);
+
+  const blank = VT.diffWord('', 'pigeon');
+  eq('diffWord: an empty answer marks the whole word missing', shown(blank.answer), '[pigeon]');
+  eq('diffWord: and produces no typed marks at all', blank.typed.length, 0);
+  eq('diffWord: an empty answer is not near', blank.near, false);
+  eq('diffWord: null is treated as empty', VT.diffWord(null, 'pigeon').typed.length, 0);
+
   // --- sm2
   const fresh = { ease: 2.5, interval: 0, reps: 0 };
 

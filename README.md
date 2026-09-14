@@ -39,7 +39,12 @@ Built for one person. No accounts, no sync, no server.
   not normally tell you. See *Writing* below.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
-- **Review.** SM-2 spaced repetition, in the dashboard or the panel.
+- **Review by typing.** The card shows the meaning and you type the English
+  word; Enter checks it and marks the letters you got wrong, so `pidgeon` reads
+  as one slip rather than as a failure. Typing already says how well you knew
+  it, so Enter also takes the grade that fits — exact goes to Good, one or two
+  letters out to Hard, anything else to Blank — and `1`-`4` override it.
+  SM-2 spaced repetition underneath, in the dashboard or the panel.
 - **Own your data.** Export and re-import the whole store as JSON.
 
 ## Install
@@ -146,7 +151,7 @@ every assertion passes:
 | `test.js` | Pure logic. The Cambridge parser runs against four real saved pages, including one with no CEFR level and one that is not a dictionary entry at all. |
 | `yt-probe.html` | That a caret still reads caption text through YouTube's `user-select:none`. |
 | `reader-probe.html` | Article extraction against a page of nav, footer and comment junk, and that the RSVP focal letter does not move. |
-| `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, no text under the shortcut badge. |
+| `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, and that the review card never shows the word before you commit. It loads the real `dashboard.html`, so it cannot drift from what ships. |
 | `writer-probe.html` | The textarea mirror over a content-box and a border-box field, the contenteditable offset index, and that a tag typed into a field stays text. |
 
 The last four exist because these are failures no unit test can see: they are
@@ -161,6 +166,12 @@ manual checklist for it.
   at a time; each degrades to `—` rather than failing the lookup.
 - **The translation endpoint is unofficial** and keyless. It works today and
   will stop one day; the replacement goes behind one function.
+- **A card with no meaning saved cannot ask you to type.** If the dictionary
+  and the translator were both down when the word was saved it has neither a
+  definition nor a gloss, so it falls back to showing the word and asking you
+  to recall the meaning, as before.
+- **Answer checking is exact, ignoring case and spacing.** A synonym is marked
+  wrong; the diff shows you why, and `1`-`4` are there to overrule it.
 - **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
 - **Storage is local to this Chrome profile.** Export is the only backup.
