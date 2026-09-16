@@ -304,6 +304,40 @@ ready.then(() => setTimeout(async () => {
         parseFloat(cs(rows()[0].querySelector('.n')).fontSize) >= 20,
         cs(rows()[0].querySelector('.n')).fontSize);
 
+  // An imported word list is thousands of entries. putWord reads and rewrites
+  // the whole words map per call, so the import path has to batch — counting
+  // the writes is the only way to catch a regression back to per-word saves,
+  // which stays functionally correct and freezes the page.
+  let writes = 0;
+  const realSet = chrome.storage.local.set;
+  chrome.storage.local.set = async (patch) => { writes++; return realSet(patch); };
+  await putWords({
+    strategy: { folders: ['reading', 'ielts-c1'] },
+    aberration: { word: 'aberration', level: 'C2', folders: ['ielts-c2'], due: 1 }
+  });
+  chrome.storage.local.set = realSet;
+  check('a bulk import writes the words map once, not once per word', writes === 1, String(writes));
+  check('a bulk import patches an existing entry rather than replacing it',
+        !!STORE.words.strategy.def && STORE.words.strategy.folders.includes('ielts-c1'));
+  check('a bulk import adds an entry it has never seen', STORE.words.aberration?.level === 'C2');
+
+  // 400 words, so the 300 cap has something to cut. A card is 16 elements, and
+  // renderWords runs on every keystroke in the search box: uncapped, an
+  // imported list rebuilds tens of thousands of nodes per keystroke.
+  for (let i = 0; i < 400; i++) {
+    STORE.words['bulkword' + i] = {
+      word: 'bulkword' + i, level: 'C1', ipa: 'b', vi: 'từ', def: 'a word', folders: ['ielts-c1'],
+      senses: [], synonyms: [], related: [], context: null, sources: [],
+      added: Date.now() - i, ease: 2.5, interval: 0, reps: 0, due: Date.now() + 1e9
+    };
+  }
+  await refresh();
+  const listed = document.getElementById('w-cards').children.length;
+  check('the words list caps how many cards it builds', listed === 300, String(listed));
+  check('the words list says the rest are there',
+        /search to reach the rest/.test(document.getElementById('w-sub').textContent),
+        document.getElementById('w-sub').textContent);
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }, 80));

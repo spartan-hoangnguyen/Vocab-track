@@ -33,6 +33,26 @@ function putWord(word, patch) {
   return writeQueue;
 }
 
+// One read-modify-write for a whole batch. putWord reads and rewrites the
+// entire words map per call, which is quadratic in bytes: a two-thousand-word
+// import file would serialise a map that ends up megabytes long two thousand
+// times over, and the dashboard would sit frozen through it. Same patch
+// semantics as putWord, applied in one pass.
+function putWords(patches) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const words = await getWords();
+      for (const [word, patch] of Object.entries(patches)) {
+        words[word] = Object.assign(words[word] ?? {}, patch);
+      }
+      await chrome.storage.local.set({ words });
+    } catch (err) {
+      console.error('[vocab-track] bulk save failed', err);
+    }
+  });
+  return writeQueue;
+}
+
 function removeWord(word) {
   writeQueue = writeQueue.then(async () => {
     try {

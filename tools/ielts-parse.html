@@ -1,0 +1,46 @@
+<!-- Parses one batch of cached Cambridge pages with the extension's own
+     VT.parseCambridge / VT.newEntry, so an imported word is byte-identical in
+     shape to one saved by clicking it in the browser. Driven by
+     build-ielts-list.py, which serves this file next to a copy of lib.js.
+     Output is base64: --dump-dom HTML-escapes text, and a definition with an
+     & or a < in it would come back corrupted otherwise. -->
+<pre id="out">running</pre>
+<script src="lib.js"></script>
+<script>
+  const out = document.getElementById('out');
+  const die = (what) => { out.textContent = 'ERR ' + what; };
+  window.addEventListener('error', (e) => die(e.message + ' @' + e.lineno));
+  window.addEventListener('unhandledrejection', (e) => die(String(e.reason?.stack ?? e.reason)));
+
+  const batch = new URLSearchParams(location.search).get('batch');
+
+  (async () => {
+    const items = await (await fetch(`batch-${batch}.json`)).json();
+    const entries = [];
+    for (const item of items) {
+      let parsed = { level: null, ipa: null, def: null, audio: null };
+      if (item.file) parsed = VT.parseCambridge(await (await fetch(item.file)).text());
+      const entry = VT.newEntry(item.word, parsed, item.vi, item.url);
+      // The CEFR band comes from the word list, not the dictionary: it is the
+      // reason the word is in this file at all, and Cambridge tags senses, so
+      // its first sense can be B2 for a word that is C1 in the other senses.
+      entry.level = item.level;
+      entry.folders = ['ielts-' + item.level.toLowerCase()];
+      // A Cambridge example becomes the review card's context only when the
+      // card can actually blank the word out of it. maskContext uses the same
+      // word-bounded regex, so an example that only contains an inflection
+      // ("meticulously") would hand the answer straight to you.
+      const example = parsed.senses?.[0]?.example ?? null;
+      entry.context = example && VT.wordRegex(item.word).test(example) ? example : null;
+      entries.push(entry);
+    }
+    // Chunked, not a spread: one batch is ~45KB and spreading that many
+    // arguments into fromCharCode overflows the call stack.
+    const bytes = new TextEncoder().encode(JSON.stringify(entries));
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 4096) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 4096));
+    }
+    out.textContent = btoa(binary);
+  })();
+</script>

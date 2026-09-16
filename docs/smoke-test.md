@@ -271,6 +271,24 @@ not apply either to a tab that was already open.
     all of them. Nothing breaks, and at worst a check is skipped and comes
     back on the next pause; the worker console must not fill with 429s.
 
+## Word lists
+
+49. **The import does not freeze the dashboard.** **Dashboard → Import** →
+    `data/ielts-c1-c2.json`. The note reads *Imported: 1945 new, 0 merged*
+    within a few seconds, not a minute — one write, not one per word.
+
+50. **It arrives as a course, not a wall.** Open **Review**. The session is
+    twenty cards, not two thousand. **Folders** shows *IELTS C1* and
+    *IELTS C2* with their full counts.
+
+51. **An imported card is a real card.** A card shows the Vietnamese gloss, the
+    definition, and an example sentence with the word blanked to `…` — never
+    the word itself. After committing, the play button speaks it.
+
+52. **Importing twice changes nothing.** Import the same file again: the note
+    reads *0 new, 1945 merged*, and a card you had already graded keeps its
+    schedule (its due date does not jump back to today).
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

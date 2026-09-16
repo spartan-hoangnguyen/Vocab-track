@@ -159,6 +159,8 @@ function openFolder(id) {
 
 /* ---------- words table ---------- */
 
+const WORDS_SHOWN = 300;
+
 function relative(ts) {
   const mins = Math.round((Date.now() - ts) / 60000);
   if (mins < 60) return `${Math.max(1, mins)}m ago`;
@@ -177,14 +179,22 @@ function renderWords(all) {
     : scope
   ).sort((a, b) => b.added - a.added);
 
+  // An imported word list runs to thousands of entries, and a card is 16
+  // elements: 1,900 words measured at 30,578 of them, rebuilt on every
+  // keystroke in the search box, because typing re-renders. The cap is what
+  // keeps the search box responsive; the count below says what is not shown.
+  const page = shown.slice(0, WORDS_SHOWN);
+  const more = shown.length - page.length;
+
   $('w-title').textContent = activeFolder ? folders[activeFolder]?.name ?? 'Folder' : 'All words';
-  $('w-sub').textContent = term
+  $('w-sub').textContent = (term
     ? `${shown.length} match${shown.length === 1 ? '' : 'es'} for “${term}”`
-    : `${shown.length} word${shown.length === 1 ? '' : 's'}`;
+    : `${shown.length} word${shown.length === 1 ? '' : 's'}`)
+    + (more ? ` · newest ${page.length} shown, search to reach the rest` : '');
 
   const cards = $('w-cards');
   cards.replaceChildren();
-  for (const entry of shown) cards.appendChild(wordCard(entry));
+  for (const entry of page) cards.appendChild(wordCard(entry));
 
   const empty = $('w-empty');
   empty.replaceChildren();
@@ -423,22 +433,26 @@ $('import-file').addEventListener('change', async (event) => {
     let added = 0;
     let merged = 0;
     const current = await getWords();
+    // Collected, then written once: a word list can hold thousands of entries,
+    // and a putWord per word rewrites the whole map per word.
+    const patches = {};
     for (const [word, incoming] of Object.entries(data.words)) {
       const existing = current[word];
       if (existing) {
         // Merge, never overwrite: the local review schedule is the thing you
         // cannot get back, so ease/interval/reps/due are left untouched and
         // only membership and sources are unioned.
-        await putWord(word, {
+        patches[word] = {
           folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
           sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
-        });
+        };
         merged++;
       } else {
-        await putWord(word, incoming);
+        patches[word] = incoming;
         added++;
       }
     }
+    await putWords(patches);
     for (const folder of Object.values(data.folders ?? {})) {
       if (folder.id !== VT.READING) await putFolder(folder);
     }

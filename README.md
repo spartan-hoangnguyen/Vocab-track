@@ -45,6 +45,10 @@ Built for one person. No accounts, no sync, no server.
   it, so Enter also takes the grade that fits — exact goes to Good, one or two
   letters out to Hard, anything else to Blank — and `1`-`4` override it.
   SM-2 spaced repetition underneath, in the dashboard or the panel.
+- **Learn a band, not just what you met.** `data/ielts-c1-c2.json` is an
+  importable C1/C2 word list — the vocabulary IELTS band 7+ is made of — with
+  Cambridge definitions, pronunciation and an example sentence on every card.
+  See *Word lists* below.
 - **Own your data.** Export and re-import the whole store as JSON.
 
 ## Install
@@ -119,6 +123,48 @@ effect in every open tab straight away. LanguageTool is open source and
 self-hostable; pointing `LT_URL` in `service-worker.js` at your own container
 is the whole change if you ever want nothing to leave the machine at all.
 
+## Word lists
+
+`data/ielts-c1-c2.json` is the same format the **Export** button writes, so
+**Dashboard → Import** takes it. It lands as two folders, *IELTS C1* and
+*IELTS C2*, and merges with what you already have: a word you saved yourself
+keeps its review schedule and just gains the folder.
+
+**1,945 words — 1,005 at C1, 940 at C2.** 1,901 carry a Cambridge definition
+and UK pronunciation, 1,937 a Vietnamese gloss, and 1,423 an example sentence
+with the word blanked out of it, which is what the typing card asks you with.
+IELTS publishes no official vocabulary list, so the CEFR bands are the graded
+stand-in: band 7 and up is described in C1/C2 terms.
+
+The cards do not all arrive at once. Twenty become due a day, C1 first, so the
+file behaves like a course rather than a wall — the last word is due in 97 days,
+and SM-2 takes over from there. Importing twice does not reset that: an existing
+word is never overwritten.
+
+The countdown starts from the day the file was **built**, not the day you
+import it: a file left for three months arrives with every card already due.
+Re-running the builder re-staggers it — with the file already there that takes
+a second, not another crawl.
+
+Rebuild or extend it with:
+
+```bash
+python3 tools/build-ielts-list.py
+```
+
+It is resumable — it keeps a cache in `/tmp/vocab-track-ielts` and re-running
+after a stall only fetches what is missing. Parsing is not done in the script:
+each batch of cached pages is handed to headless Chrome running
+`tools/ielts-parse.html`, which calls the extension's own `VT.parseCambridge`
+and `VT.newEntry`. An imported word is therefore the same shape as one you
+saved by clicking it, and Cambridge's markup is understood in exactly one
+place in this repo.
+
+Sources: the word list is the **Octanove Vocabulary Profile C1/C2** from
+[Open Language Profiles](https://github.com/openlanguageprofiles/olp-en-cefrj),
+CC BY-SA 4.0. Definitions, IPA, audio and examples are scraped from Cambridge
+one page at a time, for personal use, at about a page a second.
+
 ## How it is put together
 
 | File | Responsibility |
@@ -128,7 +174,7 @@ is the whole change if you ever want nothing to leave the machine at all.
 | `lookup.js` | Cambridge + translation pipeline, pronunciation |
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
-| `tools/` | The macOS capture: Quick Action, native messaging host, installer |
+| `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, which generates `data/ielts-c1-c2.json`. |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
@@ -172,6 +218,14 @@ manual checklist for it.
   to recall the meaning, as before.
 - **Answer checking is exact, ignoring case and spacing.** A synonym is marked
   wrong; the diff shows you why, and `1`-`4` are there to overrule it.
+- **A word list is graded by the list, not by the dictionary.** The CEFR band
+  on an imported word is Octanove's, because that is why the word is in the
+  file; Cambridge tags senses, so its first sense can read B2 for a word that
+  is C1 in the sense you want.
+- **The words view builds 300 cards at a time.** A card is 16 elements and the
+  view re-renders on every keystroke in the search box, so with a couple of
+  thousand words saved it shows the newest 300 and the count says so. Search
+  and folders reach the rest.
 - **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
 - **Storage is local to this Chrome profile.** Export is the only backup.
