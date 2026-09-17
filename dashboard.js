@@ -113,16 +113,19 @@ function renderOverview(all) {
     const foot = document.createElement('div');
     foot.className = 'foot';
     const dueHere = dueCount(members);
+    const freshHere = newCards(members).length;
     const dueText = document.createElement('span');
-    dueText.textContent = dueHere ? `${dueHere} due today` : (n ? 'All reviewed' : 'Empty');
+    dueText.textContent = dueHere
+      ? `${dueHere} due today`
+      : (freshHere ? `${freshHere} to learn` : (n ? 'All reviewed' : 'Empty'));
     foot.appendChild(dueText);
-    if (dueHere) {
+    if (dueHere || freshHere) {
       const go = document.createElement('button');
       go.className = 'edit';
-      go.textContent = 'Review';
+      go.textContent = dueHere ? 'Review' : 'Learn';
       go.addEventListener('click', (event) => {
         event.stopPropagation();
-        startReview(folder.id);
+        startReview(folder.id, { ahead: true });
         showView('review');
         render();
       });
@@ -191,6 +194,16 @@ function renderWords(all) {
     ? `${shown.length} match${shown.length === 1 ? '' : 'es'} for “${term}”`
     : `${shown.length} word${shown.length === 1 ? '' : 's'}`)
     + (more ? ` · newest ${page.length} shown, search to reach the rest` : '');
+
+  // A folder you can open but not study is a dead end: this is the way into a
+  // review scoped to it, whether or not anything is due today.
+  const study = $('w-review');
+  const due = dueCount(scope);
+  const fresh = newCards(scope).length;
+  study.hidden = !activeFolder || !(due || fresh);
+  study.textContent = due
+    ? `Review ${due} due`
+    : `Learn ${Math.min(AHEAD_BATCH, fresh)} new`;
 
   const cards = $('w-cards');
   cards.replaceChildren();
@@ -583,15 +596,31 @@ let typed = '';
 let canType = false;
 
 const GRADE_FOR = { exact: 4, near: 3, wrong: 0 };
+// One day's worth, the same pace the imported list arrives at.
+const AHEAD_BATCH = 20;
 
-function startReview(folderId) {
+// Words that have never been graded and are not due yet — Anki's new queue.
+function newCards(entries) {
+  const now = Date.now();
+  return entries.filter((e) => !e.reps && e.due > now).sort((a, b) => a.due - b.due);
+}
+
+function startReview(folderId, { ahead = false } = {}) {
   reviewScope = folderId;
   const now = Date.now();
-  queue = Object.values(words)
+  const scope = Object.values(words)
+    .filter((e) => !folderId || VT.foldersOf(e).includes(folderId));
+  queue = scope
     .filter((e) => e.due <= now)
-    .filter((e) => !folderId || VT.foldersOf(e).includes(folderId))
     // Oldest due first: the most overdue card is the one most at risk.
     .sort((a, b) => a.due - b.due);
+  // Anki's new cards are not overdue, they are simply not started yet, and an
+  // imported word list is a thousand of them held back twenty a day. With the
+  // day's work done, opening the folder has to offer the next ones rather than
+  // an empty screen — the schedule is a pace, not a lock.
+  if (ahead && !queue.length) {
+    queue = newCards(scope).slice(0, AHEAD_BATCH);
+  }
   sessionTotal = queue.length;
   revealed = false;
   typed = '';
@@ -618,6 +647,13 @@ function renderCard() {
     $('rv-empty-text').textContent = sessionTotal
       ? `Done — ${sessionTotal} card${sessionTotal === 1 ? '' : 's'} reviewed.`
       : 'Nothing due. Come back later.';
+    // Without this the only way to the next twenty is back to the overview and
+    // into the folder again — four clicks to keep doing the thing you are
+    // already doing.
+    const waiting = newCards(Object.values(words)
+      .filter((e) => !reviewScope || VT.foldersOf(e).includes(reviewScope))).length;
+    $('rv-more').hidden = !waiting;
+    $('rv-more').textContent = `Learn ${Math.min(AHEAD_BATCH, waiting)} more`;
     return;
   }
 
@@ -791,6 +827,17 @@ $('rv-type').addEventListener('submit', (event) => {
   event.preventDefault();
   submitAnswer();
 });
+$('w-review').addEventListener('click', () => {
+  startReview(activeFolder, { ahead: true });
+  showView('review');
+  render();
+});
+
+$('rv-more').addEventListener('click', () => {
+  startReview(reviewScope, { ahead: true });
+  renderCard();
+});
+
 $('rv-back').addEventListener('click', () => { showView('overview'); render(); });
 
 document.addEventListener('keydown', (event) => {

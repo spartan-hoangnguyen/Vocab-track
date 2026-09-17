@@ -326,7 +326,7 @@ ready.then(() => setTimeout(async () => {
   // imported list rebuilds tens of thousands of nodes per keystroke.
   for (let i = 0; i < 400; i++) {
     STORE.words['bulkword' + i] = {
-      word: 'bulkword' + i, level: 'C1', ipa: 'b', vi: 'từ', def: 'a word', folders: ['ielts-c1'],
+      word: 'bulkword' + i, level: 'C1', ipa: 'b', vi: 'từ', def: 'a word', folders: ['bulk-new'],
       senses: [], synonyms: [], related: [], context: null, sources: [],
       added: Date.now() - i, ease: 2.5, interval: 0, reps: 0, due: Date.now() + 1e9
     };
@@ -337,6 +337,43 @@ ready.then(() => setTimeout(async () => {
   check('the words list says the rest are there',
         /search to reach the rest/.test(document.getElementById('w-sub').textContent),
         document.getElementById('w-sub').textContent);
+
+  // A folder full of words none of which are due yet — an imported list on any
+  // day but the first. Opening it must still offer a way in.
+  openFolder('bulk-new');
+  await refresh();
+  const study = document.getElementById('w-review');
+  check('a folder with nothing due still offers the next new words',
+        !study.hidden && study.textContent === 'Learn 20 new', study.textContent + ' hidden=' + study.hidden);
+  startReview('bulk-new', { ahead: true });
+  check('learning ahead fills a session of exactly one day of new cards',
+        queue.length === 20, String(queue.length));
+  check('learning ahead takes the ones queued up next, not a random twenty',
+        queue[0]?.word === 'bulkword0' && queue[19]?.word === 'bulkword19',
+        queue[0]?.word + '..' + queue[19]?.word);
+
+  // Finishing twenty has to lead into the next twenty. Otherwise continuing
+  // means leaving the review, opening the overview and clicking back in.
+  queue = [];
+  reviewScope = 'bulk-new';
+  renderCard();
+  const more = document.getElementById('rv-more');
+  check('finishing a session offers the next twenty in the same folder',
+        !more.hidden && more.textContent === 'Learn 20 more', more.textContent + ' hidden=' + more.hidden);
+  more.click();
+  check('and that button starts them without leaving the review',
+        queue.length === 20 && document.getElementById('rv-card').hidden === false,
+        String(queue.length));
+
+  // The same folder view, when something IS due: the button must say so
+  // rather than offer new words on top of work already waiting.
+  openFolder('ielts-c1');
+  await refresh();
+  check('a folder with work due says so on the button',
+        document.getElementById('w-review').textContent === 'Review 1 due',
+        document.getElementById('w-review').textContent);
+  check('All words does not repeat the button already in the top bar',
+        (openFolder(null), document.getElementById('w-review').hidden));
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

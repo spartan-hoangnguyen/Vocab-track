@@ -281,11 +281,18 @@ not apply either to a tab that was already open.
     twenty cards, not two thousand. **Folders** shows *IELTS C1* and
     *IELTS C2* with their full counts.
 
-51. **An imported card is a real card.** A card shows the Vietnamese gloss, the
+51. **A folder can be studied, not just browsed.** Click *IELTS C1* in
+    **Folders**. The header shows **Review N due**; press it and the review
+    card says *Review · IELTS C1* and only asks C1 words. Finish them, come
+    back: the button now reads **Learn 20 new**, and pressing it starts twenty
+    words you have never seen. Finish those and the end screen offers
+    **Learn 20 more** without leaving the review.
+
+52. **An imported card is a real card.** A card shows the Vietnamese gloss, the
     definition, and an example sentence with the word blanked to `…` — never
     the word itself. After committing, the play button speaks it.
 
-52. **Importing twice changes nothing.** Import the same file again: the note
+53. **Importing twice changes nothing.** Import the same file again: the note
     reads *0 new, 1945 merged*, and a card you had already graded keeps its
     schedule (its due date does not jump back to today).
 

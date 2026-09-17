@@ -56,8 +56,13 @@
 
   <!-- Words table -->
   <section id="view-words" hidden>
-    <h1 id="w-title">All words</h1>
-    <div class="sub" id="w-sub"></div>
+    <div class="secthead">
+      <div>
+        <h1 id="w-title">All words</h1>
+        <div class="sub" id="w-sub"></div>
+      </div>
+      <button class="btn" id="w-review" hidden>Review</button>
+    </div>
     <div class="cards" id="w-cards"></div>
     <p class="empty" id="w-empty" hidden></p>
   </section>
@@ -75,6 +80,7 @@
     <div class="rvbody">
     <div class="rvempty" id="rv-empty" hidden>
       <p id="rv-empty-text">Nothing due. Come back later.</p>
+      <button class="btn" id="rv-more" hidden>Learn 20 more</button>
       <button class="btn ghost" id="rv-back">Back to overview</button>
     </div>
 

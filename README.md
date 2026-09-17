@@ -136,6 +136,12 @@ with the word blanked out of it, which is what the typing card asks you with.
 IELTS publishes no official vocabulary list, so the CEFR bands are the graded
 stand-in: band 7 and up is described in C1/C2 terms.
 
+Open the folder and its header carries the way in: **Review N due** while
+there is work waiting, and **Learn 20 new** once there is not — the next twenty
+words the file has queued up, pulled forward; finish a session and the end
+screen offers the next twenty without leaving the review. The folder cards on the overview
+say the same thing. Both run the same SM-2 review as everything else.
+
 The cards do not all arrive at once. Twenty become due a day, C1 first, so the
 file behaves like a course rather than a wall — the last word is due in 97 days,
 and SM-2 takes over from there. Importing twice does not reset that: an existing
