@@ -513,6 +513,20 @@ ready.then(() => setTimeout(async () => {
   const more = document.getElementById('rv-more');
   check('finishing a session offers the next twenty in the same folder',
         !more.hidden && more.textContent === 'Learn 20 more', more.textContent + ' hidden=' + more.hidden);
+  showView('review');
+  // [hidden] must win over every author display rule. Swept over the whole
+  // page rather than per element: this trap has now bitten the typing row and
+  // the card itself, and the next one will be something else.
+  const leaks = () => [...document.querySelectorAll('[hidden]')]
+    .filter((el) => !el.closest('dialog') && getComputedStyle(el).display !== 'none')
+    .map((el) => el.id || el.className);
+  check('a finished session shows Done and no empty card',
+        !document.getElementById('rv-card').checkVisibility()
+        && document.getElementById('rv-empty').checkVisibility());
+  check('nothing marked hidden is drawn (paper)', !leaks().length, leaks().join());
+  document.documentElement.dataset.theme = 'night';
+  check('nothing marked hidden is drawn (night)', !leaks().length, leaks().join());
+  delete document.documentElement.dataset.theme;
   more.click();
   check('and that button starts them without leaving the review',
         queue.length === 20 && document.getElementById('rv-card').hidden === false,

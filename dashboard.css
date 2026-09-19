@@ -182,6 +182,10 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
         /* Reserved, so revealing the answer grows the card from a settled
            height rather than jerking the word upward as the page re-centres. */
         min-height:380px;display:flex;flex-direction:column;justify-content:center}
+/* The card's display:flex outranks the UA's [hidden]{display:none}, so without
+   this a finished session drew an empty card on top of "Done" — the two share
+   one grid cell. */
+.rvcard[hidden]{display:none}
 /* The card is a flex column, which stretches a child to the full content width
    and makes a button read as a banner rather than an action. The typing row is
    the one child that WANTS the width; its button is pulled back in below. */
