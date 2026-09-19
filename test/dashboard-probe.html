@@ -52,7 +52,9 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../store.js', '../lookup.js', '../dashboard.js']
+    .then(() => { return ['../lib.js', '../store.js', '../lookup.js', '../practice.js',
+      ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
+      '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
       .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
         const tag = document.createElement('script');

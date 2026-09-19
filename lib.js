@@ -152,6 +152,11 @@ const VT = {
   // while reading land here.
   READING: 'reading',
 
+  // The other built-in folder: the words you starred on a card. Membership is
+  // an ordinary folder id on the word, so review, practice and the overview
+  // count it with no special case.
+  STARRED: 'starred',
+
   // Topics the tag picker suggests before you have made any of your own —
   // the IELTS writing and speaking themes. They are not folders until you
   // first tag a word with one, so the overview never fills with empty cards.

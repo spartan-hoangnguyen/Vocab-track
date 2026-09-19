@@ -76,6 +76,11 @@ async function getFolders() {
       color: 'sage', icon: '\u{1F4D6}',
       desc: 'Everything you looked up while reading. Fills itself.'
     },
+    [VT.STARRED]: {
+      id: VT.STARRED, name: 'Starred', auto: true,
+      color: 'ochre', icon: '\u{2B50}',
+      desc: 'The words you starred on a card.'
+    },
     ...(folders ?? {})
   };
 }
@@ -97,7 +102,7 @@ function putFolder(folder) {
 // Deleting a folder never deletes words — they only lose the tag. A word left
 // with no folders reads as "From reading" again via VT.foldersOf.
 function removeFolder(id) {
-  if (id === VT.READING) return Promise.resolve();
+  if (id === VT.READING || id === VT.STARRED) return Promise.resolve();
   writeQueue = writeQueue.then(async () => {
     try {
       const { folders } = await chrome.storage.local.get('folders');
@@ -121,6 +126,31 @@ function removeFolder(id) {
 function setWordFolders(word, ids) {
   const unique = [...new Set(ids.length ? ids : [VT.READING])];
   return putWord(word, { folders: unique });
+}
+
+// Practice keeps its own books and never touches the schedule: counts per mode
+// for today (the grid's "4/10 today"), and misses per word for good. The day
+// rolls over on the first read of a new one; misses carry across.
+async function getPractice() {
+  const { practice } = await chrome.storage.local.get('practice');
+  const today = new Date().toDateString();
+  if (practice?.day === today) return practice;
+  return { day: today, counts: {}, misses: practice?.misses ?? {} };
+}
+
+function recordPractice(mode, word, correct) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const practice = await getPractice();
+      const was = practice.counts[mode] ?? { right: 0, total: 0 };
+      practice.counts[mode] = { right: was.right + (correct ? 1 : 0), total: was.total + 1 };
+      if (!correct) practice.misses[word] = (practice.misses[word] ?? 0) + 1;
+      await chrome.storage.local.set({ practice });
+    } catch (err) {
+      console.error('[vocab-track] practice record failed for', word, err);
+    }
+  });
+  return writeQueue;
 }
 
 // A tag name to a folder id, making the folder when the name is new. Matched

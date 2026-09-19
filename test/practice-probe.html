@@ -1,0 +1,212 @@
+<!doctype html><meta charset="utf-8"><title>Vocab-track</title>
+<link rel="stylesheet" href="../dashboard.css">
+<link rel="stylesheet" href="../practice.css">
+<body>
+<!-- display:contents, so this wrapper adds no box of its own. dashboard.css
+     lays the page out as a flex body with <aside> and <main> as its direct
+     children; an ordinary <div> between them breaks that, and a probe whose
+     whole job is measuring layout would then be measuring a box tree the
+     product never renders. -->
+<style>#app{display:contents}</style>
+<div id="app"></div>
+<script>
+  // A probe that dies silently reports nothing and reads as a pass to anyone
+  // skimming. Surface it in the one place run.sh looks.
+  const died = (what) => {
+    document.getElementById('out').textContent =
+      'FAIL probe ' + what + '\n1 failure(s), 0 check(s)';
+  };
+  window.addEventListener('error', (e) => died('threw: ' + e.message + ' @' + e.filename + ':' + e.lineno));
+  // Both, because the assertions run in an async callback: a throw in there is
+  // a rejected promise, which never reaches the error event. Without this the
+  // page sits on "running…" and run.sh reports nothing at all.
+  window.addEventListener('unhandledrejection', (e) => died('rejected: ' + (e.reason?.stack ?? e.reason)));
+</script>
+<!-- The markup is the real dashboard.html, fetched rather than copied.
+     It used to be a copy, and the copy silently went stale the moment the
+     review card changed shape — a probe measuring markup the product no longer
+     ships cannot catch anything. -->
+<script>
+  // dashboard.js binds its listeners at load, so the markup has to be in the
+  // document before it runs. That ordering is why this page loads lib/store/
+  // lookup/dashboard itself, at the bottom, instead of with <script src>: a
+  // synchronous XMLHttpRequest would give the same ordering but stalls
+  // headless Chrome's virtual clock, so the assertions' timer never fired and
+  // the page sat on "running…" reporting nothing.
+  const ready = fetch('../dashboard.html')
+    .then((r) => r.text())
+    .then((page) => {
+      // Only what is inside <body>, and with its <script> tags stripped: this
+      // page loads those itself, after the chrome stub exists.
+      //
+      // Appended, never assigned to document.body.innerHTML: replacing the
+      // body while the parser is still inside it throws away every tag not yet
+      // read, which silently took out this page's own scripts.
+      const holder = document.createElement('div');
+      holder.innerHTML =
+        page.slice(page.indexOf('<body>') + 6, page.lastIndexOf('</body>'))
+            .replace(/<script[\s\S]*?<\/script>/g, '');
+      // Into a slot declared up front, not appended to the body. The fetch
+      // resolves after parsing finishes, so appending would put the whole
+      // dashboard after the results element at the foot of this page — and
+      // run.sh reads the results by slicing between that element's tags, so it
+      // would print the dashboard instead of the assertions.
+      document.getElementById('app').replaceChildren(...holder.childNodes);
+    })
+    .then(() => { return ['../lib.js', '../store.js', '../lookup.js', '../practice.js',
+      ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
+      '../dashboard.js']
+      // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
+      .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = src;
+        tag.onload = resolve;
+        tag.onerror = () => reject(new Error('could not load ' + src));
+        document.head.append(tag);
+      })), Promise.resolve()); });
+</script>
+
+
+<script>
+// Twelve words, every one with a gloss and a saved sentence that uses it, so
+// every mode is open and the quiz has distractors at the same level.
+const WORDS = {};
+const seed = [
+  ['strategy','B2','chiến lược','The company announced a new long-term strategy for Europe.'],
+  ['resilient','C1','kiên cường','Children are often remarkably resilient after a move.'],
+  ['ubiquitous','C2','phổ biến','Phones have become ubiquitous in classrooms.'],
+  ['commemorate','C1','tưởng niệm','A statue was built to commemorate the victims.'],
+  ['tentative','B2','dè dặt','They reached a tentative agreement late on Friday.'],
+  ['ambiguous','C1','mơ hồ','The wording of the law is deliberately ambiguous.'],
+  ['leverage','B2','đòn bẩy','Small firms can leverage their local knowledge.'],
+  ['nuance','C1','sắc thái','The translation loses every nuance of the original.'],
+  ['pragmatic','C1','thực dụng','She took a pragmatic view of the budget.'],
+  ['candid','C1','thẳng thắn','He gave a candid account of his mistakes.'],
+  ['scarce','B2','khan hiếm','Water is scarce in the dry season.'],
+  ['accelerate','B2','tăng tốc','The government wants to accelerate the move to clean energy.']
+];
+for (const [word, level, vi, context] of seed) {
+  WORDS[word] = { word, level, vi, def: 'a definition of ' + word, ipa: 'x', context,
+    folders: ['reading'], senses: [{ level, def: 'a definition of ' + word, example: null }],
+    synonyms: [], related: [], sources: ['https://example.com/a'], added: Date.now() - 86400000,
+    ease: 2.5, interval: 3, reps: 2, due: Date.now() - 1000 };
+}
+const STORE = { words: WORDS };
+window.chrome = {
+  storage: { local: {
+      get: async (keys) => {
+        const out = {};
+        for (const k of (Array.isArray(keys) ? keys : [keys])) if (k in STORE) out[k] = STORE[k];
+        return out;
+      },
+      set: async (patch) => { Object.assign(STORE, patch); } },
+    onChanged: { addListener() {} } },
+  runtime: { sendNativeMessage: async () => { throw new Error('no host'); },
+             sendMessage() {}, onMessage: { addListener() {} } }
+};
+// Nothing in a headless probe should make a sound or wait on one.
+window.Audio = class { play() { return Promise.resolve(); } };
+window.speechSynthesis = { speak() {}, cancel() {} };
+</script>
+
+<script>
+{
+let failures = 0;
+const log = [];
+const check = (name, cond, detail) => {
+  if (cond) log.push('PASS  ' + name);
+  else { failures++; log.push('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
+};
+const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+const schedule = () => JSON.stringify(Object.values(STORE.words)
+  .map((e) => [e.word, e.ease, e.interval, e.reps, e.due]));
+
+ready.then(() => setTimeout(async () => {
+  await refresh();
+  startReview(null);
+  showView('review');
+  render();
+  const before = schedule();
+
+  /* ---- the grid ---- */
+  const cards = [...document.querySelectorAll('#pr-grid .prmode')];
+  check('the grid shows all six modes, in the design order',
+        cards.map((c) => c.dataset.mode).join() === 'quiz,listening,fill,speak,blast,mix',
+        cards.map((c) => c.dataset.mode).join());
+  check('with twelve glossed words in context, every mode is open',
+        cards.every((c) => !c.disabled), cards.filter((c) => c.disabled).map((c) => c.dataset.mode).join());
+  // It sits under the card, and the card keeps the first screen.
+  const card = document.getElementById('rv-card').getBoundingClientRect();
+  check('the grid starts below the review card',
+        document.getElementById('pr-grid').getBoundingClientRect().top > card.bottom);
+
+  /* ---- a scope with too few words greys the card with the reason ---- */
+  const tiny = Object.values(STORE.words).slice(0, 2);
+  const host = document.createElement('div');
+  PRACTICE.renderGrid(host, tiny, {});
+  const quizCard = host.querySelector('[data-mode="quiz"]');
+  check('a mode that cannot run is disabled, not a dead end',
+        quizCard.disabled && /four words/i.test(quizCard.textContent), quizCard.textContent);
+
+  /* ---- every ask-mode opens, owns the keyboard, and leaves the schedule alone ---- */
+  const queued = queue.length;
+  for (const mode of PRACTICE.list()) {
+    PRACTICE.start(mode.id, practicePool(Object.values(words)));
+    await tick();
+    const dlg = document.getElementById('practice-dlg');
+    check(`${mode.id}: opens in the practice dialog`, dlg.open && document.getElementById('pr-body').children.length > 0);
+    for (const key of ['1', '2', '3', '4', 'r', 't', ' ']) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    }
+    await tick();
+    check(`${mode.id}: review keys do nothing while it is open`,
+          queue.length === queued && schedule() === before);
+    dlg.close();
+    PRACTICE.stop();
+    await tick();
+  }
+
+  /* ---- answers are counted per mode per day, never as reviews ---- */
+  await recordPractice('quiz', 'strategy', false);
+  await recordPractice('quiz', 'nuance', true);
+  const p = await getPractice();
+  check('practice counts today per mode', p.counts.quiz?.total >= 2 && p.counts.quiz?.right >= 1,
+        JSON.stringify(p.counts.quiz));
+  check('and remembers the words you missed', p.misses.strategy >= 1);
+  check('and never touches ease, interval, reps or due', schedule() === before);
+  await PRACTICE.hooks.changed();
+  check('the badge counts it', /\/10 today|today/.test(document.querySelector('#pr-grid [data-mode="quiz"] .prbadge')?.textContent ?? ''),
+        document.querySelector('#pr-grid [data-mode="quiz"] .prbadge')?.textContent);
+
+  /* ---- Starred: a built-in folder like From reading ---- */
+  const folderList = await getFolders();
+  check('Starred is always there', folderList[VT.STARRED]?.auto === true);
+  await removeFolder(VT.STARRED);
+  check('and cannot be deleted', !!(await getFolders())[VT.STARRED]);
+
+  /* ---- each mode's own checks ---- */
+  for (const mode of PRACTICE.list()) {
+    try {
+      const results = (await mode.selfTest?.()) ?? [];
+      for (const [name, ok, detail] of results) check(`${mode.id}: ${name}`, ok, detail);
+    } catch (err) {
+      check(`${mode.id}: selfTest runs`, false, err?.stack ?? String(err));
+    }
+    document.getElementById('practice-dlg').open && document.getElementById('practice-dlg').close();
+    PRACTICE.stop();
+  }
+  check('no mode touched the review schedule', schedule() === before);
+
+  document.getElementById('out').textContent =
+    log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+}, 80));
+}
+</script>
+<script>
+  ready.catch((err) => {
+    document.getElementById('out').textContent =
+      'FAIL probe setup: ' + err.message + '\n1 failure(s), 0 check(s)';
+  });
+</script>
+<pre id="out">running…</pre>
+</body>

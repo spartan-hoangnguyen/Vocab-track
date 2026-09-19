@@ -4,7 +4,9 @@
 set -u
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PORT=8123
+# Overridable, so two runs at once (parallel agents, a watcher) do not share a
+# server and read each other's pages.
+PORT=${PORT:-8123}
 
 python3 -m http.server "$PORT" --directory "$ROOT" >/dev/null 2>&1 &
 SERVER=$!
@@ -55,16 +57,24 @@ PANEL=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
         --window-size=400,900 --dump-dom "http://localhost:$PORT/test/sidepanel-probe.html" 2>/dev/null \
         | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# Every practice mode's own checks, plus the rules they all share: the grid,
+# the dialog owning the keyboard, and the review schedule left alone.
+PRACTICE=$("$CHROME" --headless --disable-gpu --virtual-time-budget=8000 \
+           --window-size=1400,900 --dump-dom "http://localhost:$PORT/test/practice-probe.html" 2>/dev/null \
+           | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
 echo "$PROBE"
 echo "$READER"
 echo "$DASH"
 echo "$WRITER"
 echo "$PANEL"
+echo "$PRACTICE"
 echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PROBE"  | grep -qE '^0 failure\(s\)' || exit 1
 echo "$READER" | grep -qE '^0 failure\(s\)' || exit 1
 echo "$DASH"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$WRITER" | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PANEL"  | grep -qE '^0 failure\(s\)' || exit 1
+echo "$PRACTICE" | grep -qE '^0 failure\(s\)' || exit 1
 exit 0

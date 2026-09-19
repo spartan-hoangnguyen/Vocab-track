@@ -212,7 +212,10 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 @media (prefers-reduced-motion:reduce){.rvcard.fresh{animation:none}}
 /* The wrapper is what centres the card; the section itself has the header
    pinned at its top. */
-.rvbody{flex:1;display:flex;align-items:center;justify-content:center;padding:22px 0}
+/* A floor of one screen, so the practice grid below starts under the fold and
+   the card is still centred in the viewport rather than in whatever is left. */
+.rvbody{flex:1;display:flex;align-items:center;justify-content:center;padding:22px 0;
+        min-height:calc(100vh - 230px)}
 .rvprog{height:3px;border-radius:2px;background:var(--rule);overflow:hidden;margin-top:14px}
 .rvprog span{display:block;height:100%;background:var(--ink);border-radius:2px;
              transition:width .22s ease}

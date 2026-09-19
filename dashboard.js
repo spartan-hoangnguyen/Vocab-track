@@ -10,6 +10,7 @@ let words = {};
 let folders = {};
 let writing = { on: true, off: [], mistakes: {} };
 let activeFolder = null;   // null = all words
+let practice = { counts: {}, misses: {} };
 
 function showView(name) {
   for (const view of VIEWS) $(`view-${view}`).hidden = view !== name;
@@ -32,7 +33,8 @@ for (const a of document.querySelectorAll('nav a')) {
 }
 
 async function refresh() {
-  [words, folders, writing] = await Promise.all([getWords(), getFolders(), getWriting()]);
+  [words, folders, writing, practice] =
+    await Promise.all([getWords(), getFolders(), getWriting(), getPractice()]);
   render();
 }
 
@@ -43,6 +45,7 @@ function render() {
   renderStreak(all);
   renderStats(all);
   renderCard();
+  renderPractice(all);
   renderWriting();
 }
 
@@ -255,7 +258,7 @@ function wordCard(entry) {
   const head = el('div', 'wc-head');
   const title = el('h3', 'wc-word', entry.word);
   title.title = 'Pronounce';
-  title.addEventListener('click', () => pronounce(entry));
+  title.addEventListener('click', () => speakWord(entry));
   head.appendChild(title);
   if (entry.level) head.appendChild(el('span', 'lvl', entry.level));
   if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
@@ -567,7 +570,7 @@ $('import-file').addEventListener('change', async (event) => {
     }
     await putWords(patches);
     for (const folder of Object.values(data.folders ?? {})) {
-      if (folder.id !== VT.READING) await putFolder(folder);
+      if (folder.id !== VT.READING && folder.id !== VT.STARRED) await putFolder(folder);
     }
     note.textContent = `Imported: ${added} new, ${merged} merged with existing entries.`;
     await refresh();
@@ -799,7 +802,7 @@ function renderCard() {
   $('rv-ipa').hidden = !(revealed && entry.ipa);
   $('rv-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : '';
   $('rv-play').hidden = !revealed;
-  $('rv-play').onclick = () => pronounce(entry);
+  $('rv-play').onclick = () => speakWord(entry);
 
   // Labelled with where the word already is, so the card answers "did I file
   // this one?" without opening anything.
@@ -894,7 +897,7 @@ function submitAnswer() {
   // the card.
   $('rv-input').blur();
   renderCard();
-  pronounce(queue[0]);
+  speakWord(queue[0]);
 }
 
 async function grade(quality) {
@@ -1032,6 +1035,9 @@ $('rv-back').addEventListener('click', () => { showView('overview'); render(); }
 
 document.addEventListener('keydown', (event) => {
   if ($('view-review').hidden || document.activeElement === $('q')) return;
+  // Same for a practice session: a Listening answer or a Card Blast word is
+  // typed, and its digits and letters must not grade the card behind it.
+  if ($('practice-dlg').open) return;
   // The picker owns the keyboard while it is open: typing a tag name must not
   // grade the card, and Esc closes the picker rather than the session.
   if ($('tag-dlg').open) return;
@@ -1056,7 +1062,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === ' ' && !revealed) { event.preventDefault(); submitAnswer(); return; }
   if ((event.key === 'r' || event.key === 'R') && revealed && queue.length) {
     event.preventDefault();
-    pronounce(queue[0]);
+    speakWord(queue[0]);
     return;
   }
   if ((event.key === 't' || event.key === 'T') && revealed && queue.length) {
@@ -1067,6 +1073,39 @@ document.addEventListener('keydown', (event) => {
   const g = GRADES.find((x) => x.key === event.key);
   if (g) { event.preventDefault(); grade(g.q); }
 });
+
+/* ---------- practice ---------- */
+
+// Every place the dashboard says a word goes through here, so an accent or
+// autoplay setting has exactly one seam to change.
+function speakWord(entry) {
+  pronounce(entry);
+}
+
+// The words a practice mode draws from: the review's folder when it has one,
+// everything otherwise. Skipped words are out, as they are out of review.
+function practicePool(all) {
+  return all.filter((e) => VT.isLearnable(e)
+    && (!reviewScope || VT.foldersOf(e).includes(reviewScope)));
+}
+
+function renderPractice(all) {
+  PRACTICE.renderGrid($('pr-grid'), practicePool(all), practice.counts);
+}
+
+PRACTICE.hooks.speak = (entry) => speakWord(entry);
+// After each answer, so the badge behind the dialog is already right when it
+// closes. Not through storage.onChanged: that re-renders the whole page on
+// every answer of a ten-question round.
+PRACTICE.hooks.changed = async () => {
+  practice = await getPractice();
+  renderPractice(Object.values(words));
+};
+
+// stop() here as well as on close: the close event is what Esc gives us, but
+// the ✕ should not depend on it to halt a running game.
+$('pr-close').addEventListener('click', () => { $('practice-dlg').close(); PRACTICE.stop(); });
+$('practice-dlg').addEventListener('close', () => PRACTICE.stop());
 
 /* ---------- statistics ---------- */
 

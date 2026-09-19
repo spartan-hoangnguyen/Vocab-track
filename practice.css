@@ -1,0 +1,70 @@
+/* Practice modes: the grid under the review card, and the dialog every mode
+   runs in. The classes below .prbody are shared by every mode, so the six
+   read as one feature; a mode adds its own rules only for what is unique to
+   it, under a .pr-<id> root. */
+:root{
+  --amber:#f3e2c6; --amber-ink:#7a4f12;
+  --green:#dcebe2; --green-ink:#28553d;
+  --red:#f3dcd6;   --red-ink:#86352a;
+  --purple:#e6e0f1; --purple-ink:#4d3a78;
+  --blue:#dde7f4;  --blue-ink:#2c4f80;
+  --magenta:#f1dce8; --magenta-ink:#7a2f5c;
+  --good:#3f7d54; --bad:#a8453a;
+}
+
+.prmodes{margin-top:34px;flex:none}
+.prmodes h2{margin-bottom:14px}
+.prgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+
+.prmode{position:relative;display:flex;flex-direction:column;align-items:flex-start;
+        gap:6px;min-height:150px;padding:18px;border:0;border-radius:16px;
+        text-align:left;cursor:pointer;font:inherit;overflow:hidden;
+        transition:transform .12s ease}
+.prmode:hover:not(:disabled){transform:translateY(-2px)}
+.prmode:disabled{cursor:not-allowed;opacity:.55}
+.prmode h3{font:600 17px Fraunces,Georgia,serif;margin:10px 0 0}
+.prmode p{margin:0;font-size:12.5px;opacity:.85}
+.pricon{width:40px;height:40px;border-radius:11px;background:#fff;display:grid;
+        place-items:center;font-size:19px;box-shadow:0 2px 0 #0000000f}
+.prbadge{position:absolute;top:12px;right:12px;font:600 10.5px Inter;letter-spacing:.06em;
+         text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ffffffa6}
+.prmode.amber{background:var(--amber);color:var(--amber-ink)}
+.prmode.green{background:var(--green);color:var(--green-ink)}
+.prmode.red{background:var(--red);color:var(--red-ink)}
+.prmode.purple{background:var(--purple);color:var(--purple-ink)}
+.prmode.blue{background:var(--blue);color:var(--blue-ink)}
+.prmode.magenta{background:var(--magenta);color:var(--magenta-ink)}
+
+/* ---- the dialog ---- */
+dialog.prdlg{width:min(640px,94vw);padding:0}
+.prhead{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--rule)}
+.prhead h3{margin:0;flex:1}
+.prstatus{color:var(--ink2);font-size:13px;font-variant-numeric:tabular-nums}
+.prbody{padding:26px 24px 24px;min-height:300px;display:flex;flex-direction:column;
+        align-items:center;gap:16px;text-align:center}
+
+/* ---- shared by every mode ---- */
+.prmodename{font:600 11px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);margin:0}
+.prask{font:600 34px/1.15 Fraunces,Georgia,serif;margin:0;letter-spacing:-.01em}
+.prhint{color:var(--ink2);font-size:14px;margin:0;max-width:52ch}
+.prsentence{margin:0;padding:12px 16px;border-left:3px solid var(--rule);background:var(--panel);
+            border-radius:0 10px 10px 0;font-size:15px;line-height:1.6;text-align:left;max-width:52ch}
+.propts{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.propts button{padding:13px 14px;border:1px solid var(--rule);border-radius:12px;background:#fff;
+               font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left}
+.propts button:hover:not(:disabled){background:var(--panel)}
+.propts button kbd{margin-right:8px;border-color:var(--rule);color:var(--ink2);background:var(--panel)}
+.propts button.right{border-color:var(--good);background:#e7f1ea}
+.propts button.wrong{border-color:var(--bad);background:#f6e4e1}
+.prinput{width:100%;max-width:380px;padding:12px 14px;border:1px solid var(--rule);border-radius:12px;
+         background:#fff;font:400 18px Inter;color:var(--ink);text-align:center}
+.prinput:focus{outline:2px solid var(--bar);outline-offset:-1px}
+.prverdict{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;
+           width:100%;padding:12px 14px;border-radius:12px;margin-top:auto}
+.prverdict.good{background:#e7f1ea;color:var(--good)}
+.prverdict.bad{background:#f6e4e1;color:var(--bad)}
+.prverdict span{color:var(--ink)}
+.prverdict .btn kbd{margin-left:6px}
+.prsummary{margin:auto 0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.prscore{font:600 44px Fraunces,Georgia,serif;margin:0}
+.prsummary p{margin:0}

@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <title>Vocab-track</title>
 <link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="practice.css">
 <body>
 <aside>
   <div class="brand"><span class="mark">V</span><b>Vocab-track</b></div>
@@ -132,6 +133,14 @@
     </div>
 
     <p class="rvexit" id="rv-exit" hidden><kbd>esc</kbd> to finish for now</p>
+
+    <!-- Below the card, not instead of it: the card still owns the first
+         screen, and this is what you scroll to when the reviews run out.
+         Scoped to the same folder as the review above it. -->
+    <section class="prmodes">
+      <h2>Practice modes</h2>
+      <div class="prgrid" id="pr-grid"></div>
+    </section>
   </section>
 
   <!-- Statistics -->
@@ -246,8 +255,26 @@
   </form>
 </dialog>
 
+<!-- One host for every practice mode. Modal, so the review behind it is inert
+     and its keys cannot fire while you type an answer here. -->
+<dialog id="practice-dlg" class="prdlg">
+  <div class="prhead">
+    <h3 id="pr-title"></h3>
+    <span class="prstatus" id="pr-status"></span>
+    <button class="rowdel" id="pr-close" aria-label="Close practice">✕</button>
+  </div>
+  <div class="prbody" id="pr-body"></div>
+</dialog>
+
 <script src="lib.js"></script>
 <script src="store.js"></script>
 <script src="lookup.js"></script>
+<script src="practice.js"></script>
+<script src="practice-quiz.js"></script>
+<script src="practice-listening.js"></script>
+<script src="practice-fill.js"></script>
+<script src="practice-speak.js"></script>
+<script src="practice-blast.js"></script>
+<script src="practice-mix.js"></script>
 <script src="dashboard.js"></script>
 </body>
