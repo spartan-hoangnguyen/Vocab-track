@@ -11,6 +11,10 @@ let folders = {};
 let writing = { on: true, off: [], mistakes: {} };
 let activeFolder = null;   // null = all words
 let practice = { counts: {}, misses: {} };
+// How a review session runs. A key missing from storage is a default, not
+// false: a profile that never touched the switch still hears the word.
+const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk' };
+let prefs = { ...REVIEW_DEFAULTS };
 
 function showView(name) {
   for (const view of VIEWS) $(`view-${view}`).hidden = view !== name;
@@ -33,8 +37,8 @@ for (const a of document.querySelectorAll('nav a')) {
 }
 
 async function refresh() {
-  [words, folders, writing, practice] =
-    await Promise.all([getWords(), getFolders(), getWriting(), getPractice()]);
+  [words, folders, writing, practice, prefs] = await Promise.all(
+    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs()]);
   render();
 }
 
@@ -44,6 +48,7 @@ function render() {
   renderWords(all);
   renderStreak(all);
   renderStats(all);
+  renderPrefs();
   renderCard();
   renderPractice(all);
   renderWriting();
@@ -406,17 +411,22 @@ function renderTags() {
   }
 }
 
-async function toggleTag(tag, on) {
-  const id = tag.suggested ? await folderForName(tag.name) : tag.id;
-  const mine = VT.foldersOf(words[tagging]);
-  await setWordFolders(tagging, on ? [...mine, id] : mine.filter((f) => f !== id));
+// Adds or removes one folder on one word, in storage and in memory.
+async function fileWord(word, id, on) {
+  const mine = VT.foldersOf(words[word]);
+  await setWordFolders(word, on ? [...mine, id] : mine.filter((f) => f !== id));
   // Read back rather than recomputed, so setWordFolders stays the one place
   // that decides what an emptied list means. The review queue holds its own
   // entry objects, and the card's tag label reads from those.
-  const saved = (await getWords())[tagging]?.folders;
-  for (const entry of [words[tagging], ...queue.filter((e) => e.word === tagging)]) {
+  const saved = (await getWords())[word]?.folders;
+  for (const entry of [words[word], ...queue.filter((e) => e.word === word)]) {
     if (entry) entry.folders = saved;
   }
+}
+
+async function toggleTag(tag, on) {
+  const id = tag.suggested ? await folderForName(tag.name) : tag.id;
+  await fileWord(tagging, id, on);
   folders = await getFolders();
   renderTags();
   // Behind the modal, so the card's label and the word list are already right
@@ -602,6 +612,40 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+/* ---------- theme ---------- */
+
+// Paper is the default and stays the default; night is opt-in. The choice is
+// saved to chrome.storage like every other setting, and mirrored to
+// localStorage only so theme-boot.js can apply it before the first paint.
+function applyTheme(theme) {
+  const night = theme === 'night';
+  if (night) document.documentElement.dataset.theme = 'night';
+  else delete document.documentElement.dataset.theme;
+  $('theme-btn').setAttribute('aria-pressed', String(night));
+  $('theme-btn').title = night ? 'Light theme' : 'Night theme';
+  $('theme-btn').setAttribute('aria-label', $('theme-btn').title);
+  try {
+    localStorage.setItem('theme', night ? 'night' : 'light');
+  } catch {
+    // A blocked localStorage only costs the no-flash start; storage below
+    // still holds the choice.
+  }
+}
+
+function setTheme(theme) {
+  applyTheme(theme);
+  return chrome.storage.local.set({ theme });
+}
+
+$('theme-btn').addEventListener('click', () => {
+  setTheme(document.documentElement.dataset.theme === 'night' ? 'light' : 'night');
+  // Mid-review the click took focus from the typing box; hand it back.
+  refocusCard();
+});
+// chrome.storage is the truth: the mirror can be missing (cleared site data)
+// or stale (the theme changed in another dashboard tab while this was shut).
+chrome.storage.local.get('theme').then(({ theme }) => applyTheme(theme));
+
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');
@@ -614,6 +658,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   // writeMistakes lands here while you are typing in another tab, which is the
   // only way this page ever sees the counts move.
+  // Another dashboard tab flipped the theme: follow it.
+  if (changes.theme) applyTheme(changes.theme.newValue);
   if (changes.words || changes.folders ||
       changes.writeOn || changes.writeOff || changes.writeMistakes) refresh();
 });
@@ -720,16 +766,20 @@ function startReview(folderId, { ahead = false } = {}) {
     .filter((e) => e.due <= now)
     // Oldest due first: the most overdue card is the one most at risk.
     .sort((a, b) => a.due - b.due);
+  if (prefs.shuffle) queue = VT.shuffled(queue);
   // Anki's new cards are not overdue, they are simply not started yet, and an
   // imported word list is a thousand of them held back twenty a day. With the
   // day's work done, opening the folder has to offer the next ones rather than
   // an empty screen — the schedule is a pace, not a lock.
   if (ahead && !queue.length) {
     queue = newCards(scope).slice(0, AHEAD_BATCH);
+    // Which twenty is still the schedule's call; shuffle only reorders them.
+    if (prefs.shuffle) queue = VT.shuffled(queue);
   }
   sessionTotal = queue.length;
   revealed = false;
   typed = '';
+  $('rv-input').value = '';
 }
 
 // The prompt must not contain its own answer. The sentence a word was saved
@@ -744,6 +794,7 @@ function renderCard() {
   const scopeName = reviewScope ? folders[reviewScope]?.name : null;
   $('rv-title').textContent = scopeName ? `Review · ${scopeName}` : 'Review';
 
+  renderSide();
   if (!queue.length) {
     $('rv-card').hidden = true;
     $('rv-empty').hidden = false;
@@ -818,11 +869,12 @@ function renderCard() {
   $('rv-type').querySelector('button').textContent = canType ? 'Check ' : 'Show answer ';
   $('rv-type').querySelector('button').append(kbd('enter'));
 
-  if (!revealed) {
-    $('rv-input').value = '';
-    // Focused so the session is pure typing: no click is needed between cards.
-    if (canType) $('rv-input').focus();
-  }
+  // Focused so the session is pure typing: no click is needed between cards.
+  // The box is emptied where the card changes (startReview, grade, skip), not
+  // here: a star or a storage change re-renders mid-answer, and that must not
+  // throw away half a typed word.
+  if (!revealed && canType) $('rv-input').focus();
+  renderStar(entry);
 
   // The answer is only written into the DOM once revealed, so it is never
   // sitting in the page while you are still trying to recall it. The Cambridge
@@ -897,7 +949,7 @@ function submitAnswer() {
   // the card.
   $('rv-input').blur();
   renderCard();
-  speakWord(queue[0]);
+  if (prefs.autoplay) speakWord(queue[0]);
 }
 
 async function grade(quality) {
@@ -918,6 +970,7 @@ async function grade(quality) {
     }
     revealed = false;
     typed = '';
+    $('rv-input').value = '';
     words[entry.word] = entry;
     renderCard();
   } finally {
@@ -1008,6 +1061,7 @@ async function skipCard() {
     words[entry.word] = entry;
     revealed = false;
     typed = '';
+    $('rv-input').value = '';
     renderCard();
   } finally {
     grading = false;
@@ -1047,6 +1101,10 @@ document.addEventListener('keydown', (event) => {
     render();
     return;
   }
+  // The session controls, the star and the theme button own their own keys:
+  // Space flips the switch, Enter presses the button, a letter picks a voice.
+  // Only the bare card gets the shortcuts.
+  if (event.target.closest?.('.rvctl, #rv-star, #theme-btn')) return;
   // While the box has focus every other key belongs to it — a digit is a digit
   // and `r` is a letter. Enter is the exception, and the form handles that.
   if (document.activeElement === $('rv-input')) return;
@@ -1065,6 +1123,13 @@ document.addEventListener('keydown', (event) => {
     speakWord(queue[0]);
     return;
   }
+  // 's' only reaches here with the box unfocused: before the answer it is a
+  // letter of the word you are typing.
+  if ((event.key === 's' || event.key === 'S') && queue.length) {
+    event.preventDefault();
+    toggleStar();
+    return;
+  }
   if ((event.key === 't' || event.key === 'T') && revealed && queue.length) {
     event.preventDefault();
     openTagPicker(queue[0]);
@@ -1074,12 +1139,110 @@ document.addEventListener('keydown', (event) => {
   if (g) { event.preventDefault(); grade(g.q); }
 });
 
+/* ---------- review controls, star, side cards ---------- */
+
+async function getReviewPrefs() {
+  const { reviewPrefs } = await chrome.storage.local.get('reviewPrefs');
+  return { ...REVIEW_DEFAULTS, ...reviewPrefs };
+}
+
+function setReviewPrefs(patch) {
+  prefs = { ...prefs, ...patch };
+  renderPrefs();
+  // Straight to storage, no refresh(): nothing else on the page reads these.
+  return chrome.storage.local.set({ reviewPrefs: prefs });
+}
+
+function renderPrefs() {
+  $('rv-shuffle').setAttribute('aria-pressed', String(prefs.shuffle));
+  $('rv-autoplay').checked = prefs.autoplay;
+  $('rv-voice').value = prefs.accent;
+}
+
+// A click moves focus off the typing box; give it back, or the next letters
+// typed go nowhere. Not renderCard(): that would re-run the card for nothing.
+function refocusCard() {
+  if (!revealed && canType && queue.length && !$('view-review').hidden) $('rv-input').focus();
+}
+
+$('rv-shuffle').addEventListener('click', () => {
+  setReviewPrefs({ shuffle: !prefs.shuffle });
+  // Mid-session, only the cards not yet shown move: queue[0] is on screen and
+  // may be half answered. sessionTotal is untouched — same cards, new order.
+  const rest = queue.slice(1);
+  queue = [...queue.slice(0, 1),
+    ...(prefs.shuffle ? VT.shuffled(rest) : rest.sort((a, b) => a.due - b.due))];
+  refocusCard();
+});
+$('rv-autoplay').addEventListener('change', (event) => {
+  setReviewPrefs({ autoplay: event.target.checked });
+  refocusCard();
+});
+$('rv-voice').addEventListener('change', (event) => {
+  setReviewPrefs({ accent: event.target.value });
+  refocusCard();
+});
+
+function renderStar(entry) {
+  const on = VT.foldersOf(entry).includes(VT.STARRED);
+  $('rv-star').textContent = on ? '★' : '☆';
+  $('rv-star').setAttribute('aria-pressed', String(on));
+  $('rv-star').title = on ? 'Unstar this word (s)' : 'Star this word (s)';
+}
+
+let starring = false;
+
+async function toggleStar() {
+  // Same re-entry guard as grade(): a double press would read the folders
+  // before the first write landed and undo it.
+  if (starring || !queue.length) return;
+  starring = true;
+  try {
+    const entry = queue[0];
+    await fileWord(entry.word, VT.STARRED, !VT.foldersOf(entry).includes(VT.STARRED));
+    renderStar(entry);
+  } finally {
+    starring = false;
+  }
+  refocusCard();
+}
+
+$('rv-star').addEventListener('click', toggleStar);
+
+const CHEERS = [
+  [0, 'Every word starts somewhere — keep going.'],
+  [40, 'Keep going, you can master this whole set.'],
+  [80, 'Nearly there — a few more to master.'],
+  [100, 'Every word here is mastered.']
+];
+
+function renderSide() {
+  const scope = Object.values(words)
+    .filter((e) => VT.isLearnable(e) && (!reviewScope || VT.foldersOf(e).includes(reviewScope)));
+  const mastered = scope.filter((e) => VT.isMastered(e)).length;
+  const left = scope.length - mastered;
+  const pct = scope.length ? Math.round((mastered / scope.length) * 100) : 0;
+  // One segment per fifth mastered; the level is one ahead of them, so an
+  // empty set is Level 1 rather than Level 0.
+  const filled = Math.floor(pct / 20);
+  const level = Math.min(5, 1 + filled);
+
+  $('rv-cheer').textContent = CHEERS.filter(([from]) => pct >= from).pop()[1];
+  $('rv-left').textContent = `${left} word${left === 1 ? '' : 's'} left to master`;
+  $('rv-mlevel').textContent = `Level ${level}`;
+  $('rv-pct').textContent = `${pct}%`;
+  $('rv-ring').setAttribute('stroke-dasharray', `${pct} 100`);
+  $('rv-mastered').replaceChildren('You have mastered ',
+    el('b', null, `${mastered}/${scope.length}`), ' words in this set.');
+  [...$('rv-segs').children].forEach((seg, i) => seg.classList.toggle('on', i < filled));
+}
+
 /* ---------- practice ---------- */
 
 // Every place the dashboard says a word goes through here, so an accent or
 // autoplay setting has exactly one seam to change.
 function speakWord(entry) {
-  pronounce(entry);
+  pronounce(entry, prefs.accent);
 }
 
 // The words a practice mode draws from: the review's folder when it has one,
@@ -1105,7 +1268,9 @@ PRACTICE.hooks.changed = async () => {
 // stop() here as well as on close: the close event is what Esc gives us, but
 // the ✕ should not depend on it to halt a running game.
 $('pr-close').addEventListener('click', () => { $('practice-dlg').close(); PRACTICE.stop(); });
-$('practice-dlg').addEventListener('close', () => PRACTICE.stop());
+// Only if it is still shut: a close queued by the last session's dlg.close()
+// can land after a new start() has reopened it, and must not abort that one.
+$('practice-dlg').addEventListener('close', () => { if (!$('practice-dlg').open) PRACTICE.stop(); });
 
 /* ---------- statistics ---------- */
 

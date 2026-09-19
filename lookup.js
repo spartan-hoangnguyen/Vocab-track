@@ -91,19 +91,24 @@ async function resolveWord(rawWord, url, folderIds, context) {
   return { entry, failed };
 }
 
-function pronounce(entry) {
-  if (entry.audio) {
-    new Audio(entry.audio).play().catch((err) => {
+// `accent` is 'uk' or 'us' and optional: the side panel calls these with one
+// argument and gets the British voice it always had.
+function pronounce(entry, accent = 'uk') {
+  // Cambridge gives both recordings. A word saved before audioUs was parsed has
+  // only the one, and the wrong accent beats falling through to the robot voice.
+  const src = accent === 'us' ? (entry.audioUs ?? entry.audio) : entry.audio;
+  if (src) {
+    new Audio(src).play().catch((err) => {
       console.error('[vocab-track] audio playback failed for', entry.word, err);
-      speak(entry.word);
+      speak(entry.word, accent);
     });
     return;
   }
-  speak(entry.word);
+  speak(entry.word, accent);
 }
 
-function speak(word) {
+function speak(word, accent = 'uk') {
   const utterance = new SpeechSynthesisUtterance(word);
-  utterance.lang = 'en-GB';
+  utterance.lang = accent === 'us' ? 'en-US' : 'en-GB';
   speechSynthesis.speak(utterance);
 }

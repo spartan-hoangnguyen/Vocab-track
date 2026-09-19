@@ -528,6 +528,258 @@ ready.then(() => setTimeout(async () => {
   check('All words does not repeat the button already in the top bar',
         (openFolder(null), document.getElementById('w-review').hidden));
 
+  /* ---- review controls: shuffle, autoplay, voice ---- */
+  const byDue = (list) => list.every((e, i) => i === 0 || list[i - 1].due <= e.due);
+  const mk = (word, extra) => ({
+    word, level: 'B1', ipa: 'x', vi: 'từ', def: 'a word', senses: [], synonyms: [], related: [],
+    context: null, sources: [], added: Date.now(), ease: 2.5, interval: 0, reps: 0, ...extra
+  });
+  // Thirty, so a shuffle that happens to come back in due order is a 1-in-29!
+  // fluke rather than a flaky test.
+  for (let i = 0; i < 30; i++) {
+    STORE.words['shuf' + i] = mk('shuf' + i, { folders: ['shuf'], due: Date.now() - 100000 + i });
+  }
+  delete STORE.reviewPrefs;
+  await refresh();
+  check('with no reviewPrefs saved, shuffle is off, autoplay on and the voice UK',
+        !prefs.shuffle && prefs.autoplay && prefs.accent === 'uk'
+        && document.getElementById('rv-shuffle').getAttribute('aria-pressed') === 'false'
+        && document.getElementById('rv-autoplay').checked
+        && document.getElementById('rv-voice').value === 'uk', JSON.stringify(prefs));
+  startReview('shuf');
+  showView('review');
+  renderCard();
+  check('shuffle off asks the oldest due card first', queue.length === 30 && byDue(queue));
+  const shownFirst = queue[0].word;
+  const countBefore = document.getElementById('rv-sub').textContent;
+  document.getElementById('rv-shuffle').click();
+  check('turning shuffle on saves it', STORE.reviewPrefs?.shuffle === true, JSON.stringify(STORE.reviewPrefs));
+  check('and marks the button pressed',
+        document.getElementById('rv-shuffle').getAttribute('aria-pressed') === 'true');
+  check('mid-session it reshuffles the cards not yet shown', !byDue(queue.slice(1)));
+  check('but leaves the card on screen where it is', queue[0].word === shownFirst, queue[0].word);
+  check('and the session keeps the same cards and the same count',
+        queue.length === 30 && sessionTotal === 30 && new Set(queue.map((e) => e.word)).size === 30);
+  renderCard();
+  check('so the counter still reads the same', document.getElementById('rv-sub').textContent === countBefore,
+        document.getElementById('rv-sub').textContent);
+  prefs = { shuffle: false, autoplay: true, accent: 'uk' };   // what a fresh page would hold
+  await refresh();
+  check('shuffle survives a reload', prefs.shuffle === true
+        && document.getElementById('rv-shuffle').getAttribute('aria-pressed') === 'true');
+  startReview('shuf');
+  check('a new session with shuffle on is not in due order', queue.length === 30 && !byDue(queue));
+  document.getElementById('rv-shuffle').click();
+  check('turning it off puts the rest back in due order',
+        STORE.reviewPrefs.shuffle === false && byDue(queue.slice(1)));
+
+  const realPronounce = window.pronounce;
+  const spoken = [];
+  window.pronounce = (entry, accent) => spoken.push([entry.word, accent]);
+  const autoplay = document.getElementById('rv-autoplay');
+  autoplay.checked = false;
+  autoplay.dispatchEvent(new Event('change'));
+  check('turning autoplay off saves it', STORE.reviewPrefs.autoplay === false);
+  startReview('shuf');
+  renderCard();
+  submitAnswer();
+  check('with autoplay off, revealing the answer says nothing', spoken.length === 0, JSON.stringify(spoken));
+  autoplay.checked = true;
+  autoplay.dispatchEvent(new Event('change'));
+  startReview('shuf');
+  renderCard();
+  submitAnswer();
+  check('with it on, the answer is spoken once', spoken.length === 1, JSON.stringify(spoken));
+  window.pronounce = realPronounce;
+
+  const voice = document.getElementById('rv-voice');
+  voice.value = 'us';
+  voice.dispatchEvent(new Event('change'));
+  check('the voice choice is saved', STORE.reviewPrefs.accent === 'us');
+  const RealAudio = window.Audio;
+  const played = [];
+  window.Audio = function (src) { played.push(src); this.play = () => Promise.resolve(); };
+  const said = [];
+  const realSpeak = speechSynthesis.speak;
+  speechSynthesis.speak = (u) => said.push(u.lang);
+  speakWord({ word: 'tomato', audio: 'uk.mp3', audioUs: 'us.mp3' });
+  check('the US voice plays the US recording', played.at(-1) === 'us.mp3', played.join());
+  speakWord({ word: 'tomato', audio: 'uk.mp3' });
+  check('and falls back to the only recording there is', played.at(-1) === 'uk.mp3', played.join());
+  speakWord({ word: 'tomato' });
+  check('with no recording, the synthesised voice is American', said.at(-1) === 'en-US', said.join());
+  voice.value = 'uk';
+  voice.dispatchEvent(new Event('change'));
+  speakWord({ word: 'tomato', audio: 'uk.mp3', audioUs: 'us.mp3' });
+  speakWord({ word: 'tomato' });
+  check('the UK voice plays the UK recording and speaks en-GB',
+        played.at(-1) === 'uk.mp3' && said.at(-1) === 'en-GB', played.join() + ' / ' + said.join());
+  // The side panel's calls pass one argument and must keep the voice they had.
+  pronounce({ word: 'tomato', audio: 'uk.mp3', audioUs: 'us.mp3' });
+  speak('tomato');
+  check('pronounce and speak without an accent stay British',
+        played.at(-1) === 'uk.mp3' && said.at(-1) === 'en-GB');
+  window.Audio = RealAudio;
+  speechSynthesis.speak = realSpeak;
+
+  // The document-level review keys must not steal a focused control's own.
+  startReview('shuf');
+  renderCard();
+  autoplay.focus();
+  autoplay.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  check('Space on a focused control is the control’s, not the card’s', !revealed);
+
+  /* ---- the star ---- */
+  startReview('shuf');
+  showView('review');
+  renderCard();
+  const star = document.getElementById('rv-star');
+  const starWord = queue[0].word;
+  check('the star is on the card before the answer', star.checkVisibility() && !revealed);
+  check('and starts empty', star.textContent === '☆' && star.getAttribute('aria-pressed') === 'false');
+  star.click();
+  await tick();
+  check('clicking it files the word under Starred',
+        STORE.words[starWord].folders.includes(VT.STARRED), STORE.words[starWord].folders.join());
+  check('and fills the star', star.textContent === '★' && star.getAttribute('aria-pressed') === 'true');
+  check('the queue’s own copy knows too', VT.foldersOf(queue[0]).includes(VT.STARRED));
+  check('focus goes back to the typing box', document.activeElement === document.getElementById('rv-input'));
+  const typing = document.getElementById('rv-input');
+  typing.value = 'stra';
+  renderCard();
+  check('a re-render mid-answer keeps what was typed', typing.value === 'stra', typing.value);
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', cancelable: true }));
+  await tick();
+  check('s while typing is a letter, not the star', STORE.words[starWord].folders.includes(VT.STARRED));
+  typing.blur();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', cancelable: true }));
+  await tick();
+  check('s away from the box unstars it',
+        !STORE.words[starWord].folders.includes(VT.STARRED) && star.textContent === '☆',
+        STORE.words[starWord].folders.join());
+  check('and the word keeps its other folder', STORE.words[starWord].folders.includes('shuf'));
+
+  /* ---- side cards: scoped to the review, counted from the schedule ---- */
+  STORE.words.m1 = mk('m1', { folders: ['mset'], reps: 3, interval: 21, due: Date.now() + 1e9 });
+  STORE.words.m2 = mk('m2', { folders: ['mset'], reps: 5, interval: 60, due: Date.now() + 1e9 });
+  // Three right in a row but still close together: not mature yet.
+  STORE.words.m3 = mk('m3', { folders: ['mset'], reps: 3, interval: 10, due: Date.now() - 1 });
+  STORE.words.m4 = mk('m4', { folders: ['mset'], due: Date.now() - 1 });
+  STORE.words.m5 = mk('m5', { folders: ['mset'], due: Date.now() - 1 });
+  // Mastered but skipped: out of the rotation, so out of the count.
+  STORE.words.m6 = mk('m6', { folders: ['mset'], reps: 9, interval: 90, skipped: true, due: 0 });
+  await refresh();
+  startReview('mset');
+  showView('review');
+  renderCard();
+  const txt = (id) => document.getElementById(id).textContent;
+  check('VT.isMastered is reps >= 3 and interval >= 21',
+        VT.isMastered(STORE.words.m1) && !VT.isMastered(STORE.words.m3) && !VT.isMastered({}));
+  check('Keep going counts what is left in this set', txt('rv-left') === '3 words left to master', txt('rv-left'));
+  check('the ring shows the mastered share', txt('rv-pct') === '40%'
+        && document.getElementById('rv-ring').getAttribute('stroke-dasharray') === '40 100', txt('rv-pct'));
+  check('the level follows it', txt('rv-mlevel') === 'Level 3', txt('rv-mlevel'));
+  check('and the sentence gives the numbers',
+        txt('rv-mastered') === 'You have mastered 2/5 words in this set.', txt('rv-mastered'));
+  check('two of five segments are lit',
+        document.querySelectorAll('#rv-segs i.on').length === 2,
+        String(document.querySelectorAll('#rv-segs i.on').length));
+  const sideBox = document.getElementById('rv-side').getBoundingClientRect();
+  const cardSide = document.getElementById('rv-card').getBoundingClientRect();
+  check('the side cards sit to the right of the card at this width',
+        sideBox.left >= cardSide.right, `${sideBox.left.toFixed(0)} vs ${cardSide.right.toFixed(0)}`);
+
+  /* ---- the night theme ----
+     Paper stays the default and must not move a pixel, so the light values
+     below are the ones recorded before the night theme existed. */
+  const root = document.documentElement;
+  const themeBtn = document.getElementById('theme-btn');
+  const rvCardEl = document.getElementById('rv-card');
+  startReview(null);
+  showView('review');
+  render();
+  check('the page starts light', !root.dataset.theme && themeBtn.getAttribute('aria-pressed') === 'false',
+        root.dataset.theme);
+  check('light: the page is still paper', cs(document.body).backgroundColor === 'rgb(250, 247, 242)',
+        cs(document.body).backgroundColor);
+  check('light: the review card is still white', cs(rvCardEl).backgroundColor === 'rgb(255, 255, 255)',
+        cs(rvCardEl).backgroundColor);
+  check('light: the heading is still ink, in Fraunces',
+        cs(document.getElementById('rv-title')).color === 'rgb(28, 26, 23)'
+        && /^Fraunces/.test(cs(document.getElementById('rv-title')).fontFamily),
+        cs(document.getElementById('rv-title')).color + ' ' + cs(document.getElementById('rv-title')).fontFamily);
+  check('light: no mascot', !rvCardEl.querySelector('.rvmoon').checkVisibility());
+
+  // WCAG relative luminance and contrast, from computed colours.
+  const lum = (color) => {
+    const [r, g, b] = color.match(/[\d.]+/g).map(Number).map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a, b) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  themeBtn.click();
+  await tick();
+  check('the moon button turns the night theme on',
+        root.dataset.theme === 'night' && themeBtn.getAttribute('aria-pressed') === 'true', root.dataset.theme);
+  check('and saves it to chrome.storage', STORE.theme === 'night', STORE.theme);
+  let mirrored = null;
+  try { mirrored = localStorage.getItem('theme'); } catch { mirrored = 'blocked'; }
+  check('and mirrors it for theme-boot.js', mirrored === 'night', mirrored);
+  check('night: the page is near-black', lum(cs(document.body).backgroundColor) < 0.03,
+        cs(document.body).backgroundColor);
+  // The card's background-color is the lighter stop of its gradient, so this
+  // is the worst case across the card.
+  const cardBg = cs(rvCardEl).backgroundColor;
+  check('night: the review card is navy, with its lighter stop as a solid colour',
+        cardBg === 'rgb(43, 63, 124)', cardBg);
+  for (const id of ['rv-vi', 'rv-def', 'rv-tip']) {
+    const ratio = contrast(cs(document.getElementById(id)).color, cardBg);
+    check(`night: #${id} reads at 4.5:1 or better on the card (${ratio.toFixed(1)}:1)`, ratio >= 4.5,
+          cs(document.getElementById(id)).color + ' on ' + cardBg);
+  }
+  check('night: the mascot peeks from the card', rvCardEl.querySelector('.rvmoon').checkVisibility());
+  check('night: headings switch to the rounded sans',
+        /^Nunito/.test(cs(document.getElementById('rv-title')).fontFamily),
+        cs(document.getElementById('rv-title')).fontFamily);
+  const quizCard = document.querySelector('.prmode.amber');
+  check('night: practice cards are saturated dark, not pastel',
+        !!quizCard && lum(cs(quizCard).backgroundColor) < 0.1, quizCard && cs(quizCard).backgroundColor);
+
+  // Space on the focused button presses it; it must not also reveal the card.
+  renderCard();
+  themeBtn.focus();
+  themeBtn.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  check('Space on the theme button does not reveal the card', !revealed);
+
+  // Another dashboard tab switching back: this tab follows.
+  for (const f of listeners) f({ theme: { newValue: 'light', oldValue: 'night' } }, 'local');
+  check('a theme change in another tab is followed', !root.dataset.theme, root.dataset.theme);
+
+  // theme-boot.js, the pre-paint half: it reads only the localStorage mirror.
+  try { localStorage.setItem('theme', 'night'); } catch {}
+  await new Promise((resolve) => {
+    const tag = document.createElement('script');
+    tag.src = '../theme-boot.js?' + Date.now();
+    tag.onload = tag.onerror = resolve;
+    document.head.append(tag);
+  });
+  check('theme-boot.js applies a saved night theme before dashboard.js runs',
+        root.dataset.theme === 'night', root.dataset.theme);
+
+  // And off again, through the button, so nothing after this runs dark.
+  themeBtn.click();
+  await tick();
+  check('a second press goes back to light and saves it',
+        !root.dataset.theme && STORE.theme === 'light' && localStorage.getItem('theme') === 'light', STORE.theme);
+  check('light again: the card is white again', cs(rvCardEl).backgroundColor === 'rgb(255, 255, 255)',
+        cs(rvCardEl).backgroundColor);
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }, 80));

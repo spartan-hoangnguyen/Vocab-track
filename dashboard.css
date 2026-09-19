@@ -1,7 +1,10 @@
 /* Paper-and-serif direction: the page is a reading surface, not a console.
-   Light only by deliberate choice — the warm palette is the identity, and a
-   dark variant of it would be a different design, not a flipped one. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap');
+   That is the default and stays pixel-for-pixel what it was. The night theme
+   (data-theme="night" on <html>, the moon button in the top bar) is a second
+   design rather than a flipped palette: navy starry cards, an olive primary
+   and a rounded sans. It lives in the tokens below plus the night block at
+   the end of this file, so every rule above reads the same in both. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=Nunito:wght@600;700;800&display=swap');
 
 :root{
   --paper:#faf7f2; --panel:#f4efe6; --ink:#1c1a17; --ink2:#6b655c; --ink3:#938c80;
@@ -10,6 +13,15 @@
   --clay:#f3e3dc; --clay-ink:#7a4b3a;
   --ochre:#f7ecd7; --ochre-ink:#7d5f23;
   --sky:#e2eaf2;  --sky-ink:#38546e;
+  /* The raised surface a card sits on. */
+  --card:#fff;
+  /* Headings and the big word. Night swaps it for a rounded sans. */
+  --serif:Fraunces,Georgia,serif;
+  /* Every literal the rules used to carry, named so the night theme can
+     redefine it in one place. Same values as before: light is unchanged. */
+  --hover:#0000000a; --shade:#0000004d; --rule-hi:#d7cfc0; --tag-hi:#e8e1d4;
+  --ring:#2a78d61f; --kbd-rule:#ffffff4d; --badge:#ffffffb8;
+  --lift:0 1px 2px #1c1a1708,0 12px 32px -18px #1c1a1726;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);
@@ -19,20 +31,20 @@ aside{width:236px;flex:none;background:var(--panel);border-right:1px solid var(-
       padding:24px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px}
 .mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);
-      display:grid;place-items:center;font:600 15px Fraunces,Georgia,serif}
+      display:grid;place-items:center;font:600 15px var(--serif)}
 .brand b{font:600 15px Inter;letter-spacing:-.01em}
 .navlabel{font:600 10.5px Inter;letter-spacing:.11em;text-transform:uppercase;
           color:var(--ink3);padding:14px 10px 8px}
 nav a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
       color:var(--ink);text-decoration:none;font-weight:500;font-size:14px}
-nav a:hover{background:#0000000a}
+nav a:hover{background:var(--hover)}
 nav a.on{background:var(--ink);color:var(--paper)}
 nav a svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;
           stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
 nav a.on svg{opacity:1}
 .streak{margin-top:auto;background:var(--paper);border:1px solid var(--rule);
         border-radius:12px;padding:14px}
-.streak .d{font:600 22px/1 Fraunces,Georgia,serif}
+.streak .d{font:600 22px/1 var(--serif)}
 .streak .l{color:var(--ink2);font-size:12px;margin-top:5px}
 .dots{display:flex;gap:5px;margin-top:11px}
 .dots span{display:block;flex:none;width:15px;height:5px;border-radius:3px;
@@ -44,7 +56,7 @@ main > section{flex:1 0 auto}
 .top{display:flex;align-items:center;gap:16px;margin-bottom:32px}
 .search{flex:1;max-width:520px;position:relative}
 .search input{width:100%;padding:11px 62px 11px 38px;border:1px solid var(--rule);
-              border-radius:11px;background:#fff;font:400 14px Inter;color:var(--ink)}
+              border-radius:11px;background:var(--card);font:400 14px Inter;color:var(--ink)}
 .search input::placeholder{color:var(--ink3)}
 .search input:focus{outline:2px solid var(--bar);outline-offset:-1px}
 .search .ic{position:absolute;left:14px;top:12px;width:13px;height:13px;
@@ -59,7 +71,7 @@ main > section{flex:1 0 auto}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
 .btn.small{padding:6px 11px;font-size:12.5px;border-radius:8px}
 
-h1{font:600 30px/1.15 Fraunces,Georgia,serif;margin:0;letter-spacing:-.015em}
+h1{font:600 30px/1.15 var(--serif);margin:0;letter-spacing:-.015em}
 .sub{color:var(--ink2);font-size:14px;margin-top:7px}
 h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2);margin:0}
 .secthead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -67,7 +79,7 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .stats{display:flex;align-items:flex-end;gap:44px;margin:26px 0 34px;padding:20px 0;
        border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
 .stat.push{margin-left:auto}
-.stat .n{font:600 30px/1 Fraunces,Georgia,serif;letter-spacing:-.02em}
+.stat .n{font:600 30px/1 var(--serif);letter-spacing:-.02em}
 .stat .l{color:var(--ink2);font-size:12.5px;margin-top:5px}
 .stat .l.tight{margin:0 0 6px}
 .bars{display:flex;align-items:flex-end;gap:6px;height:34px}
@@ -81,12 +93,12 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
    font:inherit;color:inherit}
 .f:hover{filter:brightness(.98)}
 .f .meta{font:500 11.5px Inter;letter-spacing:.05em;text-transform:uppercase;opacity:.72}
-.f h3{font:600 21px/1.2 Fraunces,Georgia,serif;margin:9px 0 5px;letter-spacing:-.01em}
+.f h3{font:600 21px/1.2 var(--serif);margin:9px 0 5px;letter-spacing:-.01em}
 .f p{margin:0;font-size:13px;opacity:.78;line-height:1.5}
 .f .foot{margin-top:auto;padding-top:14px;font-size:12.5px;font-weight:500;opacity:.8;
          display:flex;gap:10px;align-items:center}
 .f .badge{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:9px;
-          background:#ffffffb8;display:grid;place-items:center;font-size:15px}
+          background:var(--badge);display:grid;place-items:center;font-size:15px}
 .f.sage{background:var(--sage);color:var(--sage-ink)}
 .f.clay{background:var(--clay);color:var(--clay-ink)}
 .f.ochre{background:var(--ochre);color:var(--ochre-ink)}
@@ -112,18 +124,18 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 
 .iocards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
          gap:16px;margin-top:26px}
-.iocard{border:1px solid var(--rule);border-radius:14px;padding:22px;background:#fff}
-.iocard h3{font:600 19px Fraunces,Georgia,serif;margin:0 0 7px}
+.iocard{border:1px solid var(--rule);border-radius:14px;padding:22px;background:var(--card)}
+.iocard h3{font:600 19px var(--serif);margin:0 0 7px}
 .iocard p{margin:0 0 16px;color:var(--ink2);font-size:13.5px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
-       color:var(--ink);width:min(420px,92vw);box-shadow:0 24px 60px -20px #0000004d}
+       color:var(--ink);width:min(420px,92vw);box-shadow:0 24px 60px -20px var(--shade)}
 dialog::backdrop{background:#1c1a1755}
-dialog h3{font:600 21px Fraunces,Georgia,serif;margin:0 0 16px}
+dialog h3{font:600 21px var(--serif);margin:0 0 16px}
 dialog label{display:block;font-size:12.5px;color:var(--ink2);margin-bottom:12px}
 dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 11px;
-       border:1px solid var(--rule);border-radius:9px;background:#fff;
+       border:1px solid var(--rule);border-radius:9px;background:var(--card);
        font:400 14px Inter;color:var(--ink)}
 .dlgrow{display:flex;gap:9px;justify-content:flex-end;margin-top:20px}
 .taglist{max-height:min(46vh,340px);overflow-y:auto;margin-top:10px;
@@ -161,12 +173,12 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 .rvexit{flex:none;text-align:center;color:var(--ink3);font-size:12px;margin:22px 0 0}
 .rvexit kbd{font:500 11px Inter;border:1px solid var(--rule);border-radius:5px;
             padding:2px 6px;background:var(--panel);color:var(--ink2)}
-.rvempty{border:1px solid var(--rule);border-radius:16px;background:#fff;
+.rvempty{border:1px solid var(--rule);border-radius:16px;background:var(--card);
          padding:56px 24px;text-align:center;color:var(--ink2)}
 .rvempty p{margin:0 0 18px;font-size:15px}
 .rvcard{max-width:620px;width:100%;margin:0 auto;border:1px solid var(--rule);
-        border-radius:20px;background:#fff;padding:44px 44px 40px;text-align:center;
-        box-shadow:0 1px 2px #1c1a1708,0 12px 32px -18px #1c1a1726;
+        border-radius:20px;background:var(--card);padding:44px 44px 40px;text-align:center;
+        box-shadow:var(--lift);
         /* Reserved, so revealing the answer grows the card from a settled
            height rather than jerking the word upward as the page re-centres. */
         min-height:380px;display:flex;flex-direction:column;justify-content:center}
@@ -183,8 +195,8 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
               border-radius:11px;background:var(--paper);color:var(--ink);
               font:500 17px Inter,sans-serif;text-align:center}
 .rvtype input::placeholder{color:var(--ink3);font-weight:400}
-.rvtype input:focus{outline:none;border-color:var(--bar);background:#fff;
-                    box-shadow:0 0 0 3px #2a78d61f}
+.rvtype input:focus{outline:none;border-color:var(--bar);background:var(--card);
+                    box-shadow:0 0 0 3px var(--ring)}
 .rvtype button{flex:none;align-self:stretch}
 /* Sits under the box as a quiet instruction, not as a control. */
 .rvtip{margin:10px 0 0;color:var(--ink3);font-size:12px}
@@ -214,8 +226,20 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
    pinned at its top. */
 /* A floor of one screen, so the practice grid below starts under the fold and
    the card is still centred in the viewport rather than in whatever is left. */
-.rvbody{flex:1;display:flex;align-items:center;justify-content:center;padding:22px 0;
-        min-height:calc(100vh - 230px)}
+.rvbody{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:24px;
+        align-items:center;align-content:center;padding:22px 0;
+        min-height:calc(100vh - 280px)}
+/* One column for whichever of the two is showing (the other is display:none),
+   and the card centred in it by its own auto margins. */
+.rvbody > .rvempty,.rvbody > .rvcard{grid-column:1;grid-row:1}
+.rvside{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:16px}
+/* Below the card once the column would squeeze it: the card is the session,
+   the side cards are commentary on it. */
+@media (max-width:1100px){
+  .rvbody{grid-template-columns:minmax(0,1fr)}
+  .rvside{grid-column:1;grid-row:2;display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+}
 .rvprog{height:3px;border-radius:2px;background:var(--rule);overflow:hidden;margin-top:14px}
 .rvprog span{display:block;height:100%;background:var(--ink);border-radius:2px;
              transition:width .22s ease}
@@ -235,7 +259,7 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 #rv-tag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Explicitly undoes the section-heading h2 rule (uppercase, muted, small):
    this is an h2 semantically but the card's own headline visually. */
-.rvword{font:600 46px/1.1 Fraunces,Georgia,serif;margin:6px 0 0;
+.rvword{font:600 46px/1.1 var(--serif);margin:6px 0 0;
         letter-spacing:-.02em;text-transform:none;color:var(--ink)}
 /* The prompt now, so it carries the card. */
 .rvvi{font:600 28px/1.3 Inter,sans-serif;margin:18px 0 10px}
@@ -248,15 +272,15 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 .rvgrades button span{display:block;color:var(--ink3);font-size:11.5px;margin-top:5px}
 .rvgrades button kbd{font:500 10.5px Inter;border:1px solid var(--rule);border-radius:4px;
                      padding:1px 5px;margin-right:5px;background:var(--panel);color:var(--ink2)}
-.rvgrades button:hover kbd{background:#fff}
+.rvgrades button:hover kbd{background:var(--card)}
 .rvgrades button:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
-kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px 6px;
+kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;padding:2px 6px;
     margin-left:7px;opacity:.75}
 
 /* ---- statistics ---- */
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));
         gap:16px;margin-top:26px}
-.chart{margin:0;border:1px solid var(--rule);border-radius:14px;background:#fff;padding:20px 22px}
+.chart{margin:0;border:1px solid var(--rule);border-radius:14px;background:var(--card);padding:20px 22px}
 .chart figcaption{font:600 12px Inter;letter-spacing:.06em;text-transform:uppercase;
                   color:var(--ink2);margin-bottom:18px}
 .plot{display:flex;align-items:flex-end;gap:3px;height:96px}
@@ -288,11 +312,11 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
    into a tall ribbon and blew the row height out. A card gives the sentence
    full width and leaves room for the links. */
 .cards{display:flex;flex-direction:column;gap:14px;margin-top:26px}
-.wcard{border:1px solid var(--rule);border-radius:14px;background:#fff;padding:20px 22px}
-.wcard:hover{border-color:#d7cfc0}
+.wcard{border:1px solid var(--rule);border-radius:14px;background:var(--card);padding:20px 22px}
+.wcard:hover{border-color:var(--rule-hi)}
 
 .wc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.wc-word{font:600 23px/1.15 Fraunces,Georgia,serif;margin:0;letter-spacing:-.015em;
+.wc-word{font:600 23px/1.15 var(--serif);margin:0;letter-spacing:-.015em;
          cursor:pointer;text-transform:none;color:var(--ink)}
 .wc-word:hover{text-decoration:underline dotted}
 .wc-pos{color:var(--ink2);font-size:13px;font-style:italic}
@@ -316,7 +340,7 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
          border-bottom:1px solid var(--rule);padding-bottom:1px}
 .wc-link:hover{color:var(--ink);border-bottom-color:var(--ink3)}
 .tag.clickable{cursor:pointer}
-.tag.clickable:hover{background:#e8e1d4;color:var(--ink)}
+.tag.clickable:hover{background:var(--tag-hi);color:var(--ink)}
 
 /* Words that arrived from another Mac app while the dashboard was shut. */
 .capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);
@@ -336,16 +360,16 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
 .wrhosts li:last-child{border-bottom:0}
 .wradd{display:flex;gap:8px;margin-top:14px}
 .wradd input{flex:1;min-width:0;padding:8px 11px;border:1px solid var(--rule);
-             border-radius:9px;background:#fff;font:400 13.5px Inter;color:var(--ink)}
+             border-radius:9px;background:var(--card);font:400 13.5px Inter;color:var(--ink)}
 .wrhead{margin-top:32px}
 .wrlist{list-style:none;margin:0;padding:2px 22px;border:1px solid var(--rule);
-        border-radius:14px;background:#fff}
+        border-radius:14px;background:var(--card)}
 /* auto for the category: a grid column is shared by every row, so the messages
    still line up even though the labels differ in length. */
 .wrlist li{display:grid;grid-template-columns:52px auto 1fr;gap:16px;align-items:baseline;
            padding:14px 0;border-bottom:1px solid var(--rule)}
 .wrlist li:last-child{border-bottom:0}
-.wrlist .n{font:600 26px/1 Fraunces,Georgia,serif;letter-spacing:-.02em;
+.wrlist .n{font:600 26px/1 var(--serif);letter-spacing:-.02em;
            font-variant-numeric:tabular-nums;text-align:right}
 .wrlist .m{color:var(--ink2);font-size:13.5px;line-height:1.55}
 
@@ -371,3 +395,186 @@ kbd{font:500 11px Inter;border:1px solid #ffffff4d;border-radius:5px;padding:2px
 .rvfull li .lvl{margin-left:7px}
 .rvfull .ex{display:block;color:var(--ink2);font-style:italic;margin-top:3px}
 .rvfull .chips{display:flex;flex-wrap:wrap;gap:6px}
+
+/* ---------- review controls ---------- */
+/* Settings for the session, so they read quieter than the card's own buttons. */
+.rvctl{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.rvopt{display:inline-flex;align-items:center;gap:9px;padding:6px 12px;
+       border:1px solid var(--rule);border-radius:10px;background:var(--card);
+       font:500 13px Inter;color:var(--ink2);cursor:pointer}
+.rvopt:hover{color:var(--ink)}
+.rvopt[aria-pressed="true"]{color:var(--ink);border-color:var(--ink);
+       box-shadow:inset 0 0 0 1px var(--ink)}
+.rvopt select{border:0;background:transparent;font:500 13px Inter;color:var(--ink);
+       cursor:pointer;padding:0 2px}
+/* A checkbox drawn as a switch: the platform keeps the state, the keyboard
+   and the label click; this only changes the look. */
+.rvopt input[role="switch"]{appearance:none;margin:0;flex:none;width:30px;height:17px;
+       border-radius:9px;background:var(--rule);position:relative;cursor:pointer;
+       transition:background .15s}
+.rvopt input[role="switch"]::after{content:"";position:absolute;top:2px;left:2px;
+       width:13px;height:13px;border-radius:50%;background:var(--card);
+       transition:transform .15s}
+.rvopt input[role="switch"]:checked{background:var(--ink)}
+.rvopt input[role="switch"]:checked::after{transform:translateX(13px)}
+.rvopt :focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+
+.rvstar{font-size:15px;line-height:1.2;padding:1px 8px}
+.rvstar[aria-pressed="true"]{color:var(--ochre-ink);border-color:var(--ochre-ink)}
+
+/* ---------- side cards ---------- */
+.rvsidecard{border:1px solid var(--rule);border-radius:16px;background:var(--card);
+            padding:18px 20px}
+.rvsidelabel{font:600 11px Inter;letter-spacing:.1em;text-transform:uppercase;
+             color:var(--ink3)}
+.rvcheer{margin:8px 0 12px;font:600 17px/1.35 var(--serif);color:var(--ink)}
+.rvleft{margin:0;padding:8px 12px;border-radius:10px;background:var(--ochre);
+        color:var(--ochre-ink);font-size:13px;font-weight:600}
+.rvmasthead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rvlevel{font:600 11.5px Inter;padding:3px 9px;border-radius:999px;
+         background:var(--panel);color:var(--ink2)}
+.rvmastbody{display:flex;align-items:center;gap:14px;margin-top:12px}
+.rvringwrap{position:relative;flex:none;width:64px;height:64px}
+.rvring{width:100%;height:100%;transform:rotate(-90deg)}
+.rvring circle{fill:none;stroke:var(--rule);stroke-width:6}
+.rvring circle + circle{stroke:var(--bar);stroke-linecap:round}
+.rvpct{position:absolute;inset:0;display:grid;place-items:center;
+       font:600 14px Inter;color:var(--ink);font-variant-numeric:tabular-nums}
+.rvmastered{margin:0;font-size:13px;line-height:1.5;color:var(--ink2)}
+.rvmastered b{color:var(--ink)}
+.rvsegs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:14px}
+.rvsegs i{height:5px;border-radius:3px;background:var(--rule)}
+.rvsegs i.on{background:var(--bar)}
+
+/* ---------- theme button ---------- */
+/* Both themes. Quiet in paper, where it is a setting; the moon fills in and
+   turns gold at night, which is the design's own header button. */
+.themebtn{flex:none;width:40px;height:40px;display:grid;place-items:center;padding:0;
+          border:1px solid var(--rule);border-radius:10px;background:var(--card);
+          color:var(--ink2);cursor:pointer}
+.themebtn:hover{color:var(--ink)}
+.themebtn:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+.themebtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;
+              stroke-linejoin:round}
+.themebtn[aria-pressed="true"] svg{fill:#f5c65b;stroke:#f5c65b}
+/* The mascot exists only at night. */
+.rvmoon{display:none}
+
+/* ================= night ================= */
+/* Everything night-only is below, under :root[data-theme="night"]. Tokens
+   first, so the shared rules above and every practice-<mode>.css follow
+   without being touched; then the few things a token cannot say — the starry
+   cards, the mascot, the tinted grades. */
+:root[data-theme="night"]{
+  color-scheme:dark;
+  --paper:#1b1c16; --panel:#25271e; --ink:#f1ede2; --ink2:#d0cbbd; --ink3:#bab5a6;
+  --rule:#3b3e31; --bar:#8fb3f5; --danger:#f0917f;
+  --sage:#29331f;  --sage-ink:#c6dab0;
+  --clay:#3b2822;  --clay-ink:#efbba5;
+  --ochre:#3b3020; --ochre-ink:#f0c877;
+  --sky:#1f2c3f;   --sky-ink:#abc8ea;
+  --card:#23251d;
+  --serif:Nunito,ui-rounded,system-ui,sans-serif;
+  --hover:#ffffff0d; --shade:#000000b3; --rule-hi:#5a5e4c; --tag-hi:#383b2e;
+  --ring:#8fb3f533; --kbd-rule:#ffffff4d; --badge:#ffffff1f;
+  --lift:0 20px 44px -22px #000000e6;
+  /* The design's olive primary. */
+  --olive:#434a22; --olive-hi:#4f5728;
+  --navy:linear-gradient(160deg,#1d2958 0%,#2b3f7c 100%);
+  --stars:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='360' height='280'><path d='M40 33Q40 40 47 40Q40 40 40 47Q40 40 33 40Q40 40 40 33Z' fill='%23fff' opacity='0.9'/><path d='M210 65Q210 70 215 70Q210 70 210 75Q210 70 205 70Q210 70 210 65Z' fill='%23fff' opacity='0.7'/><path d='M310 142Q310 150 318 150Q310 150 310 158Q310 150 302 150Q310 150 310 142Z' fill='%23fff' opacity='0.85'/><path d='M120 184Q120 190 126 190Q120 190 120 196Q120 190 114 190Q120 190 120 184Z' fill='%23fff' opacity='0.75'/><path d='M260 246Q260 250 264 250Q260 250 260 254Q260 250 256 250Q260 250 260 246Z' fill='%23fff' opacity='0.6'/><path d='M70 117Q70 120 73 120Q70 120 70 123Q70 120 67 120Q70 120 70 117Z' fill='%23fff' opacity='0.5'/><path d='M170 17Q170 20 173 20Q170 20 170 23Q170 20 167 20Q170 20 170 17Z' fill='%23fff' opacity='0.55'/><path d='M335 36Q335 40 339 40Q335 40 335 44Q335 40 331 40Q335 40 335 36Z' fill='%23fff' opacity='0.6'/><path d='M20 235Q20 240 25 240Q20 240 20 245Q20 240 15 240Q20 240 20 235Z' fill='%23fff' opacity='0.7'/><circle cx='95' cy='60' r='1.3' fill='%23fff' opacity='.6'/><circle cx='250' cy='120' r='1.3' fill='%23fff' opacity='.6'/><circle cx='150' cy='120' r='1.3' fill='%23fff' opacity='.6'/><circle cx='300' cy='210' r='1.3' fill='%23fff' opacity='.6'/><circle cx='30' cy='180' r='1.3' fill='%23fff' opacity='.6'/><circle cx='200' cy='230' r='1.3' fill='%23fff' opacity='.6'/><circle cx='340' cy='260' r='1.3' fill='%23fff' opacity='.6'/><circle cx='120' cy='260' r='1.3' fill='%23fff' opacity='.6'/></svg>");
+}
+/* The faint dot grid of the design, over an explicit colour so anything that
+   reads the background (and the probe's contrast check) sees near-black. */
+:root[data-theme="night"] body{
+  background:radial-gradient(#ffffff12 1px,transparent 1.4px) 0 0/22px 22px,var(--paper)}
+:root[data-theme="night"] aside{background:var(--paper)}
+/* A backdrop does not reliably inherit custom properties, so it is named. */
+:root[data-theme="night"] dialog::backdrop{background:#000000a6}
+
+/* Olive, not the paper theme's ink-on-paper inversion, which at night would
+   be a glaring off-white slab. */
+:root[data-theme="night"] .btn:not(.ghost),
+:root[data-theme="night"] nav a.on,
+:root[data-theme="night"] .mark{background:var(--olive);color:var(--ink)}
+:root[data-theme="night"] .btn:not(.ghost):hover{background:var(--olive-hi);opacity:1}
+:root[data-theme="night"] .rvopt[aria-pressed="true"]{border-color:var(--ink2)}
+:root[data-theme="night"] .rvopt input[role="switch"]:checked{background:#8a9a4a}
+
+/* ---- the starry cards ---- */
+/* The gradient on top, and a solid background-color under it: the colour is
+   the lighter stop, so a contrast check against it is the worst case. */
+:root[data-theme="night"] .rvcard,
+:root[data-theme="night"] .rvsidecard{
+  position:relative;overflow:hidden;z-index:0;isolation:isolate;
+  background:var(--navy);background-color:#2b3f7c;
+  border-color:#ffffff1a;color:var(--ink);box-shadow:var(--lift)}
+/* Stars and the shooting star sit under the content (z-index -1 inside the
+   card's own stacking context), so they never cover a letter. */
+:root[data-theme="night"] .rvcard::before,
+:root[data-theme="night"] .rvsidecard::before{
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:var(--stars) 0 0/360px 280px;animation:twinkle 3.6s ease-in-out infinite alternate}
+:root[data-theme="night"] .rvcard::after,
+:root[data-theme="night"] .rvsidecard::after{
+  content:"";position:absolute;z-index:-1;pointer-events:none;width:110px;height:2px;
+  top:13%;right:24%;border-radius:2px;transform:rotate(-38deg);
+  background:linear-gradient(90deg,#fff,#fff0);animation:shoot 9s ease-in infinite}
+:root[data-theme="night"] .rvsidecard::after{width:70px;top:30%;right:18%;animation-delay:4s}
+@keyframes twinkle{from{opacity:.55}to{opacity:1}}
+/* Mostly still; a quick streak down its own line once per cycle. */
+@keyframes shoot{0%,84%{opacity:0;translate:0 0}88%{opacity:1}100%{opacity:0;translate:-130px 102px}}
+@media (prefers-reduced-motion:reduce){
+  :root[data-theme="night"] .rvcard::before,
+  :root[data-theme="night"] .rvsidecard::before,
+  :root[data-theme="night"] .rvcard::after,
+  :root[data-theme="night"] .rvsidecard::after{animation:none}
+}
+
+/* The mascot: peeking from the card's bottom-left corner, and over the top
+   right of "Keep going". Under the content like the stars. */
+:root[data-theme="night"] .rvmoon{display:block;position:absolute;z-index:-1;
+  pointer-events:none;filter:drop-shadow(0 0 26px #c8d3ff99)}
+:root[data-theme="night"] .rvcard > .rvmoon{width:150px;left:-34px;bottom:-54px}
+:root[data-theme="night"] .rvsidecard > .rvmoon{width:84px;right:-20px;top:-22px}
+/* Room for the moon, so the headline does not run under its face. */
+:root[data-theme="night"] .rvsidecard .rvcheer{margin-right:48px}
+
+/* Inside the cards: translucent chips and wells instead of paper ones. */
+:root[data-theme="night"] .rvcard .lvl,
+:root[data-theme="night"] .rvlevel,
+:root[data-theme="night"] .tag{background:#ffffff17;border-color:#ffffff29;color:var(--ink)}
+:root[data-theme="night"] .rvcard .rvplay{background:#ffffff17;border-color:#ffffff33}
+:root[data-theme="night"] .rvcard .rvplay:hover{background:#ffffff26}
+:root[data-theme="night"] .rvcard .rvplay kbd,
+:root[data-theme="night"] .rvcard kbd{background:#0000002e;border-color:#ffffff33;color:var(--ink2)}
+:root[data-theme="night"] .rvseen,
+:root[data-theme="night"] .rvfull{background:#0000002b;border-color:#ffffff26}
+:root[data-theme="night"] .rvtype input{background:#0000003a;border-color:#ffffff33}
+:root[data-theme="night"] .rvtype input:focus{background:#00000052}
+:root[data-theme="night"] .rvleft{background:#0000002e;color:var(--ochre-ink)}
+:root[data-theme="night"] .rvring circle{stroke:#ffffff26}
+:root[data-theme="night"] .rvring circle + circle{stroke:var(--ochre-ink)}
+:root[data-theme="night"] .rvpct{color:var(--ochre-ink)}
+:root[data-theme="night"] .rvsegs i{background:#ffffff26}
+:root[data-theme="night"] .rvsegs i.on{background:var(--ochre-ink)}
+:root[data-theme="night"] .rvword{font-weight:800;letter-spacing:0}
+
+/* The grades, tinted like the design: Blank red-brown, Hard amber-brown, Good
+   olive, Easy navy. By position — renderGrades builds them in GRADES order. */
+:root[data-theme="night"] .rvgrades button{color:var(--g-ink);background:var(--g-bg);
+  border-color:var(--g-edge);box-shadow:0 3px 0 var(--g-edge)}
+:root[data-theme="night"] .rvgrades button:hover{background:var(--g-edge)}
+:root[data-theme="night"] .rvgrades button span{color:inherit;opacity:.9}
+:root[data-theme="night"] .rvgrades button kbd,
+:root[data-theme="night"] .rvgrades button:hover kbd{background:#00000033;border-color:#ffffff2e;color:inherit}
+:root[data-theme="night"] .rvgrades button.pick{box-shadow:inset 0 0 0 1px var(--g-ink),0 3px 0 var(--g-edge);
+  border-color:var(--g-ink)}
+:root[data-theme="night"] .rvgrades button:nth-child(1){--g-bg:#3a231e;--g-edge:#6e3b2f;--g-ink:#f4b9a5}
+:root[data-theme="night"] .rvgrades button:nth-child(2){--g-bg:#3d2f15;--g-edge:#7a5b22;--g-ink:#f1ca7e}
+:root[data-theme="night"] .rvgrades button:nth-child(3){--g-bg:#2b2f1b;--g-edge:#525b30;--g-ink:#d6dfae}
+:root[data-theme="night"] .rvgrades button:nth-child(4){--g-bg:#1e2c46;--g-edge:#3f6194;--g-ink:#b3cff3}
+
+/* The folder card's quiet links read at 70% on paper; on a dark tint that
+   falls under 4.5:1. */
+:root[data-theme="night"] .f .edit,
+:root[data-theme="night"] .f p{opacity:.9}

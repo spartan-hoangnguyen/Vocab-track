@@ -323,6 +323,12 @@ const VT = {
     return !!entry && !entry.skipped;
   },
 
+  // Anki's "mature": seen right three times running and spaced three weeks
+  // out. The review's Mastery card counts these; nothing schedules off it.
+  isMastered(entry) {
+    return (entry?.reps ?? 0) >= 3 && (entry?.interval ?? 0) >= 21;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

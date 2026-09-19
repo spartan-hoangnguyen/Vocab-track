@@ -1,6 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Vocab-track</title>
+<script src="theme-boot.js"></script>
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="practice.css">
 <link rel="stylesheet" href="practice-quiz.css">
@@ -40,6 +41,12 @@
     </div>
     <span class="sp"></span>
     <button class="btn" id="review-btn">Review</button>
+    <!-- Last in the bar, where the design keeps its moon. One icon for both
+         themes: aria-pressed is the state, and night fills the moon in. -->
+    <button class="themebtn" id="theme-btn" aria-pressed="false"
+            aria-label="Night theme" title="Night theme">
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+    </button>
   </div>
 
   <!-- Overview -->
@@ -81,6 +88,22 @@
         <div class="rvcount" id="rv-sub"></div>
       </div>
       <div class="rvprog"><span id="rv-prog-fill"></span></div>
+      <!-- How the session runs, not what it asks. Saved as one reviewPrefs
+           key, so they are still set the next time you open a review. -->
+      <div class="rvctl">
+        <button class="rvopt" id="rv-shuffle" aria-pressed="false"
+                title="Ask the due cards in a random order">⇄ Shuffle</button>
+        <label class="rvopt">
+          <input type="checkbox" role="switch" id="rv-autoplay" checked>
+          Auto-play pronunciation
+        </label>
+        <label class="rvopt">Voice
+          <select id="rv-voice">
+            <option value="uk">UK</option>
+            <option value="us">US</option>
+          </select>
+        </label>
+      </div>
     </div>
 
     <div class="rvbody">
@@ -100,6 +123,10 @@
         <!-- Not "Skip": the diff line under the answer already says "Skipped"
              for an empty guess, which means grade me Blank, not never ask me
              again. Two opposite actions on one card cannot share a word. -->
+        <!-- Before the answer too: whether a word is worth starring gives
+             nothing about it away. -->
+        <button class="rvplay rvstar" id="rv-star" aria-pressed="false"
+                title="Star this word (s)">☆</button>
         <button class="rvplay" id="rv-skip"
                 title="Stop asking about this word — it stays in All words">Don't ask again</button>
         <!-- After the answer only, like the play button: a topic name before it
@@ -133,6 +160,39 @@
           <div id="rv-full-body"></div>
         </details>
         <div class="rvgrades" id="rv-grades"></div>
+      </div>
+      <!-- The night theme's mascot, peeking in from the corner. Last child, so
+           it adds nothing to the card's flow; display:none outside night. -->
+      <svg class="rvmoon" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="#eef1fb"/><circle cx="32" cy="38" r="7" fill="#d6dcf1"/><circle cx="84" cy="88" r="5" fill="#d6dcf1"/><ellipse cx="46" cy="56" rx="4.5" ry="6" fill="#1d2958"/><ellipse cx="74" cy="56" rx="4.5" ry="6" fill="#1d2958"/><path d="M47 72q13 11 26 0" fill="none" stroke="#1d2958" stroke-width="5" stroke-linecap="round"/></svg>
+    </div>
+
+    <!-- Scoped like the card: the folder under review, or every learnable
+         word. A div, not an <aside>: the page's sidebar owns that selector. -->
+    <div class="rvside" id="rv-side">
+      <div class="rvsidecard">
+        <div class="rvsidelabel">Keep going</div>
+        <p class="rvcheer" id="rv-cheer"></p>
+        <p class="rvleft" id="rv-left"></p>
+        <svg class="rvmoon" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="#eef1fb"/><circle cx="32" cy="38" r="7" fill="#d6dcf1"/><circle cx="84" cy="88" r="5" fill="#d6dcf1"/><ellipse cx="46" cy="56" rx="4.5" ry="6" fill="#1d2958"/><ellipse cx="74" cy="56" rx="4.5" ry="6" fill="#1d2958"/><path d="M47 72q13 11 26 0" fill="none" stroke="#1d2958" stroke-width="5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="rvsidecard">
+        <div class="rvmasthead">
+          <div class="rvsidelabel">Mastery</div>
+          <span class="rvlevel" id="rv-mlevel"></span>
+        </div>
+        <div class="rvmastbody">
+          <span class="rvringwrap">
+          <!-- pathLength=100, so the arc's dash is the percentage itself. -->
+          <svg class="rvring" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="32" cy="32" r="27" pathLength="100"/>
+            <circle cx="32" cy="32" r="27" pathLength="100" id="rv-ring"
+                    stroke-dasharray="0 100"/>
+          </svg>
+          <b class="rvpct" id="rv-pct"></b>
+          </span>
+          <p class="rvmastered" id="rv-mastered"></p>
+        </div>
+        <div class="rvsegs" id="rv-segs"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
     </div>
     </div>
