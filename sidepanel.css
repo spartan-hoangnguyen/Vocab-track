@@ -64,6 +64,13 @@ blockquote mark{background:transparent;color:var(--ink);font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--panel);
       color:var(--ink2);border:1px solid var(--rule)}
+button.chip{cursor:pointer;font-family:inherit}
+.chip.on{color:var(--ink)}
+.chip.on:hover{border-color:var(--ink3)}
+#entry-tags{margin-bottom:8px}
+#entry-tags[hidden]{display:none}
+.tagq{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:8px;
+      background:var(--card);color:var(--ink);font:inherit;font-size:13px}
 
 .vi{font-size:17px;font-weight:600;margin:0 0 10px}
 #lookup-empty{color:var(--ink2);font-size:13.5px;line-height:1.6}

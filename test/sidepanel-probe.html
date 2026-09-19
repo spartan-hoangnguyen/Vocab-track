@@ -187,6 +187,40 @@ ready.then(() => setTimeout(async () => {
   check('and that wrote nothing either', !wrote);
   local.set = realSet;
 
+  /* ---- topics: file the word from the panel ---- */
+  const tick = () => new Promise((r) => setTimeout(r, 30));
+  renderEntry(WORDS.strategy, null);
+  await tick();
+  const tagQ = $$('entry-tag-q');
+  check('a fresh word has no topic chips', $$('entry-tags').hidden);
+  check('the presets are offered as suggestions',
+        $$('entry-tag-options').options.length === VT.TOPICS.length,
+        String($$('entry-tag-options').options.length));
+  tagQ.value = 'science';   // any case: it is the preset, not a new folder
+  tagQ.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+  await tick();
+  check('Enter files the word under the preset, by its fixed id',
+        STORE.words.strategy.folders.includes('t_science') && STORE.folders?.t_science?.name === 'Science',
+        STORE.words.strategy.folders.join());
+  check('and shows it as a chip', /Science/.test($$('entry-tags').textContent) && !$$('entry-tags').hidden);
+  check('and stops suggesting it',
+        ![...$$('entry-tag-options').options].some((o) => o.value === 'Science'));
+  // What Chrome fires when you click a datalist option.
+  tagQ.value = 'Health';
+  tagQ.dispatchEvent(new InputEvent('input', { inputType: 'insertReplacementText' }));
+  await tick();
+  check('picking a suggestion files it without Enter',
+        STORE.words.strategy.folders.includes('t_health'));
+  tagQ.value = 'Heal';
+  tagQ.dispatchEvent(new InputEvent('input', { inputType: 'insertText' }));
+  await tick();
+  check('typing alone files nothing', STORE.words.strategy.folders.length === 3,
+        STORE.words.strategy.folders.join());
+  tagQ.value = '';
+  $$('entry-tags').querySelector('.chip').click();
+  await tick();
+  check('clicking a chip takes the word out of that topic',
+        !STORE.words.strategy.folders.includes('t_science') && !!STORE.folders.t_science);
 
   $$('out').textContent = log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }, 60));

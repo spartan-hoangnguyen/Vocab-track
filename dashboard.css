@@ -126,6 +126,16 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
        border:1px solid var(--rule);border-radius:9px;background:#fff;
        font:400 14px Inter;color:var(--ink)}
 .dlgrow{display:flex;gap:9px;justify-content:flex-end;margin-top:20px}
+.taglist{max-height:min(46vh,340px);overflow-y:auto;margin-top:10px;
+         display:flex;flex-direction:column;gap:2px}
+dialog .tagrow{display:flex;align-items:center;gap:10px;margin:0;padding:7px 9px;
+       border-radius:8px;font-size:14px;color:var(--ink);cursor:pointer}
+.tagrow:hover{background:var(--panel)}
+dialog .tagrow input{display:inline;width:auto;margin:0}
+/* A preset you have not used yet: on offer, but not yet yours. */
+.tagrow.suggested{color:var(--ink2)}
+.tagrow.create{background:none;border:0;font:500 14px Inter;text-align:left;
+       color:var(--ink)}
 
 @media (max-width:900px){
   body{flex-direction:column}
@@ -216,6 +226,10 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
 .rvplay kbd{border-color:var(--rule);background:var(--panel);color:var(--ink2);opacity:1;
             margin-left:5px}
 .rvplay:hover{background:var(--panel)}
+/* Tag names are yours and can be long; the key hint must survive the cut. */
+#rv-tag{display:inline-flex;align-items:center;max-width:280px}
+#rv-tag[hidden]{display:none}
+#rv-tag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Explicitly undoes the section-heading h2 rule (uppercase, muted, small):
    this is an h2 semantically but the card's own headline visually. */
 .rvword{font:600 46px/1.1 Fraunces,Georgia,serif;margin:6px 0 0;

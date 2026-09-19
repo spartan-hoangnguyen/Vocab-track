@@ -31,6 +31,15 @@
 
     <p class="links" id="entry-links"></p>
 
+    <!-- Filing the word while you still remember why you looked it up. The
+         suggestions are a native datalist: your folders plus the presets. -->
+    <section class="block">
+      <h2>Topics</h2>
+      <div class="chips" id="entry-tags"></div>
+      <input id="entry-tag-q" class="tagq" list="entry-tag-options" maxlength="40"
+             autocomplete="off" placeholder="Add a topic…">
+      <datalist id="entry-tag-options"></datalist>
+    </section>
 
     <section class="block">
       <h2 id="entry-senses-title">Meaning</h2>

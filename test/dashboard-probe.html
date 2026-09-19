@@ -327,6 +327,71 @@ ready.then(() => setTimeout(async () => {
   check('and the next session asks about it again',
         queue.some((e) => e.word === skipped));
 
+  /* ---- tags: file the word you just learnt under a topic ---- */
+  const tick = () => new Promise((r) => setTimeout(r, 30));
+  const enterIn = (node) => node.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  startReview(null);
+  showView('review');
+  renderCard();
+  const tagBtn = document.getElementById('rv-tag');
+  // A topic name before the answer would be a hint.
+  check('the tag button waits for the answer', !tagBtn.checkVisibility());
+  submitAnswer();
+  check('and appears with it', tagBtn.checkVisibility());
+  const tagWord = queue[0].word;
+  const tagDlg = document.getElementById('tag-dlg');
+  const tagQ = document.getElementById('tag-q');
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 't', cancelable: true }));
+  check('t opens the tag picker', tagDlg.open);
+  check('a fresh profile is offered every preset topic',
+        document.querySelectorAll('#tag-list .tagrow.suggested').length === VT.TOPICS.length,
+        String(document.querySelectorAll('#tag-list .tagrow.suggested').length));
+  check('but none of them is a folder yet', !STORE.folders?.t_politics);
+
+  const queued = queue.length;
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: '3', cancelable: true }));
+  await tick();
+  check('a number key while the picker is open does not grade the card',
+        queue.length === queued && queue[0]?.word === tagWord && !STORE.words[tagWord].reps);
+
+  tagQ.value = 'polit';
+  tagQ.dispatchEvent(new Event('input'));
+  enterIn(tagQ);
+  await tick();
+  check('Enter on a partial name files the word under that topic',
+        STORE.words[tagWord].folders.includes('t_politics'), STORE.words[tagWord].folders.join());
+  check('and the preset becomes a real folder', STORE.folders?.t_politics?.name === 'Politics & Government');
+  check('which is no longer offered as a suggestion',
+        [...document.querySelectorAll('#tag-list .tagrow.suggested')]
+          .every((row) => !/Politics/.test(row.textContent)));
+
+  tagQ.value = 'IELTS Task 2';
+  tagQ.dispatchEvent(new Event('input'));
+  check('a name nobody has used offers to create it',
+        /Create “IELTS Task 2”/.test(document.querySelector('#tag-list .create')?.textContent));
+  enterIn(tagQ);
+  await tick();
+  const made = Object.values(STORE.folders).find((f) => f.name === 'IELTS Task 2');
+  check('Enter on it makes the folder', !!made && made.id.startsWith('f_'));
+  check('and files the word there', !!made && STORE.words[tagWord].folders.includes(made.id));
+  check('both tags show as ticked',
+        document.querySelectorAll('#tag-list input:checked').length === 2,
+        String(document.querySelectorAll('#tag-list input:checked').length));
+
+  [...document.querySelectorAll('#tag-list .tagrow')]
+    .find((row) => /Politics/.test(row.textContent))?.querySelector('input').click();
+  await tick();
+  check('unticking takes the word out again', !STORE.words[tagWord].folders.includes('t_politics'));
+  check('but leaves the folder', !!STORE.folders.t_politics);
+
+  enterIn(tagQ);   // empty box: Enter closes
+  await tick();
+  check('Enter on an empty box closes the picker', !tagDlg.open);
+  check('the card now says where the word is filed',
+        /IELTS Task 2/.test(tagBtn.textContent) && !/Politics/.test(tagBtn.textContent), tagBtn.textContent);
+  check('and the card is still waiting for its grade', revealed && queue[0]?.word === tagWord);
+
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
   check('every nav item has its own icon',

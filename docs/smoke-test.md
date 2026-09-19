@@ -364,6 +364,26 @@ not apply either to a tab that was already open.
     one definition and no cross-references — its card must show no **Full
     entry** control at all, not an empty one.
 
+69. **Tag a word right after you learn it.** Answer a card. A **# Tag** button
+    appears next to the play button (never before the answer). Press `t`: the
+    picker opens with the 16 preset topics, greyed as suggestions. Type `polit`
+    and press Enter — *Politics & Government* is ticked. Press `3` while the
+    picker is open: nothing is graded.
+
+70. **A new name makes a new folder.** Type `IELTS Task 2`, press Enter. It is
+    created and ticked. Press Enter on the empty box: the picker closes, the
+    card's button reads *# Politics & Government, IELTS Task 2*, and the card is
+    still waiting for its grade.
+
+71. **Tags are folders.** On the Overview, both folders appear with one word;
+    the other presets do not. Open one: the word is in it. Untick a tag from the
+    word card's **+** in All words: the word leaves that folder, the folder stays.
+
+72. **File a word while you read.** Look a word up from a page. Under the links
+    in the side panel, **Topics** has an *Add a topic…* box. Pick *Science* from
+    its suggestions: it becomes a chip at once, with no Enter needed. Type a new
+    name and press Enter: that folder appears on the dashboard's Overview. Click
+    a chip to take the word back out.
 
 ## If something fails
 

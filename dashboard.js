@@ -347,27 +347,115 @@ function wordCard(entry) {
     foot.appendChild(tag);
   }
   const add = el('span', 'tag clickable', '+');
-  add.title = 'Add to folder';
-  add.addEventListener('click', () => assignFolder(entry));
+  add.title = 'Tags';
+  add.addEventListener('click', () => openTagPicker(entry));
   foot.appendChild(add);
 
   card.appendChild(foot);
   return card;
 }
 
-async function assignFolder(entry) {
-  const manual = Object.values(folders).filter((f) => !f.auto);
-  if (!manual.length) {
-    alert('Create a folder first.');
+/* ---------- tag picker ---------- */
+
+// The word the open picker is filing. A word, not an entry: refresh() swaps
+// every entry object for a fresh one whenever storage changes.
+let tagging = null;
+
+function openTagPicker(entry) {
+  tagging = entry.word;
+  $('tag-title').textContent = `Tags · ${entry.word}`;
+  $('tag-q').value = '';
+  renderTags();
+  $('tag-dlg').showModal();
+  $('tag-q').focus();
+}
+
+// Your own folders first, then the preset topics you have not used yet. A
+// preset stops being a suggestion the moment it becomes a folder.
+function tagOptions() {
+  const own = Object.values(folders).filter((f) => !f.auto);
+  const taken = new Set(own.map((f) => f.name.toLowerCase()));
+  const suggested = VT.TOPICS.filter((t) => !folders[t.id] && !taken.has(t.name.toLowerCase()))
+    .map((t) => ({ ...t, suggested: true }));
+  return [...own, ...suggested];
+}
+
+function renderTags() {
+  const typed = $('tag-q').value.trim();
+  const q = typed.toLowerCase();
+  const mine = VT.foldersOf(words[tagging]);
+  const list = $('tag-list');
+  list.replaceChildren();
+  for (const tag of tagOptions().filter((t) => t.name.toLowerCase().includes(q))) {
+    const row = el('label', tag.suggested ? 'tagrow suggested' : 'tagrow');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = mine.includes(tag.id);
+    box.addEventListener('change', () => toggleTag(tag, box.checked));
+    row.append(box, el('span', null, `${tag.icon ?? '\u{1F4C1}'} ${tag.name}`));
+    list.appendChild(row);
+  }
+  if (q && !tagOptions().some((t) => t.name.toLowerCase() === q)) {
+    const create = el('button', 'tagrow create', `+ Create “${typed}”`);
+    create.type = 'button';
+    create.addEventListener('click', createTag);
+    list.appendChild(create);
+  }
+}
+
+async function toggleTag(tag, on) {
+  const id = tag.suggested ? await folderForName(tag.name) : tag.id;
+  const mine = VT.foldersOf(words[tagging]);
+  await setWordFolders(tagging, on ? [...mine, id] : mine.filter((f) => f !== id));
+  // Read back rather than recomputed, so setWordFolders stays the one place
+  // that decides what an emptied list means. The review queue holds its own
+  // entry objects, and the card's tag label reads from those.
+  const saved = (await getWords())[tagging]?.folders;
+  for (const entry of [words[tagging], ...queue.filter((e) => e.word === tagging)]) {
+    if (entry) entry.folders = saved;
+  }
+  folders = await getFolders();
+  renderTags();
+  // Behind the modal, so the card's label and the word list are already right
+  // when it closes — however it closes: Done, Esc or Enter.
+  render();
+}
+
+async function createTag() {
+  const name = $('tag-q').value.trim();
+  if (!name) return;
+  const id = await folderForName(name);
+  $('tag-q').value = '';
+  await toggleTag({ id }, true);
+}
+
+$('tag-q').addEventListener('input', renderTags);
+
+// Enter takes the best match, so "pol" + Enter files the word under Politics
+// without the mouse. Only when nothing matches does it make a new tag, and on
+// an empty box it closes: type, Enter, Enter is the whole round trip.
+$('tag-q').addEventListener('keydown', async (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  // Stopped here because the close below happens mid-dispatch: by the time the
+  // event bubbled to the review's own handler the picker would no longer be
+  // open, and that same Enter would grade the card.
+  event.stopPropagation();
+  const q = $('tag-q').value.trim().toLowerCase();
+  if (!q) {
+    $('tag-dlg').close();
     return;
   }
-  const names = manual.map((f, i) => `${i + 1}. ${f.name}`).join('\n');
-  const pick = prompt(`Add "${entry.word}" to which folder?\n\n${names}`);
-  const index = Number(pick) - 1;
-  if (!Number.isInteger(index) || index < 0 || index >= manual.length) return;
-  await setWordFolders(entry.word, [...VT.foldersOf(entry), manual[index].id]);
-  await refresh();
-}
+  const options = tagOptions();
+  const match = options.find((t) => t.name.toLowerCase() === q)
+    ?? options.find((t) => t.name.toLowerCase().includes(q));
+  if (!match) {
+    await createTag();
+    return;
+  }
+  $('tag-q').value = '';
+  await toggleTag(match, !VT.foldersOf(words[tagging]).includes(match.id));
+});
 
 async function lookupNew(word, button) {
   button.disabled = true;
@@ -713,6 +801,13 @@ function renderCard() {
   $('rv-play').hidden = !revealed;
   $('rv-play').onclick = () => pronounce(entry);
 
+  // Labelled with where the word already is, so the card answers "did I file
+  // this one?" without opening anything.
+  const filed = VT.foldersOf(entry).filter((id) => folders[id] && !folders[id].auto)
+    .map((id) => folders[id].name);
+  $('rv-tag').hidden = !revealed;
+  $('rv-tag').replaceChildren(el('span', null, filed.length ? `# ${filed.join(', ')}` : '# Tag'), kbd('t'));
+  $('rv-tag').onclick = () => openTagPicker(entry);
 
   $('rv-type').hidden = revealed;
   $('rv-tip').hidden = revealed || !canType;
@@ -937,6 +1032,9 @@ $('rv-back').addEventListener('click', () => { showView('overview'); render(); }
 
 document.addEventListener('keydown', (event) => {
   if ($('view-review').hidden || document.activeElement === $('q')) return;
+  // The picker owns the keyboard while it is open: typing a tag name must not
+  // grade the card, and Esc closes the picker rather than the session.
+  if ($('tag-dlg').open) return;
   if (event.key === 'Escape') {
     event.preventDefault();
     showView('overview');
@@ -959,6 +1057,11 @@ document.addEventListener('keydown', (event) => {
   if ((event.key === 'r' || event.key === 'R') && revealed && queue.length) {
     event.preventDefault();
     pronounce(queue[0]);
+    return;
+  }
+  if ((event.key === 't' || event.key === 'T') && revealed && queue.length) {
+    event.preventDefault();
+    openTagPicker(queue[0]);
     return;
   }
   const g = GRADES.find((x) => x.key === event.key);

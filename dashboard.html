@@ -96,6 +96,10 @@
              again. Two opposite actions on one card cannot share a word. -->
         <button class="rvplay" id="rv-skip"
                 title="Stop asking about this word — it stays in All words">Don't ask again</button>
+        <!-- After the answer only, like the play button: a topic name before it
+             would be a hint, and you file a word once you have learnt it. -->
+        <button class="rvplay" id="rv-tag" hidden
+                title="Put this word in a topic folder"></button>
       </div>
 
       <!-- The prompt. Stays on screen after the answer so you can still see
@@ -224,6 +228,20 @@
     <div class="dlgrow">
       <button value="cancel" class="btn ghost">Cancel</button>
       <button value="save" class="btn" id="dlg-save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- A tag is a folder: ticking one files the word there, and typing a name
+     nobody has used yet makes the folder. Changes save as you tick, so Done
+     is only a close button. -->
+<dialog id="tag-dlg">
+  <form method="dialog">
+    <h3 id="tag-title">Tags</h3>
+    <input id="tag-q" placeholder="Find or create a tag…" maxlength="40" autocomplete="off">
+    <div class="taglist" id="tag-list"></div>
+    <div class="dlgrow">
+      <button value="done" class="btn">Done</button>
     </div>
   </form>
 </dialog>

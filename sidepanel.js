@@ -35,6 +35,7 @@ function renderEntry(entry, failed) {
   renderProns(entry);
   renderContext(entry);
   renderLinks(entry);
+  renderTags(entry.word);
   renderSenses(entry);
   renderChips(entry);
 
@@ -180,6 +181,63 @@ function renderChips(entry) {
     box.appendChild(section);
   }
 }
+
+/* ---------- topics: file the word while you read ---------- */
+
+// Only ever a word the panel has just saved, so there is always an entry.
+let shownWord = null;
+
+async function renderTags(word) {
+  shownWord = word;
+  const [words, folders] = await Promise.all([getWords(), getFolders()]);
+  if (word !== shownWord) return;   // a newer lookup took over while this read
+  const mine = VT.foldersOf(words[word]).filter((id) => folders[id] && !folders[id].auto);
+  const box = $('entry-tags');
+  box.replaceChildren();
+  for (const id of mine) {
+    const chip = document.createElement('button');
+    chip.className = 'chip on';
+    chip.textContent = `${folders[id].name} ×`;
+    chip.title = 'Take the word out of this topic';
+    chip.addEventListener('click', async () => {
+      await setWordFolders(word, VT.foldersOf(words[word]).filter((f) => f !== id));
+      renderTags(word);
+    });
+    box.appendChild(chip);
+  }
+  box.hidden = !mine.length;
+  const own = Object.values(folders).filter((f) => !f.auto);
+  const taken = new Set(own.map((f) => f.name.toLowerCase()));
+  const names = [
+    ...own.filter((f) => !mine.includes(f.id)).map((f) => f.name),
+    ...VT.TOPICS.filter((t) => !folders[t.id] && !taken.has(t.name.toLowerCase())).map((t) => t.name)
+  ];
+  $('entry-tag-options').replaceChildren(...names.map((value) => Object.assign(
+    document.createElement('option'), { value })));
+}
+
+async function addTag() {
+  const input = $('entry-tag-q');
+  const name = input.value.trim();
+  if (!name || !shownWord) return;
+  const word = shownWord;
+  input.value = '';
+  const id = await folderForName(name);
+  await setWordFolders(word, [...VT.foldersOf((await getWords())[word]), id]);
+  renderTags(word);
+}
+
+$('entry-tag-q').addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  addTag();
+});
+// Picking from the datalist is a choice already made; making you press Enter
+// on top of it would be asking twice. Typing is not, or "Science" would file
+// itself before you could finish "Sciences".
+$('entry-tag-q').addEventListener('input', (event) => {
+  if (event.inputType === 'insertReplacementText' || event.inputType === undefined) addTag();
+});
 
 function renderNotFound(word) {
   $('entry').hidden = true;

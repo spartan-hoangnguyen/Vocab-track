@@ -152,6 +152,30 @@ const VT = {
   // while reading land here.
   READING: 'reading',
 
+  // Topics the tag picker suggests before you have made any of your own —
+  // the IELTS writing and speaking themes. They are not folders until you
+  // first tag a word with one, so the overview never fills with empty cards.
+  // The ids are fixed rather than generated so picking one twice, or
+  // importing another profile's export, lands in the same folder.
+  TOPICS: [
+    { id: 't_environment', name: 'Environment', icon: '\u{1F331}' },
+    { id: 't_education', name: 'Education', icon: '\u{1F393}' },
+    { id: 't_health', name: 'Health', icon: '\u{1FA7A}' },
+    { id: 't_technology', name: 'Technology', icon: '\u{1F4BB}' },
+    { id: 't_work', name: 'Work & Business', icon: '\u{1F4BC}' },
+    { id: 't_economy', name: 'Economy & Money', icon: '\u{1F4B0}' },
+    { id: 't_politics', name: 'Politics & Government', icon: '\u{1F3DB}\u{FE0F}' },
+    { id: 't_law', name: 'Law & Crime', icon: '\u{2696}\u{FE0F}' },
+    { id: 't_society', name: 'Society & Culture', icon: '\u{1F465}' },
+    { id: 't_science', name: 'Science', icon: '\u{1F52C}' },
+    { id: 't_travel', name: 'Travel & Transport', icon: '\u{2708}\u{FE0F}' },
+    { id: 't_media', name: 'Media & Communication', icon: '\u{1F4F0}' },
+    { id: 't_food', name: 'Food & Drink', icon: '\u{1F35C}' },
+    { id: 't_emotions', name: 'Emotions & Personality', icon: '\u{1F60A}' },
+    { id: 't_arts', name: 'Arts & Entertainment', icon: '\u{1F3A8}' },
+    { id: 't_nature', name: 'Nature & Animals', icon: '\u{1F43E}' }
+  ],
+
   // Folder membership lives on the word, and words saved before folders
   // existed have no `folders` field at all. A missing field reads as "in
   // From reading" rather than "in nothing", so old entries need no

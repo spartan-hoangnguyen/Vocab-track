@@ -247,6 +247,13 @@ async function parserTests() {
   check('newFolder ids are unique', VT.newFolder('a').id !== VT.newFolder('a').id);
   eq('newFolder is not auto', folder.auto, false);
 
+  // --- preset topics: fixed ids, so picking one twice is one folder
+  const topicIds = VT.TOPICS.map((t) => t.id);
+  eq('preset topic ids are unique', new Set(topicIds).size, topicIds.length);
+  check('preset topic ids cannot collide with generated or built-in ones',
+        topicIds.every((id) => id.startsWith('t_') && id !== VT.READING));
+  check('every preset topic has a name and an icon', VT.TOPICS.every((t) => t.name && t.icon));
+
   // --- medianLevel: ignores entries with no level, never throws on an empty set
   eq('median of one level', VT.medianLevel([{ level: 'B2' }]), 'B2');
   eq('median ignores nulls', VT.medianLevel([{ level: null }, { level: 'C1' }, { level: null }]), 'C1');
