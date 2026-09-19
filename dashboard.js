@@ -1000,9 +1000,10 @@ async function grade(quality) {
   grading = true;
   try {
     const entry = queue.shift();
-    const patch = VT.sm2(entry, quality);
+    const patch = VT.schedule(entry, quality);
     Object.assign(entry, patch);
     await putWord(entry.word, patch);
+    recordReview(entry.word, quality, patch.lastReview);
     // A lapse returns to the back of this session's queue, so it is seen again
     // today; sessionTotal grows with it so the counter stays honest.
     if (quality < 3) {
@@ -1275,6 +1276,26 @@ function renderSide() {
   $('rv-ring').setAttribute('stroke-dasharray', `${pct} 100`);
   $('rv-mastered').replaceChildren('You have mastered ',
     el('b', null, `${mastered}/${scope.length}`), ' words in this set.');
+
+  // Mastery takes three weeks at the very least, so 0% alone reads as
+  // broken. The faint arc is how far the set has come: each word counts for
+  // its interval over the 21 days mastery needs.
+  const way = scope.length
+    ? Math.round((scope.reduce((sum, e) => sum + Math.min(1, (e.interval ?? 0) / 21), 0) / scope.length) * 100)
+    : 0;
+  $('rv-ring-way').setAttribute('stroke-dasharray', `${way} 100`);
+  // Which words one more Good would master, found by running the scheduler
+  // itself at each word's due date rather than guessing from the numbers.
+  const next = scope.filter((e) => !VT.isMastered(e) && e.reps > 0
+    && VT.isMastered(VT.schedule(e, 4, Math.max(e.due, Date.now()))));
+  $('rv-next').hidden = !next.length;
+  if (next.length) {
+    const first = new Date(Math.min(...next.map((e) => e.due)));
+    const when = first <= new Date() ? 'today'
+      : first.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    $('rv-next').textContent =
+      `${next.length} word${next.length === 1 ? '' : 's'} can be mastered at the next review — first ${when}.`;
+  }
   [...$('rv-segs').children].forEach((seg, i) => seg.classList.toggle('on', i < filled));
 }
 

@@ -794,6 +794,33 @@ ready.then(() => setTimeout(async () => {
   check('light again: the card is white again', cs(rvCardEl).backgroundColor === 'rgb(255, 255, 255)',
         cs(rvCardEl).backgroundColor);
 
+  /* ---- grading runs FSRS and keeps a history ---- */
+  startReview(null);
+  const gradedWord = queue[0].word;
+  revealed = true;
+  await grade(4);
+  await tick();
+  const gradedRow = STORE.words[gradedWord];
+  check('a grade stores FSRS stability and difficulty',
+        gradedRow.stability > 0 && gradedRow.difficulty >= 1 && gradedRow.lastReview > 0, JSON.stringify(gradedRow));
+  const dayRows = STORE['history:' + VT.dayKey(Date.now())] ?? [];
+  check('a grade is logged to the day history',
+        dayRows.some(([w, q]) => w === gradedWord && q === 4), JSON.stringify(dayRows));
+
+  /* ---- the mastery card previews the next words to master ---- */
+  const DAYMS = 24 * 60 * 60 * 1000;
+  Object.assign(words.scarce, { reps: 2, interval: 11, stability: 10.96, difficulty: 2.11,
+    lastReview: Date.now() - 11 * DAYMS, due: Date.now() - 1000 });
+  reviewScope = null;
+  renderSide();
+  check('a word one Good from mastery is announced',
+        !document.getElementById('rv-next').hidden
+        && /^\d+ words? can be mastered at the next review — first today\.$/.test(document.getElementById('rv-next').textContent),
+        document.getElementById('rv-next').textContent);
+  check('the faint arc shows progress before any word is mastered',
+        document.getElementById('rv-ring-way').getAttribute('stroke-dasharray') !== '0 100',
+        document.getElementById('rv-ring-way').getAttribute('stroke-dasharray'));
+
   /* ---- overview: progress, pins, suggestions ---- */
   showView('overview');
   await refresh();

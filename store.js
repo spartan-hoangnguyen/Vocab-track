@@ -151,6 +151,24 @@ function setWordFolders(word, ids) {
   return putWord(word, { folders: unique });
 }
 
+// Every grade, kept so FSRS's weights can one day be fitted to you rather
+// than to everyone. One key per day, so a grade rewrites a few KB, not the
+// whole history. Rows are [word, quality, time].
+// ponytail: nothing prunes it; at ~40 bytes a row the 10MB quota is about a
+// quarter-million reviews away. Prune or add unlimitedStorage before then.
+function recordReview(word, quality, at = Date.now()) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const key = 'history:' + VT.dayKey(at);
+      const { [key]: rows } = await chrome.storage.local.get(key);
+      await chrome.storage.local.set({ [key]: [...(rows ?? []), [word, quality, at]] });
+    } catch (err) {
+      console.error('[vocab-track] review log failed for', word, err);
+    }
+  });
+  return writeQueue;
+}
+
 // Practice keeps its own books and never touches the schedule: counts per mode
 // for today (the grid's "4/10 today"), and misses per word for good. The day
 // rolls over on the first read of a new one; misses carry across.

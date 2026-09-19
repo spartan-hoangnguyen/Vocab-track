@@ -128,21 +128,80 @@ const VT = {
     return null;
   },
 
-  // SM-2, standard formulation. quality is 0..5; below 3 is a lapse.
-  // The 1.3 ease floor is part of the algorithm.
-  sm2(card, quality) {
-    let { ease, interval, reps } = card;
-    if (quality < 3) {
-      reps = 0;
-      interval = 1;
-    } else {
-      reps += 1;
-      interval = reps === 1 ? 1 : reps === 2 ? 6 : Math.round(interval * ease);
+  // A local calendar day as YYYY-MM-DD, for keys that sort by date.
+  dayKey(ts) {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+
+  // FSRS-6 with its default weights, ported from ts-fsrs
+  // (packages/fsrs/src/algorithm.ts + constant.ts). Aimed at 90% recall, where
+  // the next interval equals the stability. Left out on purpose: fuzz, and
+  // Anki's minute-long learning steps — a lapse already comes back later in
+  // the same session, which FSRS schedules as a same-day (short-term) review.
+  FSRS_W: [0.212, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 3.0194, 0.001, 1.8722, 0.1666,
+    0.796, 1.4835, 0.0614, 0.2629, 1.6483, 0.6014, 1.8729, 0.5425, 0.0912, 0.0658, 0.1542],
+
+  // quality is the review's 0..5: 0 Blank, 3 Hard, 4 Good, 5 Easy (below 3 is
+  // a lapse). `reps` keeps its old meaning — correct answers in a row, reset
+  // by a lapse — because mastery and the new-card queue read it.
+  // `now` is a parameter so tests, and the "next to master" preview, can pin it.
+  schedule(card, quality, now = Date.now()) {
+    const w = VT.FSRS_W;
+    const DAY = 24 * 60 * 60 * 1000;
+    const g = quality >= 5 ? 4 : quality === 4 ? 3 : quality === 3 ? 2 : 1;
+    const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+    const decay = -w[20];
+    const factor = Math.pow(0.9, 1 / decay) - 1;
+    const initD = (grade) => w[4] - Math.exp((grade - 1) * w[5]) + 1;
+
+    let { stability: s, difficulty: d, lastReview } = card;
+    const seen = card.reps > 0 || card.interval > 0;
+    if (s == null && seen) {
+      // A card scheduled by the old SM-2. At 90% recall the interval IS the
+      // stability, so this keeps the schedule it already had.
+      // ponytail: ease → difficulty is a straight line from SM-2's 2.5 (FSRS's
+      // Good start) to its 1.3 floor (hardest); nothing to fit it against yet.
+      s = Math.max(card.interval, 0.1);
+      d = clamp(initD(3) + (2.5 - (card.ease ?? 2.5)) * ((10 - initD(3)) / 1.2), 1, 10);
+      lastReview = (card.due ?? now) - card.interval * DAY;
     }
-    ease = Math.max(1.3, ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
-    // Rounded to avoid float drift accumulating across dozens of reviews.
-    ease = Math.round(ease * 1000) / 1000;
-    return { ease, interval, reps, due: Date.now() + interval * 24 * 60 * 60 * 1000 };
+
+    let next;
+    if (s == null) {
+      next = { s: Math.max(w[g - 1], 0.1), d: clamp(initD(g), 1, 10) };
+    } else {
+      const t = Math.max(0, Math.floor((now - (lastReview ?? now)) / DAY));
+      const r = Math.pow(1 + (factor * t) / s, decay);
+      let ns;
+      if (t === 0) {
+        // Seen again the same day: FSRS's short-term update.
+        const sinc = Math.pow(s, -w[19]) * Math.exp(w[17] * (g - 3 + w[18]));
+        ns = s * (g >= 2 ? Math.max(sinc, 1) : sinc);
+      } else if (g === 1) {
+        const forget = w[11] * Math.pow(d, -w[12]) * (Math.pow(s + 1, w[13]) - 1)
+          * Math.exp((1 - r) * w[14]);
+        ns = Math.min(s / Math.exp(w[17] * w[18]), forget);
+      } else {
+        ns = s * (1 + Math.exp(w[8]) * (11 - d) * Math.pow(s, -w[9])
+          * (Math.exp((1 - r) * w[10]) - 1) * (g === 2 ? w[15] : 1) * (g === 4 ? w[16] : 1));
+      }
+      const nd = d + (-w[6] * (g - 3) * (10 - d)) / 9;
+      next = {
+        s: clamp(ns, 0.001, 36500),
+        d: clamp(w[7] * initD(4) + (1 - w[7]) * nd, 1, 10)
+      };
+    }
+    const interval = clamp(Math.round(next.s), 1, 36500);
+    // Rounded so stored numbers stay short and stable across devices.
+    return {
+      stability: Math.round(next.s * 1e4) / 1e4,
+      difficulty: Math.round(next.d * 1e4) / 1e4,
+      interval,
+      reps: g === 1 ? 0 : (card.reps ?? 0) + 1,
+      lastReview: now,
+      due: now + interval * DAY
+    };
   },
 
   // The em dash every UI shows for a field that is null.
@@ -608,7 +667,6 @@ const VT = {
       vi,
       sources: [url],
       added: Date.now(),
-      ease: 2.5,
       interval: 0,
       reps: 0,
       due: Date.now()   // due immediately, so a new word appears in the first review

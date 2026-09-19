@@ -192,35 +192,60 @@ async function parserTests() {
   eq('diffWord: an empty answer is not near', blank.near, false);
   eq('diffWord: null is treated as empty', VT.diffWord(null, 'pigeon').typed.length, 0);
 
-  // --- sm2
-  const fresh = { ease: 2.5, interval: 0, reps: 0 };
+  // --- schedule (FSRS-6). Expected numbers come from ts-fsrs 's own
+  // FSRSAlgorithm.next_state with default parameters, run 2026-09-19.
+  {
+    const D = 24 * 60 * 60 * 1000;
+    eq('FSRS: 21 default weights', VT.FSRS_W.length, 21);
+    eq('FSRS: weights pinned to ts-fsrs defaults', VT.FSRS_W.join(),
+       '0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542');
+    const near = (x, want) => Math.abs(x - want) < 1e-3;
 
-  const first = VT.sm2(fresh, 5);
-  eq('first success: reps', first.reps, 1);
-  eq('first success: interval is 1 day', first.interval, 1);
+    // Good every time it is due: day 0, 2, 13 — mastered on the third review.
+    let c = { reps: 0, interval: 0, due: 0 };
+    const goods = [];
+    let t = 0;
+    for (let i = 0; i < 3; i++) {
+      c = { ...c, ...VT.schedule(c, 4, t) };
+      goods.push(c);
+      t = c.due;
+    }
+    check('FSRS: Good ×3 matches ts-fsrs stability',
+          near(goods[0].stability, 2.3065) && near(goods[1].stability, 10.9643) && near(goods[2].stability, 46.2802),
+          goods.map((g) => g.stability).join());
+    check('FSRS: and difficulty', near(goods[2].difficulty, 2.1043), String(goods[2].difficulty));
+    eq('FSRS: intervals are the rounded stability', goods.map((g) => g.interval).join(), '2,11,46');
+    eq('FSRS: reps still counts correct answers in a row', goods[2].reps, 3);
+    check('FSRS: three Goods on time master a word', VT.isMastered(goods[2]) && !VT.isMastered(goods[1]));
 
-  const second = VT.sm2(first, 5);
-  eq('second success: reps', second.reps, 2);
-  eq('second success: interval is 6 days', second.interval, 6);
+    const first = (q) => VT.schedule({ reps: 0, interval: 0 }, q, 0);
+    check('FSRS: Easy > Good > Hard > Blank on a new word',
+          first(5).stability > first(4).stability && first(4).stability > first(3).stability
+          && first(3).stability > first(0).stability);
+    check('FSRS: Hard is not a lapse', first(3).reps === 1);
 
-  const third = VT.sm2(second, 4);
-  eq('third success: interval is round(6 * ease)', third.interval, Math.round(6 * second.ease));
+    const lapse = VT.schedule({ stability: 30, difficulty: 5, lastReview: 0, reps: 4, interval: 30 }, 0, 30 * D);
+    check('FSRS: a lapse after 30 days matches ts-fsrs',
+          near(lapse.stability, 2.324) && near(lapse.difficulty, 8.3418), JSON.stringify(lapse));
+    eq('FSRS: a lapse resets reps', lapse.reps, 0);
 
-  // A lapse resets the schedule but not the ease factor.
-  const lapsed = VT.sm2(third, 2);
-  eq('lapse resets reps', lapsed.reps, 0);
-  eq('lapse resets interval to 1', lapsed.interval, 1);
-  check('lapse lowers ease', lapsed.ease < third.ease);
+    // Blank, then right later the same session: the short-term update.
+    const again = VT.schedule({ stability: 0.212, difficulty: 6, lastReview: 0, reps: 0, interval: 1 }, 4, 3600e3);
+    check('FSRS: a same-day review uses the short-term update',
+          near(again.stability, 0.2467) && again.interval === 1, JSON.stringify(again));
 
-  // The 1.3 floor is part of the algorithm, not a tuning constant.
-  let beaten = { ease: 2.5, interval: 0, reps: 0 };
-  for (let i = 0; i < 20; i++) beaten = VT.sm2(beaten, 0);
-  eq('ease floors at 1.3', beaten.ease, 1.3);
-
-  const day = 24 * 60 * 60 * 1000;
-  const due = VT.sm2(fresh, 5).due;
-  check('due is about one day out', Math.abs(due - (Date.now() + day)) < 5000,
-        `due delta ${due - Date.now()}`);
+    // A card the old SM-2 scheduled: its interval becomes its stability, so
+    // it is reviewed as if nothing changed, and its reps keep counting.
+    const old = { ease: 2.2, interval: 15, reps: 3, due: 100 * D };
+    const moved = VT.schedule(old, 4, 100 * D);
+    check('FSRS: an SM-2 card carries on from its interval',
+          moved.interval > 15 && moved.reps === 4 && moved.stability > 15, JSON.stringify(moved));
+    check('FSRS: a harder SM-2 card starts harder',
+          VT.schedule({ ...old, ease: 1.3 }, 4, 100 * D).difficulty > moved.difficulty);
+    check('FSRS: due is interval days after the review',
+          moved.due === 100 * D + moved.interval * D && moved.lastReview === 100 * D);
+    eq('dayKey is the local date', VT.dayKey(new Date(2026, 0, 5, 23, 59).getTime()), '2026-01-05');
+  }
 
   // --- newEntry
   const entry = VT.newEntry('resilient', { level: 'C2', ipa: 'x', def: 'y', audio: null },
@@ -229,7 +254,6 @@ async function parserTests() {
   eq('entry level', entry.level, 'C2');
   eq('entry vi', entry.vi, 'kiên cường');
   eq('entry sources', entry.sources.length, 1);
-  eq('entry starts at ease 2.5', entry.ease, 2.5);
   eq('entry starts at reps 0', entry.reps, 0);
   check('entry is due immediately', entry.due <= Date.now());
 

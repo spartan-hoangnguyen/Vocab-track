@@ -394,6 +394,15 @@ not apply either to a tab that was already open.
     folders, each with its reason (`12 due today`, `3 misses in practice`,
     `8 in progress · 40% learned`). A pinned folder is never suggested.
     Check both themes.
+76. **FSRS scheduling.** Review a new word and press Good. Inspect the page
+    (DevTools → Application → Extension storage → local): the word now has
+    `stability`, `difficulty` and `lastReview`, and is due in 2 days. A key
+    `history:<today>` holds a `[word, 4, time]` row.
+77. **Old words keep their schedule.** A word reviewed before this change
+    still shows its old due date on the Words table until you grade it again.
+78. **Mastery preview.** On the review's Mastery card, the faint arc grows as
+    words get longer intervals, before anything is mastered. Once a word is one
+    Good away from mastery, the line under the ring says how many and when.
 
 ## If something fails
 
