@@ -1,0 +1,2 @@
+/* speak mode only, under .pr-speak. Colours come from tokens (var(--…)) and never literals,
+   so the night theme restyles this file without touching it. */

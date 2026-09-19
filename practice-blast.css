@@ -1,0 +1,2 @@
+/* blast mode only, under .pr-blast. Colours come from tokens (var(--…)) and never literals,
+   so the night theme restyles this file without touching it. */
