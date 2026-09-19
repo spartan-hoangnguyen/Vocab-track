@@ -254,6 +254,36 @@ async function parserTests() {
         topicIds.every((id) => id.startsWith('t_') && id !== VT.READING));
   check('every preset topic has a name and an icon', VT.TOPICS.every((t) => t.name && t.icon));
 
+  // --- progressOf: learned / learning / new, skipped words left out
+  eq('progressOf splits learned, learning and new',
+     JSON.stringify(VT.progressOf([
+       { reps: 0, interval: 0 },                 // never reviewed
+       { reps: 0, interval: 1 },                 // a lapse: still learning
+       { reps: 2, interval: 6 },
+       { reps: 4, interval: 30 },                // mastered
+       { reps: 4, interval: 30, skipped: true }  // out of rotation
+     ])), JSON.stringify({ learned: 1, learning: 2, fresh: 1 }));
+
+  // --- suggestFolders: due, misses and half-done folders; pins and idle folders left out
+  {
+    const now = Date.now();
+    const f = (id) => ({ id, name: id });
+    const w = (word, extra) => ({ word, reps: 0, interval: 0, due: now + 1e9, ...extra });
+    const list = [
+      { folder: f('due'), members: [w('a', { due: now - 1 }), w('b', { due: now - 1 })] },
+      { folder: f('missed'), members: [w('c')] },
+      { folder: f('half'), members: [w('d', { reps: 1, interval: 1 }), w('e', { reps: 4, interval: 30 })] },
+      { folder: f('idle'), members: [w('f')] },
+      { folder: f('pinned'), members: [w('g', { due: now - 1 })] }
+    ];
+    const got = VT.suggestFolders(list, now, { c: 1 }, ['pinned']);
+    eq('suggestFolders ranks by score and skips pinned and idle folders',
+       got.map((s) => s.folder.id).join(), 'due,missed,half');
+    eq('each suggestion says why', got.map((s) => s.reason).join(' | '),
+       '2 due today | 1 miss in practice | 1 in progress · 50% learned');
+    eq('suggestFolders stops at n', VT.suggestFolders(list, now, { c: 1 }, [], 2).length, 2);
+  }
+
   // --- medianLevel: ignores entries with no level, never throws on an empty set
   eq('median of one level', VT.medianLevel([{ level: 'B2' }]), 'B2');
   eq('median ignores nulls', VT.medianLevel([{ level: null }, { level: 'C1' }, { level: null }]), 'C1');

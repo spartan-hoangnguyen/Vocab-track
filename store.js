@@ -99,6 +99,28 @@ function putFolder(folder) {
   return writeQueue;
 }
 
+// Pins are their own list, not a field on the folder: From reading and
+// Starred are rebuilt by getFolders, so a field stored on them would replace
+// their built-in name and description.
+async function getPins() {
+  const { pins } = await chrome.storage.local.get('pins');
+  return Array.isArray(pins) ? pins : [];
+}
+
+function togglePin(id) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const pins = await getPins();
+      await chrome.storage.local.set({
+        pins: pins.includes(id) ? pins.filter((p) => p !== id) : [...pins, id]
+      });
+    } catch (err) {
+      console.error('[vocab-track] pin failed for', id, err);
+    }
+  });
+  return writeQueue;
+}
+
 // Deleting a folder never deletes words — they only lose the tag. A word left
 // with no folders reads as "From reading" again via VT.foldersOf.
 function removeFolder(id) {
@@ -114,7 +136,8 @@ function removeFolder(id) {
           entry.folders = entry.folders.filter((f) => f !== id);
         }
       }
-      await chrome.storage.local.set({ folders: next, words });
+      const pins = (await getPins()).filter((p) => p !== id);
+      await chrome.storage.local.set({ folders: next, words, pins });
     } catch (err) {
       console.error('[vocab-track] folder delete failed for', id, err);
     }

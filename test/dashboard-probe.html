@@ -794,6 +794,32 @@ ready.then(() => setTimeout(async () => {
   check('light again: the card is white again', cs(rvCardEl).backgroundColor === 'rgb(255, 255, 255)',
         cs(rvCardEl).backgroundColor);
 
+  /* ---- overview: progress, pins, suggestions ---- */
+  showView('overview');
+  await refresh();
+  const fcounts = document.querySelector("#ov-folders .fcounts");
+  check('a folder card shows learned · learning · new',
+        /^\d+ learned · \d+ learning · \d+ new$/.test(fcounts?.textContent ?? ""), fcounts?.textContent);
+  check('nothing pinned: the Pinned section is hidden',
+        !document.getElementById('ov-pinned-head').checkVisibility());
+  check('a folder with due words is suggested, with its reason',
+        /due today/.test(document.querySelector('#ov-suggest .why')?.textContent ?? ''),
+        document.getElementById('ov-suggest').textContent.slice(0, 120));
+  document.querySelector(`#ov-folders .f[data-folder="${VT.READING}"] .pin`).click();
+  await tick();
+  await refresh();
+  check('📌 saves the pin', STORE.pins?.includes(VT.READING), JSON.stringify(STORE.pins));
+  check('📌 moves the card up into Pinned',
+        !!document.querySelector(`#ov-pinned .f[data-folder="${VT.READING}"]`)
+        && !document.querySelector(`#ov-folders .f[data-folder="${VT.READING}"]`)
+        && document.getElementById('ov-pinned-head').checkVisibility());
+  check('a pinned folder is not suggested again',
+        !document.querySelector(`#ov-suggest .f[data-folder="${VT.READING}"]`));
+  document.querySelector(`#ov-pinned .f[data-folder="${VT.READING}"] .pin`).click();
+  await tick();
+  await refresh();
+  check('📌 again unpins it', !STORE.pins.length && !document.getElementById('ov-pinned').checkVisibility());
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }, 80));

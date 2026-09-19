@@ -329,6 +329,46 @@ const VT = {
     return (entry?.reps ?? 0) >= 3 && (entry?.interval ?? 0) >= 21;
   },
 
+  // Where a folder stands: learned (mastered), learning (seen at least once),
+  // fresh (never reviewed). A lapse sets interval to 1, so a word you forgot
+  // is still "learning", not new again. Skipped words are out of the count.
+  progressOf(entries) {
+    const out = { learned: 0, learning: 0, fresh: 0 };
+    for (const e of entries) {
+      if (!VT.isLearnable(e)) continue;
+      if (VT.isMastered(e)) out.learned++;
+      else if (!e.reps && !e.interval) out.fresh++;
+      else out.learning++;
+    }
+    return out;
+  },
+
+  // Up to n folders worth opening now, each with the reason it was picked.
+  // list is [{ folder, members }]; misses is practice's word → miss count.
+  // ponytail: raw counts, so big folders win; weigh by folder size if small
+  // folders never get suggested.
+  suggestFolders(list, now, misses = {}, pinned = [], n = 3) {
+    const scored = [];
+    for (const { folder, members } of list) {
+      if (pinned.includes(folder.id)) continue;
+      const live = members.filter((e) => VT.isLearnable(e));
+      const due = live.filter((e) => e.due <= now).length;
+      const missed = live.reduce((sum, e) => sum + (misses[e.word] ?? 0), 0);
+      const p = VT.progressOf(live);
+      const score = due * 3 + missed * 2 + p.learning;
+      if (!score) continue;
+      const parts = [
+        [due * 3, `${due} due today`],
+        [missed * 2, `${missed} miss${missed === 1 ? '' : 'es'} in practice`],
+        [p.learning, `${p.learning} in progress · ${Math.round((p.learned / live.length) * 100)}% learned`]
+      ];
+      const reason = parts.reduce((a, b) => (b[0] > a[0] ? b : a))[1];
+      scored.push({ folder, reason, score });
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, n)
+      .map(({ folder, reason }) => ({ folder, reason }));
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

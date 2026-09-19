@@ -11,6 +11,7 @@ let folders = {};
 let writing = { on: true, off: [], mistakes: {} };
 let activeFolder = null;   // null = all words
 let practice = { counts: {}, misses: {} };
+let pins = [];
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
 const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk' };
@@ -37,8 +38,8 @@ for (const a of document.querySelectorAll('nav a')) {
 }
 
 async function refresh() {
-  [words, folders, writing, practice, prefs] = await Promise.all(
-    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs()]);
+  [words, folders, writing, practice, prefs, pins] = await Promise.all(
+    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins()]);
   render();
 }
 
@@ -55,14 +56,6 @@ function render() {
 }
 
 /* ---------- overview ---------- */
-
-function countsByFolder(all) {
-  const counts = {};
-  for (const entry of all) {
-    for (const id of VT.foldersOf(entry)) counts[id] = (counts[id] ?? 0) + 1;
-  }
-  return counts;
-}
 
 function dueCount(entries) {
   const now = Date.now();
@@ -98,57 +91,24 @@ function renderOverview(all) {
     bars.appendChild(wrap);
   }
 
-  const counts = countsByFolder(all);
-  const grid = $('ov-folders');
-  grid.replaceChildren();
-  for (const folder of Object.values(folders)) {
-    const n = counts[folder.id] ?? 0;
-    const members = all.filter((e) => VT.foldersOf(e).includes(folder.id));
-    const card = document.createElement('button');
-    card.className = `f ${folder.color ?? 'sage'}`;
-    card.addEventListener('click', () => openFolder(folder.id));
-
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = folder.icon ?? '\u{1F4C1}';
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = `${folder.auto ? 'Auto' : 'Manual'} · ${n} word${n === 1 ? '' : 's'}`;
-    const name = document.createElement('h3');
-    name.textContent = folder.name;
-    const desc = document.createElement('p');
-    desc.textContent = folder.desc ?? '';
-    const foot = document.createElement('div');
-    foot.className = 'foot';
-    const dueHere = dueCount(members);
-    const freshHere = newCards(members).length;
-    const dueText = document.createElement('span');
-    dueText.textContent = dueHere
-      ? `${dueHere} due today`
-      : (freshHere ? `${freshHere} to learn` : (n ? 'All reviewed' : 'Empty'));
-    foot.appendChild(dueText);
-    if (dueHere || freshHere) {
-      const go = document.createElement('button');
-      go.className = 'edit';
-      go.textContent = dueHere ? 'Review' : 'Learn';
-      go.addEventListener('click', (event) => {
-        event.stopPropagation();
-        startReview(folder.id, { ahead: true });
-        showView('review');
-        render();
-      });
-      foot.appendChild(go);
-    }
-    if (!folder.auto) {
-      const edit = document.createElement('button');
-      edit.className = 'edit';
-      edit.textContent = 'Edit';
-      edit.addEventListener('click', (event) => { event.stopPropagation(); editFolder(folder); });
-      foot.appendChild(edit);
-    }
-    card.append(badge, meta, name, desc, foot);
-    grid.appendChild(card);
+  // One pass over the words, not one filter per folder.
+  const members = {};
+  for (const id of Object.keys(folders)) members[id] = [];
+  for (const entry of all) {
+    for (const id of VT.foldersOf(entry)) members[id]?.push(entry);
   }
+  const live = pins.filter((id) => folders[id]);
+  fillGrid('ov-pinned', live.map((id) => folderCard(folders[id], members[id])));
+  const suggested = VT.suggestFolders(
+    Object.values(folders).map((folder) => ({ folder, members: members[folder.id] })),
+    Date.now(), practice.misses, live);
+  fillGrid('ov-suggest',
+    suggested.map(({ folder, reason }) => folderCard(folder, members[folder.id], reason)));
+
+  const grid = $('ov-folders');
+  grid.replaceChildren(...Object.values(folders)
+    .filter((folder) => !live.includes(folder.id))
+    .map((folder) => folderCard(folder, members[folder.id])));
 
   const add = document.createElement('button');
   add.className = 'f new';
@@ -160,6 +120,87 @@ function renderOverview(all) {
   add.append(plus, label);
   add.addEventListener('click', () => editFolder(null));
   grid.appendChild(add);
+}
+
+// A grid and its heading show only when the grid has cards.
+function fillGrid(id, cards) {
+  $(id).replaceChildren(...cards);
+  $(`${id}-head`).hidden = !cards.length;
+  $(id).hidden = !cards.length;
+}
+
+function folderCard(folder, members, reason) {
+  const n = members.length;
+  const card = document.createElement('button');
+  card.className = `f ${folder.color ?? 'sage'}`;
+  card.dataset.folder = folder.id;
+  card.addEventListener('click', () => openFolder(folder.id));
+
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  badge.textContent = folder.icon ?? '\u{1F4C1}';
+  const pinned = pins.includes(folder.id);
+  const pin = document.createElement('button');
+  pin.className = `pin${pinned ? ' on' : ''}`;
+  pin.title = pinned ? 'Unpin' : 'Pin to the top';
+  pin.textContent = '\u{1F4CC}';
+  pin.addEventListener('click', (event) => { event.stopPropagation(); togglePin(folder.id); });
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = `${folder.auto ? 'Auto' : 'Manual'} · ${n} word${n === 1 ? '' : 's'}`;
+  const name = document.createElement('h3');
+  name.textContent = folder.name;
+  const desc = document.createElement('p');
+  desc.textContent = reason ?? folder.desc ?? '';
+  if (reason) desc.className = 'why';
+  card.append(badge, pin, meta, name, desc);
+
+  const p = VT.progressOf(members);
+  if (p.learned + p.learning + p.fresh) {
+    const bar = document.createElement('div');
+    bar.className = 'fprog';
+    for (const [cls, count] of [['m', p.learned], ['l', p.learning], ['n', p.fresh]]) {
+      const seg = document.createElement('i');
+      seg.className = cls;
+      seg.style.flex = count;
+      bar.appendChild(seg);
+    }
+    const counts = document.createElement('div');
+    counts.className = 'fcounts';
+    counts.textContent = `${p.learned} learned · ${p.learning} learning · ${p.fresh} new`;
+    card.append(bar, counts);
+  }
+
+  const foot = document.createElement('div');
+  foot.className = 'foot';
+  const dueHere = dueCount(members);
+  const freshHere = newCards(members).length;
+  const dueText = document.createElement('span');
+  dueText.textContent = dueHere
+    ? `${dueHere} due today`
+    : (freshHere ? `${freshHere} to learn` : (n ? 'All reviewed' : 'Empty'));
+  foot.appendChild(dueText);
+  if (dueHere || freshHere) {
+    const go = document.createElement('button');
+    go.className = 'edit';
+    go.textContent = dueHere ? 'Review' : 'Learn';
+    go.addEventListener('click', (event) => {
+      event.stopPropagation();
+      startReview(folder.id, { ahead: true });
+      showView('review');
+      render();
+    });
+    foot.appendChild(go);
+  }
+  if (!folder.auto) {
+    const edit = document.createElement('button');
+    edit.className = 'edit';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click', (event) => { event.stopPropagation(); editFolder(folder); });
+    foot.appendChild(edit);
+  }
+  card.appendChild(foot);
+  return card;
 }
 
 function openFolder(id) {
@@ -660,7 +701,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // only way this page ever sees the counts move.
   // Another dashboard tab flipped the theme: follow it.
   if (changes.theme) applyTheme(changes.theme.newValue);
-  if (changes.words || changes.folders ||
+  if (changes.words || changes.folders || changes.pins ||
       changes.writeOn || changes.writeOff || changes.writeMistakes) refresh();
 });
 

@@ -106,6 +106,21 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .f.new{background:transparent;border:1.5px dashed var(--rule);color:var(--ink2);
        align-items:center;justify-content:center;text-align:center}
 .f.new .plus{font:400 26px Inter;line-height:1}
+/* Both carry a display rule, which outranks the UA's [hidden]; an empty
+   Pinned or Suggested section would otherwise leave its heading behind. */
+.secthead[hidden],.grid[hidden]{display:none}
+#view-overview .grid:not(:last-child){margin-bottom:30px}
+.f .pin{position:absolute;top:18px;right:56px;width:30px;height:30px;border:0;border-radius:9px;
+        background:none;cursor:pointer;font-size:14px;opacity:0;transition:opacity .12s}
+.f:hover .pin,.f .pin:focus-visible{opacity:.5}
+.f .pin:hover,.f .pin.on{opacity:1}
+.f .why{font-weight:600;opacity:.9}
+.fprog{display:flex;gap:2px;height:6px;margin-top:14px;border-radius:99px;overflow:hidden}
+.fprog i{min-width:0}
+.fprog .m{background:currentColor}
+.fprog .l{background:currentColor;opacity:.45}
+.fprog .n{background:currentColor;opacity:.14}
+.fcounts{margin-top:7px;font-size:12px;opacity:.75;font-variant-numeric:tabular-nums}
 .f .edit{background:none;border:0;padding:0;font:500 12.5px Inter;color:inherit;
          opacity:.7;cursor:pointer;text-decoration:underline}
 

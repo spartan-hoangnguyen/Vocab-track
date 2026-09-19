@@ -384,6 +384,16 @@ not apply either to a tab that was already open.
     its suggestions: it becomes a chip at once, with no Enter needed. Type a new
     name and press Enter: that folder appears on the dashboard's Overview. Click
     a chip to take the word back out.
+73. **Folder progress.** On the Overview every folder with words shows a
+    three-part bar and `N learned · N learning · N new`. Grade a new word in a
+    folder: its "new" count drops by one and "learning" rises by one.
+74. **Pin a folder.** Hover a folder card and click 📌. The card moves up under
+    **Pinned** and leaves All folders. Click 📌 again: it goes back, and the
+    Pinned heading disappears.
+75. **Suggestions.** With words due, **Suggested for you** shows up to three
+    folders, each with its reason (`12 due today`, `3 misses in practice`,
+    `8 in progress · 40% learned`). A pinned folder is never suggested.
+    Check both themes.
 
 ## If something fails
 
