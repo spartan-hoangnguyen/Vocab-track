@@ -1,2 +1,8 @@
 /* fill mode only, under .pr-fill. Colours come from tokens (var(--…)) and never literals,
    so the night theme restyles this file without touching it. */
+.pr-fill{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%}
+/* The sentence is the question here, so it reads larger than a quiz hint. */
+.pr-fill .prsentence{font-size:18px}
+/* Letter-spaced so the blank reads as a gap, not as underscores in the text. */
+.pr-fill .prgap{color:var(--ink2);letter-spacing:.08em;white-space:nowrap}
+.pr-fill mark{background:var(--red);color:var(--red-ink);border-radius:4px;padding:0 3px;font-weight:600}

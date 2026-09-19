@@ -119,6 +119,11 @@ const PRACTICE = (() => {
     body.replaceChildren();
     status.textContent = '';
     if (!dlg.open) dlg.showModal();
+    // showModal focuses the first control, which is the ✕, and a mode with
+    // no input of its own (Quiz, Fill) then shows a focus ring on "close".
+    // The body takes focus instead; a mode that has an input moves it on.
+    body.tabIndex = -1;
+    body.focus();
 
     let right = 0;
     let total = 0;

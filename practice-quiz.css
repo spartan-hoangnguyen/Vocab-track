@@ -1,2 +1,11 @@
 /* quiz mode only, under .pr-quiz. Colours come from tokens (var(--…)) and never literals,
-   so the night theme restyles this file without touching it. */
+   so the night theme restyles this file without touching it. The options,
+   the word and the verdict are the shared practice classes; this is only the
+   play button beside the word and the IPA under it. */
+.pr-quiz{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%}
+.pr-quiz .prq-head{display:flex;align-items:center;gap:12px}
+.pr-quiz .prq-ipa{margin-top:-8px}
+.pr-quiz .prq-play{width:34px;height:34px;border:1px solid var(--rule);border-radius:50%;
+                   background:var(--panel);color:var(--amber-ink);font-size:12px;cursor:pointer}
+.pr-quiz .prq-play:hover{background:var(--amber)}
+.pr-quiz .prq-play:focus-visible{outline:2px solid var(--bar);outline-offset:2px}

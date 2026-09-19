@@ -1,2 +1,13 @@
 /* listening mode only, under .pr-listening. Colours come from tokens (var(--…)) and never literals,
    so the night theme restyles this file without touching it. */
+.pr-listening{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%}
+/* The replay is the one thing to look at before you answer, so it is big. */
+.pr-listening .prlplay{font-size:17px;padding:14px 26px;border-radius:999px;
+                       background:var(--green);color:var(--green-ink);border-color:transparent}
+.pr-listening .prlform{display:contents}
+.pr-listening .prlreveal{display:flex;flex-direction:column;align-items:center;gap:4px}
+.pr-listening .prlreveal p{margin:0}
+.pr-listening .prlipa{color:var(--ink2);font-size:14px}
+/* Monospace, so the marked letters line up the way review shows them. */
+.pr-listening .prldiff{margin:0;font:600 19px/1.4 'SF Mono',ui-monospace,Menlo,monospace}
+.pr-listening .prldiff u{color:var(--bad);text-decoration:underline wavy currentColor;text-underline-offset:3px}

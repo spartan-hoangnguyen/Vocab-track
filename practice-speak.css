@@ -1,2 +1,15 @@
 /* speak mode only, under .pr-speak. Colours come from tokens (var(--…)) and never literals,
    so the night theme restyles this file without touching it. */
+.pr-speak{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.pr-speak-task{color:var(--ink)}
+.pr-speak-mic{width:64px;height:64px;border-radius:50%;border:0;cursor:pointer;font-size:26px;
+              background:var(--purple);color:var(--purple-ink);transition:box-shadow .15s ease}
+.pr-speak-mic:disabled{cursor:default;opacity:.5}
+/* Listening: a ring in the mode's own ink, so you can see the mic is open. */
+.pr-speak-mic.on{box-shadow:0 0 0 4px var(--purple-ink)}
+.pr-speak-live{margin:0;min-height:1.4em;color:var(--ink2);font-style:italic}
+.pr-speak-live:empty,.pr-speak-reason:empty{display:none}
+.pr-speak-reason{margin:0;color:var(--bad);font-size:13.5px}
+.pr-speak-box{max-width:460px;font-size:15px;text-align:left;resize:vertical;line-height:1.5}
+.pr-speak-said{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+.pr-speak-said mark{background:var(--purple);color:var(--purple-ink);border-radius:4px;padding:0 3px}
