@@ -296,6 +296,75 @@ not apply either to a tab that was already open.
     reads *0 new, 1945 merged*, and a card you had already graded keeps its
     schedule (its due date does not jump back to today).
 
+## Quiz a highlighted word
+
+54. **A highlighted word is clickable.** On a page with saved words painted
+    yellow, click one. The panel opens on **Quiz** with that word and four
+    Vietnamese meanings. If it opens on **Word** instead, `quizOptions`
+    returned null — you have fewer than four saved words with a translation.
+
+55. **A saved word inside a link does not navigate.** Save a word that appears
+    inside an `<a>` on some page, reload, and click it. The panel must quiz you
+    and the browser must stay on the page.
+
+56. **The 📘 button must not quiz the line below.** Select a word on a line
+    directly above a highlighted one and click 📘. The panel shows the word you
+    *selected*, not the highlighted word the button was sitting over.
+
+57. **Selecting still beats clicking.** Drag-select across a highlighted word.
+    The 📘 button appears and no quiz fires from the click that ends the drag.
+
+58. **Code blocks stay inert.** A saved word inside a syntax-highlighted code
+    sample is not highlighted, so clicking it must do nothing at all — no
+    panel, no `preventDefault` stealing the click.
+
+59. **A wrong answer corrects you.** Pick a wrong meaning: it goes red, the
+    right one goes green, the rest freeze. **Full entry →** shows the whole
+    dictionary entry; **Next word** asks about another.
+
+60. **The quiz never grades you.** Note a word's due date in the dashboard,
+    answer it wrong in the quiz three times, and check again — the date, ease
+    and interval must be unchanged. The schedule only moves in **Review**.
+
+61. **The tab stands alone.** With nothing clicked, open **Quiz** from the tab
+    bar. A question appears by itself, drawn from the words that are due.
+
+## Retiring a word, and the whole entry on the card
+
+62. **Don't ask again takes a word out of the rotation.** Start a review and
+    note the **Due today** figure on the overview. Press **Don't ask again** on
+    a card: the next
+    card appears at once, and the overview figure is one lower. The session
+    counter (`49 of 75`) moves on rather than repeating the word.
+
+63. **A skipped word is not deleted.** Open **All words**: the word is still
+    there, with a *Skipped ↩* tag beside its folders. Search still finds it,
+    and it still highlights yellow on the page it came from.
+
+64. **It survives a reload.** Reload the dashboard and start a review: the
+    skipped word is never offered, including from **Learn 20 more** and from a
+    folder-scoped review of a folder it belongs to.
+
+65. **The way back is one click.** Click the *Skipped ↩* tag. The tag goes, and
+    the next review asks about the word again.
+
+66. **The Cambridge button never leaks the answer.** On a card you have not
+    answered, there is no **Cambridge ↗** anywhere on it — the card asks for the
+    English word and that URL contains it. Answer, and the button appears under
+    the word; it opens that word's Cambridge page in a new tab.
+
+67. **Full entry holds what the prompt had no room for.** Answer a card for a
+    word with more than one Cambridge sense (`strategy`, `leverage`). **Full
+    entry** opens to the meanings beyond the first — each with its level and
+    example — and the synonym/opposite chips. The first definition, which was
+    already the prompt, is not repeated. Open it on one card and grade: the next
+    card's drawer is open too.
+
+68. **A thin word offers no drawer.** A word saved while Cambridge was down has
+    one definition and no cross-references — its card must show no **Full
+    entry** control at all, not an empty one.
+
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

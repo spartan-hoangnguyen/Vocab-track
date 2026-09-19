@@ -40,6 +40,67 @@ check('does not match inside concatenate', !re().test('concatenate'));
 check('does not match inside bobcat', !re().test('bobcat'));
 eq('is global', VT.wordRegex('cat').global, true);
 
+// --- isLearnable
+check('a plain entry is learnable', VT.isLearnable({ word: 'cat' }));
+check('skipped:false is learnable', VT.isLearnable({ word: 'cat', skipped: false }));
+check('a skipped entry is not', !VT.isLearnable({ word: 'cat', skipped: true }));
+check('nothing is not learnable either', !VT.isLearnable(undefined));
+
+// --- glossOf / quizOptions
+eq('gloss prefers the translation', VT.glossOf({ vi: 'con mèo', def: 'a small animal' }), 'con mèo');
+eq('gloss falls back to the definition', VT.glossOf({ vi: null, def: 'a small animal' }), 'a small animal');
+eq('gloss is null with neither', VT.glossOf({ vi: null, def: null }), null);
+eq('gloss ignores whitespace-only', VT.glossOf({ vi: '   ' }), null);
+
+// A fixed rand pins the shuffle, so these assertions are about content only.
+const pinned = () => 0;
+const q = (word, vi, level, folders) => ({ word, vi, level, folders });
+const quizPool = [
+  q('cat', 'con mèo', 'A1'),
+  q('dog', 'con chó', 'A1'),
+  q('bird', 'con chim', 'A1'),
+  q('fish', 'con cá', 'A1'),
+  q('ubiquitous', 'phổ biến khắp nơi', 'C2')
+];
+
+const opts = VT.quizOptions(quizPool[0], quizPool, pinned);
+eq('a quiz has four options', opts.length, 4);
+eq('exactly one is correct', opts.filter((o) => o.correct).length, 1);
+eq('the correct option is the word\'s own gloss', opts.find((o) => o.correct).text, 'con mèo');
+check('the word itself is never a distractor', !opts.some((o) => !o.correct && o.word === 'cat'));
+eq('no two options read the same', new Set(opts.map((o) => o.text)).size, 4);
+check('same-level distractors are preferred',
+      !opts.some((o) => !o.correct && o.word === 'ubiquitous'),
+      'a C2 gloss among A1 ones gives the answer away by register');
+
+// Same gloss on two words would put two right-looking answers on screen.
+const twins = [...quizPool, q('kitten', 'con mèo', 'A1'), q('puppy', 'con chó', 'A1')];
+const twinOpts = VT.quizOptions(twins[0], twins, pinned);
+eq('a duplicate of the answer is never offered', twinOpts.filter((o) => o.text === 'con mèo').length, 1);
+eq('duplicate distractors collapse', new Set(twinOpts.map((o) => o.text)).size, 4);
+
+check('too few glossed words means no quiz',
+      VT.quizOptions(quizPool[0], [quizPool[0], quizPool[1], q('x', null, 'A1')], pinned) === null);
+check('a word with no gloss cannot be quizzed',
+      VT.quizOptions(q('blank', null, 'A1'), quizPool, pinned) === null);
+
+// A folder shared with the entry counts as near; "From reading" does not,
+// because foldersOf hands it to every word that was never filed.
+const filed = [
+  q('cat', 'con mèo', null, ['f_pets']),
+  q('dog', 'con chó', null, ['f_pets']),
+  q('bird', 'con chim', null, ['f_pets']),
+  q('fish', 'con cá', null, ['f_pets']),
+  q('ubiquitous', 'phổ biến khắp nơi', null, ['f_ielts'])
+];
+check('a shared folder makes a distractor near',
+      !VT.quizOptions(filed[0], filed, pinned).some((o) => o.word === 'ubiquitous'));
+
+// --- shuffled
+const source = [1, 2, 3, 4, 5];
+eq('shuffled keeps every item', VT.shuffled(source, pinned).slice().sort().join(), '1,2,3,4,5');
+eq('shuffled does not touch the caller\'s array', source.join(), '1,2,3,4,5');
+
 // --- parseCambridge, against real saved pages
 async function fixture(name) {
   const res = await fetch(`fixtures/${name}.html`);

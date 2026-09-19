@@ -46,14 +46,25 @@ WRITER=$("$CHROME" --headless --disable-gpu --virtual-time-budget=6000 \
          --window-size=1400,900 --dump-dom "http://localhost:$PORT/test/writer-probe.html" 2>/dev/null \
          | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# The panel probe loads the real sidepanel.html against a stubbed chrome API at
+# the width Chrome actually gives the side panel. Three tabs now share one row,
+# and the quiz is a whole view whose rules — one right answer, the right answer
+# revealed after a wrong pick, the review schedule left alone — are only
+# observable once the thing is rendered.
+PANEL=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
+        --window-size=400,900 --dump-dom "http://localhost:$PORT/test/sidepanel-probe.html" 2>/dev/null \
+        | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
 echo "$PROBE"
 echo "$READER"
 echo "$DASH"
 echo "$WRITER"
+echo "$PANEL"
 echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PROBE"  | grep -qE '^0 failure\(s\)' || exit 1
 echo "$READER" | grep -qE '^0 failure\(s\)' || exit 1
 echo "$DASH"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$WRITER" | grep -qE '^0 failure\(s\)' || exit 1
+echo "$PANEL"  | grep -qE '^0 failure\(s\)' || exit 1
 exit 0

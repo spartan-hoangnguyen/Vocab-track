@@ -226,6 +226,74 @@ const VT = {
              typed: typedMarks, answer: answerMarks };
   },
 
+  // The gloss a quiz asks about: the Vietnamese, or the English definition when
+  // there is no translation. Null when the entry has neither — a word saved
+  // while both the dictionary and the translator were down cannot be an
+  // option, right or wrong.
+  glossOf(entry) {
+    const gloss = String(entry?.vi ?? entry?.def ?? '').trim();
+    return gloss || null;
+  },
+
+  // Four options for one word: its own gloss and three others, shuffled.
+  //
+  // Distractors come from words at the same CEFR level or sharing a folder
+  // first — a C2 word among three A1 glosses gives itself away by register
+  // before you have read any of them — and are topped up at random when that
+  // pool is short. Returns null when three usable others cannot be found,
+  // which is the signal to skip the quiz and just show the entry.
+  //
+  // `rand` is a parameter only so the test can pin the shuffle.
+  quizOptions(entry, pool, rand = Math.random) {
+    const answer = VT.glossOf(entry);
+    if (!answer) return null;
+    const same = (text) => text.trim().toLowerCase() === answer.trim().toLowerCase();
+    const folders = VT.foldersOf(entry);
+
+    const near = [];
+    const far = [];
+    // Two saved words can share one gloss ("con mèo" for both cat and kitten).
+    // Offering it twice would put two right-looking answers on screen.
+    const seen = new Set();
+    for (const other of pool ?? []) {
+      if (!other || other.word === entry.word) continue;
+      const gloss = VT.glossOf(other);
+      // An identical gloss marked wrong is a bug, not a hard question.
+      if (!gloss || same(gloss)) continue;
+      const key = gloss.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // Sharing "From reading" is not a signal: foldersOf gives it to every
+      // word that was never filed, so counting it would make the whole store
+      // near and throw the level preference away.
+      const close = (other.level && other.level === entry.level)
+        || VT.foldersOf(other).some((id) => id !== VT.READING && folders.includes(id));
+      (close ? near : far).push({ word: other.word, text: gloss, correct: false });
+    }
+
+    const picked = [...VT.shuffled(near, rand), ...VT.shuffled(far, rand)].slice(0, 3);
+    if (picked.length < 3) return null;
+    return VT.shuffled([{ word: entry.word, text: answer, correct: true }, ...picked], rand);
+  },
+
+  // Fisher-Yates on a copy. The caller's array is never reordered.
+  shuffled(items, rand = Math.random) {
+    const out = [...items];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  },
+
+  // A word you have skipped is still yours — it stays in All words and still
+  // highlights on a page — it is only out of the learning rotation. One
+  // predicate, so the four places that build a queue or count what is due
+  // cannot drift apart.
+  isLearnable(entry) {
+    return !!entry && !entry.skipped;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

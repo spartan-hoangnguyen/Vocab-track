@@ -58,7 +58,7 @@ function countsByFolder(all) {
 
 function dueCount(entries) {
   const now = Date.now();
-  return entries.filter((e) => e.due <= now).length;
+  return entries.filter((e) => VT.isLearnable(e) && e.due <= now).length;
 }
 
 function renderOverview(all) {
@@ -328,6 +328,18 @@ function wordCard(entry) {
   foot.appendChild(cam);
 
   foot.appendChild(el('span', 'wc-spacer'));
+
+  // The only way back into the rotation, so it sits with the other membership
+  // tags rather than behind a menu.
+  if (!VT.isLearnable(entry)) {
+    const back = el('span', 'tag clickable', 'Skipped ↩');
+    back.title = 'Start asking about this word again';
+    back.addEventListener('click', async () => {
+      await putWord(entry.word, { skipped: false });
+      await refresh();
+    });
+    foot.appendChild(back);
+  }
 
   for (const id of VT.foldersOf(entry)) {
     const tag = el('span', 'tag clickable', folders[id]?.name ?? id);
@@ -602,14 +614,17 @@ const AHEAD_BATCH = 20;
 // Words that have never been graded and are not due yet — Anki's new queue.
 function newCards(entries) {
   const now = Date.now();
-  return entries.filter((e) => !e.reps && e.due > now).sort((a, b) => a.due - b.due);
+  return entries.filter((e) => VT.isLearnable(e) && !e.reps && e.due > now)
+    .sort((a, b) => a.due - b.due);
 }
 
 function startReview(folderId, { ahead = false } = {}) {
   reviewScope = folderId;
   const now = Date.now();
+  // isLearnable first, so a skipped word cannot be reached even by a
+  // folder-scoped session or by the ahead-of-schedule new queue below.
   const scope = Object.values(words)
-    .filter((e) => !folderId || VT.foldersOf(e).includes(folderId));
+    .filter((e) => VT.isLearnable(e) && (!folderId || VT.foldersOf(e).includes(folderId)));
   queue = scope
     .filter((e) => e.due <= now)
     // Oldest due first: the most overdue card is the one most at risk.
@@ -698,6 +713,7 @@ function renderCard() {
   $('rv-play').hidden = !revealed;
   $('rv-play').onclick = () => pronounce(entry);
 
+
   $('rv-type').hidden = revealed;
   $('rv-tip').hidden = revealed || !canType;
   $('rv-input').hidden = !canType;
@@ -711,9 +727,19 @@ function renderCard() {
   }
 
   // The answer is only written into the DOM once revealed, so it is never
-  // sitting in the page while you are still trying to recall it.
+  // sitting in the page while you are still trying to recall it. The Cambridge
+  // href and the full entry are written here for the same reason: both spell
+  // the word out.
   $('rv-answer').hidden = !revealed;
   $('rv-word').textContent = revealed ? entry.word : '';
+  // The attribute is removed rather than blanked, so before the answer this is
+  // an inert <a> and not a focusable link to the top of the page.
+  if (revealed) {
+    $('rv-cam').href = `${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(entry.word)}`;
+  } else {
+    $('rv-cam').removeAttribute('href');
+  }
+  renderFull(revealed ? entry : null);
   renderDiff(revealed && canType ? VT.diffWord(typed, entry.word) : null);
   renderGrades(revealed ? suggestedGrade() : null);
 }
@@ -823,6 +849,75 @@ function renderGrades(suggested) {
   }
 }
 
+// The card prompts with one definition. Everything else Cambridge gave us was
+// parsed and stored at save time and then never shown anywhere but the word
+// card — this is that, on the card, at the moment it is worth reading.
+//
+// Open state is remembered across cards: renderCard rebuilds the card on every
+// grade, and wanting the detail once means wanting it on the next one too.
+let fullOpen = false;
+
+function renderFull(entry) {
+  const box = $('rv-full');
+  const body = $('rv-full-body');
+  body.replaceChildren();
+  // The first sense is already the prompt's definition, so only the rest of
+  // them count as "more".
+  const senses = entry?.senses?.slice(1) ?? [];
+  const groups = [
+    ['Synonyms', entry?.synonyms],
+    ['Opposites', entry?.opposites],
+    ['Related words', entry?.related]
+  ].filter(([, items]) => items?.length);
+
+  // A drawer with nothing in it is worse than no drawer.
+  box.hidden = !entry || (!senses.length && !groups.length);
+  if (box.hidden) return;
+  box.open = fullOpen;
+
+  if (senses.length) {
+    body.appendChild(el('h3', null, senses.length === 1 ? 'Another meaning' : 'Other meanings'));
+    const list = el('ol');
+    for (const sense of senses) {
+      const li = el('li', null, sense.def ?? DASH);
+      if (sense.level) li.appendChild(el('span', 'lvl', sense.level));
+      if (sense.example) li.appendChild(el('span', 'ex', sense.example));
+      list.appendChild(li);
+    }
+    body.appendChild(list);
+  }
+
+  for (const [label, items] of groups) {
+    body.appendChild(el('h3', null, label));
+    const chips = el('div', 'chips');
+    for (const word of items) chips.appendChild(el('span', 'tag', word));
+    body.appendChild(chips);
+  }
+}
+
+$('rv-full').addEventListener('toggle', () => { fullOpen = $('rv-full').open; });
+
+// Not a delete and not a grade: the word leaves the rotation and keeps
+// everything else. No confirm() — it is undone with one click in All words,
+// and a dialog on a button pressed dozens of times a session is the wrong tax.
+async function skipCard() {
+  if (grading || !queue.length) return;
+  grading = true;
+  try {
+    const entry = queue.shift();
+    await putWord(entry.word, { skipped: true });
+    entry.skipped = true;
+    words[entry.word] = entry;
+    revealed = false;
+    typed = '';
+    renderCard();
+  } finally {
+    grading = false;
+  }
+}
+
+$('rv-skip').addEventListener('click', skipCard);
+
 $('rv-type').addEventListener('submit', (event) => {
   event.preventDefault();
   submitAnswer();
@@ -918,7 +1013,8 @@ function renderStats(all) {
   for (let i = 0; i < 14; i++) {
     const from = startOfToday.getTime() + i * 86400000;
     const to = from + 86400000;
-    const n = all.filter((e) => (i === 0 ? e.due < to : e.due >= from && e.due < to)).length;
+    const n = all.filter((e) => VT.isLearnable(e)
+      && (i === 0 ? e.due < to : e.due >= from && e.due < to)).length;
     dueSeries.push({ label: new Date(from).toLocaleDateString(), n });
   }
   plotSeries($('st-due'), dueSeries, false);

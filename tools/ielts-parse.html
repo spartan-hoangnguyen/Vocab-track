@@ -13,19 +13,47 @@
   window.addEventListener('unhandledrejection', (e) => die(String(e.reason?.stack ?? e.reason)));
 
   const batch = new URLSearchParams(location.search).get('batch');
+  const BANDS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+  // A phrasal verb page gives every sense its own .entry-body__el, and
+  // parseCambridge reads only the first, which is often a rare, untagged
+  // sense ("give up": to stop guessing). Gather the first dictionary's senses
+  // into that entry, easiest band first, so the card teaches the common one.
+  function foldSenses(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const [first, ...rest] = (doc.querySelector('.pr.dictionary') ?? doc).querySelectorAll('.entry-body__el');
+    if (!first || !rest.length) return html;
+    const rank = (block) => {
+      const i = BANDS.indexOf(block.querySelector('.epp-xref')?.textContent.trim());
+      return i < 0 ? BANDS.length : i;
+    };
+    const blocks = [first, ...rest].flatMap((el) => [...el.querySelectorAll('.def-block.ddef_block')]);
+    blocks
+      .map((block, i) => [rank(block), i, block])
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+      .forEach(([, , block]) => first.appendChild(block));
+    return doc.documentElement.outerHTML;
+  }
 
   (async () => {
     const items = await (await fetch(`batch-${batch}.json`)).json();
     const entries = [];
     for (const item of items) {
       let parsed = { level: null, ipa: null, def: null, audio: null };
-      if (item.file) parsed = VT.parseCambridge(await (await fetch(item.file)).text());
+      if (item.file) {
+        const html = await (await fetch(item.file)).text();
+        parsed = VT.parseCambridge(item.phrasal ? foldSenses(html) : html);
+      }
       const entry = VT.newEntry(item.word, parsed, item.vi, item.url);
       // The CEFR band comes from the word list, not the dictionary: it is the
       // reason the word is in this file at all, and Cambridge tags senses, so
       // its first sense can be B2 for a word that is C1 in the other senses.
-      entry.level = item.level;
-      entry.folders = ['ielts-' + item.level.toLowerCase()];
+      // A list without bands (phrasal verbs) keeps Cambridge's level, and its
+      // builder assigns folders itself.
+      if (item.level) {
+        entry.level = item.level;
+        entry.folders = ['ielts-' + item.level.toLowerCase()];
+      }
       // A Cambridge example becomes the review card's context only when the
       // card can actually blank the word out of it. maskContext uses the same
       // word-bounded regex, so an example that only contains an inflection

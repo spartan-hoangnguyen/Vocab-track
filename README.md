@@ -48,7 +48,8 @@ Built for one person. No accounts, no sync, no server.
 - **Learn a band, not just what you met.** `data/ielts-c1-c2.json` is an
   importable C1/C2 word list — the vocabulary IELTS band 7+ is made of — with
   Cambridge definitions, pronunciation and an example sentence on every card.
-  See *Word lists* below.
+  See *Word lists* below. `data/phrasal-verbs.json` does the same for 1,058
+  common phrasal verbs.
 - **Own your data.** Export and re-import the whole store as JSON.
 
 ## Install
@@ -171,6 +172,32 @@ Sources: the word list is the **Octanove Vocabulary Profile C1/C2** from
 CC BY-SA 4.0. Definitions, IPA, audio and examples are scraped from Cambridge
 one page at a time, for personal use, at about a page a second.
 
+### Phrasal verbs
+
+`data/phrasal-verbs.json` imports the same way: **1,058 phrasal verbs**, one
+folder per Cambridge band — A1 3, A2 22, B1 88, B2 169, C1 52, C2 82 — and
+*Phrasal · no band* for the 642 Cambridge has an entry for but no CEFR tag.
+Twenty a day, easiest band first. Every card has a Cambridge definition and a
+Vietnamese gloss (machine-translated, so the gloss of a rarer verb can be
+literal); 416 carry an example sentence.
+
+The headwords are hand-curated in `tools/phrasal-verbs.txt`, since no open
+CEFR list of phrasal verbs exists. A verb whose exact Cambridge page does not
+exist is dropped rather than matched to a neighbour (`run out of` redirects to
+`run out of road`). Rebuild with:
+
+```bash
+python3 tools/build-phrasal-list.py
+```
+
+It reuses `build-ielts-list.py`'s fetching and headless-Chrome parsing, with a
+cache in `/tmp/vocab-track-phrasal`. Cambridge gives each sense of a phrasal
+verb its own entry block, so the parse page folds them into one, easiest band
+first — otherwise `give up` would teach "to stop guessing".
+
+A phrasal verb is a multi-word key, so it reviews like any word but is not
+highlighted on pages or offered as a lookup — those match single words only.
+
 ## How it is put together
 
 | File | Responsibility |
@@ -180,7 +207,7 @@ one page at a time, for personal use, at about a page a second.
 | `lookup.js` | Cambridge + translation pipeline, pronunciation |
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
-| `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, which generates `data/ielts-c1-c2.json`. |
+| `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py` and `build-phrasal-list.py`, which generate the files in `data/`. |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |

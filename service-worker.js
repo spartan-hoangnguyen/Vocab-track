@@ -68,7 +68,9 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   // panel also reads this key on load. ts makes a repeat lookup of the same
   // word a real change, so storage.onChanged still fires.
   chrome.storage.session.set({
-    pending: { word: message.word, url: message.url,
+    // mode says what the panel does with the word: a quiz for a click on an
+    // already-saved (highlighted) one, the full entry for everything else.
+    pending: { word: message.word, url: message.url, mode: message.mode ?? null,
                context: message.context ?? null, ts: Date.now() }
   });
 });

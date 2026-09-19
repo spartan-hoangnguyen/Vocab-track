@@ -1,4 +1,4 @@
-const VIEWS = ['word', 'page'];
+const VIEWS = ['word', 'page', 'quiz'];
 
 const $ = (id) => document.getElementById(id);
 
@@ -13,6 +13,7 @@ function showView(name) {
 
 $('tab-word').addEventListener('click', () => showView('word'));
 $('tab-page').addEventListener('click', () => { showView('page'); renderPage(); });
+$('tab-quiz').addEventListener('click', () => openQuiz());
 
 // Captured once, before renderNotFound can ever overwrite it, so the empty
 // state can be restored to its original instruction rather than getting
@@ -197,6 +198,20 @@ async function lookup(pending) {
   // loop.
   chrome.storage.session.remove('pending');
   const word = VT.normaliseWord(pending.word);
+  // A click on a highlighted word asks instead of tells: you saved this one
+  // already, so the useful question is whether you still know it.
+  //
+  // Answered from storage and nothing else, deliberately before resolveWord:
+  // highlights are painted once at document_idle and never hear about a
+  // deletion, so a word deleted in the dashboard stays yellow on an open page.
+  // Through resolveWord that stale click would fetch the word from Cambridge
+  // and save it again — a quiz is not a save.
+  if (pending.mode === 'quiz') {
+    const known = (await getWords())[word];
+    if (known) await startQuiz(known);
+    else quizNothing(`"${word}" is not saved any more.`);
+    return;
+  }
   const { entry, notFound, failed } = await resolveWord(word, pending.url, null, pending.context);
   if (notFound) {
     renderNotFound(word);
@@ -224,6 +239,116 @@ chrome.storage.session.get('pending', ({ pending }) => {
 chrome.storage.session.onChanged.addListener((changes) => {
   if (changes.pending) lookup(changes.pending.newValue);
 });
+
+
+
+
+/* ---------- quiz: four meanings, one of them the word's ---------- */
+
+
+let quizEntry = null;
+// Nothing on screen counts as finished, so the first tab click draws a word.
+let quizAnswered = true;
+
+function openQuiz() {
+  showView('quiz');
+  // A question already on screen and unanswered is the one you were in the
+  // middle of. Only a finished one is replaced.
+  if (quizEntry && !quizAnswered) return;
+  return quizRandom();
+}
+
+// Due words first — reading is the moment to catch the ones the schedule says
+// you are about to forget — falling back to anything quizzable at all.
+async function quizRandom() {
+  const pool = Object.values(await getWords()).filter((entry) => VT.glossOf(entry));
+  // Checked here rather than left to quizOptions: its null means "show the
+  // entry instead", which is right for a word you just clicked and wrong for
+  // the tab, where it would strand you on the Word view with a random word.
+  if (pool.length < 4) {
+    quizNothing('Save a few words first — a question needs four meanings to choose between.');
+    return;
+  }
+  const now = Date.now();
+  const due = pool.filter((entry) => entry.due <= now);
+  const from = due.length ? due : pool;
+  return startQuiz(from[Math.floor(Math.random() * from.length)]);
+}
+
+function quizNothing(text) {
+  showView('quiz');
+  quizEntry = null;
+  quizAnswered = true;
+  $('quiz-card').hidden = true;
+  $('quiz-empty').hidden = false;
+  $('quiz-empty').textContent = text;
+}
+
+async function startQuiz(entry) {
+  const options = VT.quizOptions(entry, Object.values(await getWords()));
+  // Too few glossed words saved to build a question. Showing the entry is
+  // better than showing an apology — it is what the old click did anyway.
+  if (!options) {
+    renderEntry(entry);
+    return;
+  }
+
+  showView('quiz');
+  quizEntry = entry;
+  quizAnswered = false;
+  $('quiz-empty').hidden = true;
+  $('quiz-card').hidden = false;
+  $('quiz-word').textContent = entry.word;
+  $('quiz-verdict').hidden = true;
+  $('quiz-full').hidden = true;
+  $('quiz-next').hidden = true;
+
+  const list = $('quiz-options');
+  list.replaceChildren();
+  for (const option of options) {
+    const li = document.createElement('li');
+    const button = document.createElement('button');
+    button.className = 'quizopt';
+    // textContent, never innerHTML: a gloss is a stored string.
+    button.textContent = option.text;
+    // Marked on the node rather than kept in a closure variable, so revealing
+    // the right answer after a wrong guess is a query, not bookkeeping.
+    if (option.correct) button.dataset.correct = '1';
+    button.addEventListener('click', () => answerQuiz(option.correct, button));
+    li.appendChild(button);
+    list.appendChild(li);
+  }
+}
+
+function answerQuiz(correct, button) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+
+  const buttons = [...$('quiz-options').querySelectorAll('button')];
+  for (const other of buttons) other.disabled = true;
+  button.classList.add(correct ? 'right' : 'wrong');
+  // The right answer is shown either way: a wrong guess you are not corrected
+  // on is a wrong guess you keep.
+  if (!correct) buttons.find((b) => b.dataset.correct)?.classList.add('right');
+
+  const verdict = $('quiz-verdict');
+  verdict.hidden = false;
+  verdict.className = correct ? 'good' : 'bad';
+  verdict.textContent = correct ? 'Correct' : 'Not this time';
+  $('quiz-full').hidden = false;
+  $('quiz-next').hidden = false;
+  // Deliberately no putWord and no VT.sm2. This is self-testing while you
+  // read; ease, interval and due only move in the dashboard's review, where
+  // you chose to sit down and be graded.
+  pronounce(quizEntry);
+}
+
+$('quiz-full').addEventListener('click', () => {
+  // renderEntry already switches to the Word view.
+  if (quizEntry) renderEntry(quizEntry);
+});
+$('quiz-next').addEventListener('click', () => quizRandom());
+
 
 
 $('open-dashboard').addEventListener('click', () => {

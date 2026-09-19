@@ -1,0 +1,196 @@
+<!doctype html><meta charset="utf-8"><title>Vocab-track</title>
+<link rel="stylesheet" href="../sidepanel.css">
+<body>
+<!-- The panel styles `body` itself (padding, background, font), so the real
+     markup goes straight into this body rather than into a wrapper that would
+     measure a box tree the product never renders. -->
+<div id="app" style="display:contents"></div>
+
+<script>
+  // A probe that dies silently reports nothing and reads as a pass to anyone
+  // skimming. Surface it in the one place run.sh looks.
+  const died = (what) => {
+    document.getElementById('out').textContent =
+      'FAIL probe ' + what + '\n1 failure(s), 0 check(s)';
+  };
+  window.addEventListener('error', (e) => died('threw: ' + e.message + ' @' + e.filename + ':' + e.lineno));
+  window.addEventListener('unhandledrejection', (e) => died('rejected: ' + (e.reason?.stack ?? e.reason)));
+</script>
+
+<!-- The markup is the real sidepanel.html, fetched rather than copied: a copy
+     goes stale the moment the panel changes shape, and a probe measuring
+     markup the product no longer ships cannot catch anything. -->
+<script>
+  const ready = fetch('../sidepanel.html')
+    .then((r) => r.text())
+    .then((page) => {
+      const holder = document.createElement('div');
+      holder.innerHTML =
+        page.slice(page.indexOf('<body>') + 6, page.lastIndexOf('</body>'))
+            .replace(/<script[\s\S]*?<\/script>/g, '');
+      document.getElementById('app').replaceChildren(...holder.childNodes);
+    })
+    .then(() => ['../lib.js', '../store.js', '../lookup.js', '../sidepanel.js']
+      // Serial, not Promise.all: each of these reads the one before it at load.
+      .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = src;
+        tag.onload = resolve;
+        tag.onerror = () => reject(new Error('could not load ' + src));
+        document.head.append(tag);
+      })), Promise.resolve()));
+</script>
+
+<script>
+// Five words at one level, so quizOptions has a near pool to draw from, and
+// one at another so the level preference has something to reject.
+const WORDS = {};
+for (const [word, level, vi] of [
+  ['strategy','B2','chiến lược'], ['leverage','B2','đòn bẩy'],
+  ['tentative','B2','dè dặt'],    ['scarce','B2','khan hiếm'],
+  ['ubiquitous','C2','phổ biến khắp nơi']
+]) {
+  WORDS[word] = { word, level, vi, ipa: null, def: null, audio: null,
+    senses: [], synonyms: [], related: [], folders: ['reading'], context: null,
+    sources: ['https://example.com/a'], added: Date.now(),
+    ease: 2.5, interval: 0, reps: 0, due: Date.now() - 1000 };
+}
+const STORE = { words: WORDS };
+const local = {
+  get: async (keys) => {
+    const out = {};
+    for (const k of (Array.isArray(keys) ? keys : [keys])) if (k in STORE) out[k] = STORE[k];
+    return out;
+  },
+  set: async (patch) => { Object.assign(STORE, patch); }
+};
+window.chrome = {
+  storage: {
+    local,
+    // sidepanel.js reads `pending` with a callback, not a promise.
+    session: { get: (key, cb) => cb({}), remove() {}, set() {},
+               onChanged: { addListener() {} } },
+    onChanged: { addListener() {} }
+  },
+  runtime: { sendMessage() {}, onMessage: { addListener() {} } },
+  tabs: { query: async () => [], sendMessage: async () => null,
+          onActivated: { addListener() {} } }
+};
+</script>
+
+<script>
+// Braced for the reason dashboard-probe gives: these names share the global
+// script scope with lib.js, store.js, lookup.js and sidepanel.js.
+{
+let failures = 0;
+const log = [];
+const check = (name, cond, detail) => {
+  if (cond) log.push('PASS  ' + name);
+  else { failures++; log.push('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
+};
+const $$ = (id) => document.getElementById(id);
+const cs = (el) => getComputedStyle(el);
+
+ready.then(() => setTimeout(async () => {
+  /* ---- view switching ----
+     Any author `display` on a view section beats the UA stylesheet's
+     [hidden]{display:none}, so one rule without :not([hidden]) renders a view
+     on top of every other one. */
+  for (const target of VIEWS) {
+    showView(target);
+    for (const other of VIEWS) {
+      const shown = cs($$(`view-${other}`)).display !== 'none';
+      check(`showView(${target}) ${other === target ? 'shows' : 'hides'} ${other}`,
+            shown === (other === target), `display: ${cs($$(`view-${other}`)).display}`);
+    }
+  }
+
+  /* ---- three tabs have to fit the panel, which is narrower than a window ---- */
+  const nav = document.querySelector('nav');
+  const tabs = [...nav.querySelectorAll('button')];
+  check('there are three tabs', tabs.length === 3, `got ${tabs.length}`);
+  check('the tabs sit on one row',
+        new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top))).size === 1,
+        tabs.map((t) => t.textContent + '@' + t.getBoundingClientRect().top.toFixed(0)).join(' '));
+  check('no tab label is clipped',
+        tabs.every((t) => t.scrollWidth <= t.clientWidth + 1),
+        tabs.map((t) => `${t.textContent} ${t.scrollWidth}/${t.clientWidth}`).join(' '));
+
+  /* ---- the quiz ---- */
+  const entry = WORDS.strategy;
+  await startQuiz(entry);
+  check('a quiz opens the quiz view', !$$('view-quiz').hidden && !$$('quiz-card').hidden);
+  const options = [...$$('quiz-options').querySelectorAll('button')];
+  check('four options are offered', options.length === 4, `got ${options.length}`);
+  check('exactly one is marked correct',
+        options.filter((b) => b.dataset.correct).length === 1);
+  check('the correct one carries the word’s own gloss',
+        options.find((b) => b.dataset.correct)?.textContent === entry.vi);
+  check('the word is asked about, not answered',
+        $$('quiz-word').textContent === 'strategy'
+        && !options.some((b) => b.textContent === 'strategy'));
+  check('nothing is judged before you answer',
+        !options.some((b) => b.className !== 'quizopt') && $$('quiz-verdict').hidden);
+
+  /* ---- a wrong answer must correct you ---- */
+  const wrong = options.find((b) => !b.dataset.correct);
+  wrong.click();
+  check('the wrong pick is marked wrong', wrong.classList.contains('wrong'));
+  check('the right answer is revealed anyway',
+        options.find((b) => b.dataset.correct).classList.contains('right'));
+  check('the rest are frozen', options.every((b) => b.disabled));
+  check('the verdict says so', !$$('quiz-verdict').hidden && $$('quiz-verdict').className === 'bad');
+  check('there is a way on', !$$('quiz-full').hidden && !$$('quiz-next').hidden);
+
+  /* ---- answering must not move the review schedule ----
+     The decision this pins: the quiz is self-testing while you read. ease,
+     interval and due only change in the dashboard's review. */
+  check('the schedule is untouched',
+        WORDS.strategy.ease === 2.5 && WORDS.strategy.interval === 0
+        && WORDS.strategy.reps === 0);
+
+  /* ---- a second answer on the same card changes nothing ---- */
+  const rightBtn = options.find((b) => b.dataset.correct);
+  rightBtn.click();
+  check('a click after the answer is ignored',
+        $$('quiz-verdict').className === 'bad' && wrong.classList.contains('wrong'));
+
+  /* ---- too few glossed words: show the entry rather than a broken quiz ---- */
+  STORE.words = { strategy: WORDS.strategy, leverage: WORDS.leverage };
+  await startQuiz(WORDS.strategy);
+  check('a thin word store falls back to the entry',
+        !$$('view-word').hidden && !$$('entry').hidden
+        && $$('entry-word').textContent === 'strategy');
+  /* ---- but the Quiz tab must not strand you on the Word view ---- */
+  STORE.words = { strategy: WORDS.strategy, leverage: WORDS.leverage };
+  await quizRandom();
+  check('a thin word store tells the tab there is nothing to ask',
+        !$$('view-quiz').hidden && $$('quiz-card').hidden && !$$('quiz-empty').hidden);
+  STORE.words = WORDS;
+
+  /* ---- a stale highlight must not re-save a deleted word ----
+     Highlights paint once at document_idle and never hear about a deletion,
+     so a word deleted in the dashboard stays yellow on an open page. Quiz
+     mode answers from storage alone; through resolveWord that click would
+     fetch the word again and put it back. */
+  let wrote = false;
+  const realSet = local.set;
+  local.set = async (patch) => { wrote = true; return realSet(patch); };
+  await lookup({ word: 'gone', url: 'https://example.com/a', mode: 'quiz', context: null });
+  check('a deleted word says so rather than coming back',
+        !$$('view-quiz').hidden && $$('quiz-card').hidden
+        && /not saved any more/.test($$('quiz-empty').textContent));
+  check('and nothing was written', !wrote);
+  await lookup({ word: 'leverage', url: 'https://example.com/a', mode: 'quiz', context: null });
+  check('a saved word still quizzes through lookup()',
+        !$$('quiz-card').hidden && $$('quiz-word').textContent === 'leverage');
+  check('and that wrote nothing either', !wrote);
+  local.set = realSet;
+
+
+  $$('out').textContent = log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+}, 60));
+}
+</script>
+
+<pre id="out">running…</pre>

@@ -178,6 +178,56 @@ async function applyHighlights() {
 applyHighlights();
 
 
+/* ---------- click a highlighted word to be quizzed on it ---------- */
+
+
+// The highlight is the affordance: a word painted yellow is one you saved, and
+// clicking it should ask whether you still remember it. The panel decides what
+// to show; this only has to say which word was hit.
+//
+// Hit-tests the ranges already painted rather than re-deriving which words are
+// saved. rangesFor()'s acceptNode already keeps code blocks, textareas and
+// editable fields out, and a second, independent membership test would fire —
+// and preventDefault() — in exactly those places.
+document.addEventListener('click', (event) => {
+  // isTrusted for the same reason the lookup button checks it. No button
+  // check: `click` never fires for the right or middle button.
+  if (!event.isTrusted) return;
+  const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+  const node = range?.startContainer;
+  if (node?.nodeType !== Node.TEXT_NODE) return;
+  // A real click on text targets the text node's own parent. Anything else is
+  // a ghost click bubbling up from a detached element — the 📘 button removes
+  // itself on mousedown, and it sits over the line below the selection, so
+  // without this it could quiz the wrong word.
+  if (event.target !== node.parentElement) return;
+  // A drag that selected text is not a click on a word: the selection flow
+  // above owns that, and it ends with the 📘 button.
+  if (!window.getSelection()?.isCollapsed) return;
+
+  // A Highlight is setlike, so its ranges iterate directly, and toString() on
+  // one is the matched text.
+  for (const hit of CSS.highlights.get(HIGHLIGHT_NAME) ?? []) {
+    if (!hit.isPointInRange(node, range.startOffset)) continue;
+    // Capture phase and both of these, so a saved word inside a link opens the
+    // panel instead of navigating away.
+    event.preventDefault();
+    event.stopPropagation();
+    chrome.runtime.sendMessage({
+      type: 'lookup',
+      // The word is already saved, so resolveWord answers from storage with no
+      // network call, and context is left null: it is never overwritten on a
+      // known word and this click is a quiz, not a save.
+      mode: 'quiz',
+      word: VT.normaliseWord(hit.toString()),
+      url: location.href,
+      context: null
+    });
+    return;
+  }
+}, true);
+
+
 /* ---------- answering the side panel ---------- */
 
 

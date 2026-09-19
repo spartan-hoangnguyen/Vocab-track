@@ -6,6 +6,7 @@
   <nav>
     <button id="tab-word" class="active">Word</button>
     <button id="tab-page">On this page</button>
+    <button id="tab-quiz">Quiz</button>
   </nav>
 
   <p class="dashlink"><button id="open-dashboard">Open dashboard →</button></p>
@@ -30,6 +31,7 @@
 
     <p class="links" id="entry-links"></p>
 
+
     <section class="block">
       <h2 id="entry-senses-title">Meaning</h2>
       <ol id="entry-senses"></ol>
@@ -46,6 +48,20 @@
     <p class="pagehead" id="page-head"></p>
     <ul id="page-list"></ul>
     <p id="page-empty" class="muted" hidden></p>
+  </section>
+
+  <section id="view-quiz" hidden>
+    <p id="quiz-empty" class="muted" hidden></p>
+
+    <div id="quiz-card" hidden>
+      <p class="quizask">What does <b id="quiz-word"></b> mean?</p>
+      <ol id="quiz-options"></ol>
+      <p id="quiz-verdict" hidden></p>
+      <p class="quizafter">
+        <button id="quiz-full" hidden>Full entry →</button>
+        <button id="quiz-next" hidden>Next word</button>
+      </p>
+    </div>
   </section>
 
   <script src="lib.js"></script>

@@ -89,6 +89,13 @@
         <span class="lvl" id="rv-level"></span>
         <span id="rv-ipa" hidden></span>
         <button class="rvplay" id="rv-play" aria-label="Pronounce" hidden>▶ <kbd>r</kbd></button>
+        <!-- Always on the card, before the answer as well: "I do not need this
+             one" is a judgement you make from the prompt. -->
+        <!-- Not "Skip": the diff line under the answer already says "Skipped"
+             for an empty guess, which means grade me Blank, not never ask me
+             again. Two opposite actions on one card cannot share a word. -->
+        <button class="rvplay" id="rv-skip"
+                title="Stop asking about this word — it stays in All words">Don't ask again</button>
       </div>
 
       <!-- The prompt. Stays on screen after the answer so you can still see
@@ -107,6 +114,14 @@
       <div id="rv-answer" hidden>
         <p class="rvdiff" id="rv-diff"></p>
         <h2 class="rvword" id="rv-word"></h2>
+        <!-- Inside #rv-answer, never outside it: the card asks for the English
+             word and this URL contains it. -->
+        <p class="rvlinks"><a id="rv-cam" target="_blank" rel="noreferrer">Cambridge ↗</a></p>
+        <!-- <details>, not a JS toggle: the platform already has this control. -->
+        <details class="rvfull" id="rv-full" hidden>
+          <summary>Full entry</summary>
+          <div id="rv-full-body"></div>
+        </details>
         <div class="rvgrades" id="rv-grades"></div>
       </div>
     </div>

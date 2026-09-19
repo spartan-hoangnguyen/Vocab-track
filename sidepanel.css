@@ -4,11 +4,14 @@
   color-scheme: light dark;
   --paper:#faf7f2; --panel:#efe9de; --ink:#1c1a17; --ink2:#6b655c; --ink3:#938c80;
   --rule:#e4ded3; --accent:#1c5cab; --card:#fff;
+  /* right/wrong, the quiz's only two new colours */
+  --good:#3f7d54; --bad:#a8453a;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --paper:#17161a; --panel:#211f25; --ink:#f2f1ee; --ink2:#a8a49c; --ink3:#7d786f;
     --rule:#312e37; --accent:#7fb0f0; --card:#1d1b21;
+    --good:#6fbb87; --bad:#e08a7c;
   }
 }
 *{box-sizing:border-box}
@@ -102,3 +105,27 @@ nav button.active{background:var(--card);color:var(--ink);font-weight:600;
 /* the word is saved against this page but is no longer in its text */
 .pageword.missing{opacity:.5}
 .pageword.missing .t::after{content:' · not on page';color:var(--ink3)}
+
+/* ---------- quiz ---------- */
+
+.quizask{font-size:14px;margin:0 0 14px;color:var(--ink2)}
+.quizask b{font-size:19px;color:var(--ink);font-weight:700}
+#quiz-options{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.quizopt{width:100%;text-align:left;padding:11px 13px;border:1px solid var(--rule);
+         border-radius:10px;background:var(--card);color:var(--ink);font:inherit;
+         font-size:13.5px;line-height:1.45;cursor:pointer;
+         transition:border-color .12s ease,background .12s ease}
+.quizopt:hover:not(:disabled){border-color:var(--ink3)}
+.quizopt:disabled{cursor:default}
+/* Marked on the border and a wash, not on the text: the gloss still has to be
+   readable after it has been judged. */
+.quizopt.right{border-color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent)}
+.quizopt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+#quiz-verdict{font-size:13px;font-weight:600;margin:14px 0 0}
+#quiz-verdict.good{color:var(--good)}
+#quiz-verdict.bad{color:var(--bad)}
+.quizafter{display:flex;gap:8px;margin:14px 0 0}
+.quizafter button{flex:1;padding:9px 12px;border:1px solid var(--rule);border-radius:9px;
+                  background:var(--panel);color:var(--ink);font:inherit;font-size:13px;
+                  cursor:pointer}
+.quizafter button:hover{border-color:var(--ink3)}

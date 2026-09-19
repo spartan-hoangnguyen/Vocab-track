@@ -203,6 +203,17 @@ ready.then(() => setTimeout(async () => {
   check('the word itself is not on screen', wordEl.textContent === '', JSON.stringify(wordEl.textContent));
   check('neither is its pronunciation',
         document.getElementById('rv-ipa').hidden && document.getElementById('rv-play').hidden);
+  // The Cambridge URL spells the word out, so the link must not be reachable
+  // — nor carry the answer — until the card has been committed.
+  check('the Cambridge link is not on screen before you commit',
+        !document.getElementById('rv-cam').checkVisibility());
+  check('and it is not pointing at the word yet',
+        !/strategy/.test(document.getElementById('rv-cam').href),
+        document.getElementById('rv-cam').href);
+  check('the full entry is not on screen either',
+        !document.getElementById('rv-full').checkVisibility());
+  // Skip is the one control that works from the prompt side.
+  check('but Skip is', document.getElementById('rv-skip').checkVisibility());
   // A prompt containing its own answer is not a prompt. Every card here is
   // seeded from `strategy`, whose saved sentence uses the word.
   const shownContext = document.getElementById('rv-context').textContent;
@@ -246,6 +257,75 @@ ready.then(() => setTimeout(async () => {
   // digits into it instead of grading.
   check('focus leaves the box so the number keys can grade',
         document.activeElement !== typeBox, document.activeElement?.id);
+
+  /* ---- the answer side: Cambridge, and everything the entry already knows ---- */
+  check('the Cambridge link appears with the answer',
+        document.getElementById('rv-cam').checkVisibility());
+  check('and points at this card’s word',
+        new URL(document.getElementById('rv-cam').href).pathname.endsWith('/strategy'),
+        document.getElementById('rv-cam').href);
+  // Every seeded word has empty senses/synonyms, so the drawer has nothing to
+  // hold: an empty drawer is worse than no drawer.
+  check('a thin entry offers no full-entry drawer', document.getElementById('rv-full').hidden);
+
+  // queue[0] is the same object as WORDS.strategy, so enriching it here is
+  // what the entry would look like straight out of parseCambridge.
+  WORDS.strategy.senses = [
+    { level: 'B2', def: 'a detailed plan', example: null },
+    { level: 'C1', def: 'the art of planning a war', example: 'military strategy' }
+  ];
+  WORDS.strategy.synonyms = ['plan', 'approach'];
+  WORDS.strategy.opposites = [];
+  renderCard();
+  const full = document.getElementById('rv-full');
+  check('a rich entry does offer one', !full.hidden);
+  check('it holds the meanings the prompt had no room for',
+        full.querySelectorAll('#rv-full-body li').length === 1
+        && /art of planning/.test(full.querySelector('#rv-full-body li').textContent),
+        full.querySelector('#rv-full-body li')?.textContent);
+  check('the first sense is not repeated in it',
+        !/detailed plan/.test(document.getElementById('rv-full-body').textContent));
+  check('and the synonyms, as chips',
+        full.querySelectorAll('#rv-full-body .tag').length === 2);
+  check('an empty group is not given a heading',
+        !/Opposites/.test(document.getElementById('rv-full-body').textContent));
+  // Remembered across cards: renderCard rebuilds on every grade.
+  full.open = true;
+  full.dispatchEvent(new Event('toggle'));
+  renderCard();
+  check('the drawer stays open on the next render', document.getElementById('rv-full').open);
+
+  /* ---- Skip: out of the rotation, still in the collection ---- */
+  startReview(null);
+  renderCard();
+  const before = queue.length;
+  const skipped = queue[0].word;
+  await skipCard();
+  check('skipping takes the card out of the queue',
+        queue.length === before - 1 && !queue.some((e) => e.word === skipped),
+        `${before} -> ${queue.length}`);
+  check('and records it', STORE.words[skipped].skipped === true);
+  check('and it is not counted as due any more',
+        !dueCount(Object.values(STORE.words).filter((e) => e.word === skipped)));
+  check('nor as a new card',
+        !newCards(Object.values(STORE.words).filter((e) => e.word === skipped)).length);
+  startReview(null);
+  check('a fresh session never offers it again',
+        !queue.some((e) => e.word === skipped));
+  check('but the word is still in the collection', !!STORE.words[skipped]);
+
+  // Un-skipping is the only way back, and it lives on the word card.
+  await refresh();
+  const backTag = [...document.querySelectorAll('#w-cards .tag.clickable')]
+    .find((t) => t.textContent.startsWith('Skipped'));
+  check('All words offers the way back', !!backTag);
+  backTag?.click();
+  await new Promise((r) => setTimeout(r, 30));
+  check('clicking it puts the word back in the rotation',
+        STORE.words[skipped].skipped === false);
+  startReview(null);
+  check('and the next session asks about it again',
+        queue.some((e) => e.word === skipped));
 
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
