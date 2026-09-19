@@ -428,6 +428,31 @@ const VT = {
       .map(({ folder, reason }) => ({ folder, reason }));
   },
 
+  // Reviews per day for the next `days` days, split into words met for the
+  // first time and words coming back. Each word is played forward through
+  // the scheduler as if every answer were Good, so a word seen on day 2 is
+  // counted again when it returns on day 4 — counting only the next due date
+  // undercounts. Anything overdue lands on today. `start` is local midnight.
+  // ponytail: all-Good is the optimistic case; lapses add a little on top.
+  forecast(entries, start, days = 14) {
+    const DAY = 24 * 60 * 60 * 1000;
+    const out = Array.from({ length: days }, () => ({ fresh: 0, review: 0 }));
+    const end = start + days * DAY;
+    for (const entry of entries) {
+      if (!VT.isLearnable(entry)) continue;
+      let card = entry;
+      // A cap, not a real bound: intervals are at least a day.
+      for (let step = 0; step < days && card.due < end; step++) {
+        const at = Math.max(card.due, start);
+        const day = Math.floor((at - start) / DAY);
+        const isNew = !card.reps && !card.interval;
+        out[day][isNew ? 'fresh' : 'review']++;
+        card = { ...card, ...VT.schedule(card, 4, at) };
+      }
+    }
+    return out;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

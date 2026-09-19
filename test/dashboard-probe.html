@@ -821,6 +821,16 @@ ready.then(() => setTimeout(async () => {
         document.getElementById('rv-ring-way').getAttribute('stroke-dasharray') !== '0 100',
         document.getElementById('rv-ring-way').getAttribute('stroke-dasharray'));
 
+  /* ---- statistics: the review forecast ---- */
+  renderStats(Object.values(words));
+  check('the forecast says the daily load and the busiest day',
+        /^About \d+ a day · busiest .+ with \d+ \(\d+ new\) · if every answer is Good$/
+          .test(document.getElementById('st-due-sum').textContent),
+        document.getElementById('st-due-sum').textContent);
+  check('the forecast bars say reviews and new apart',
+        /: \d+ reviews? \+ \d+ new$/.test(document.querySelector('#st-due i').title),
+        document.querySelector('#st-due i').title);
+
   /* ---- overview: progress, pins, suggestions ---- */
   showView('overview');
   await refresh();

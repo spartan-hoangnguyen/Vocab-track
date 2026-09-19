@@ -1347,7 +1347,14 @@ function plotSeries(node, series, caption) {
     const bar = document.createElement('i');
     bar.style.height = `${(point.n / max) * 100}%`;
     if (!point.n) bar.className = 'none';
-    bar.title = `${point.label}: ${point.n}`;
+    bar.title = point.title ?? `${point.label}: ${point.n}`;
+    // An optional share of the bar drawn lighter, on top (new words in the
+    // review forecast).
+    if (point.part) {
+      const part = document.createElement('b');
+      part.style.height = `${(point.part / point.n) * 100}%`;
+      bar.appendChild(part);
+    }
     col.appendChild(bar);
     if (caption) {
       const cap = document.createElement('u');
@@ -1376,19 +1383,23 @@ function renderStats(all) {
   const from = new Date(); from.setDate(from.getDate() - 29);
   $('st-added-from').textContent = from.toLocaleDateString();
 
-  // review load, next 14 days — everything already overdue lands on today
-  const dueSeries = [];
+  // review load, next 14 days: FSRS played forward, new words shown lighter
   const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-  for (let i = 0; i < 14; i++) {
-    const from = startOfToday.getTime() + i * 86400000;
-    const to = from + 86400000;
-    const n = all.filter((e) => VT.isLearnable(e)
-      && (i === 0 ? e.due < to : e.due >= from && e.due < to)).length;
-    dueSeries.push({ label: new Date(from).toLocaleDateString(), n });
-  }
+  const load = VT.forecast(all, startOfToday.getTime());
+  const dueSeries = load.map(({ fresh, review }, i) => {
+    const label = new Date(startOfToday.getTime() + i * 86400000).toLocaleDateString();
+    return { label, n: fresh + review, part: fresh,
+             title: `${label}: ${review} review${review === 1 ? '' : 's'} + ${fresh} new` };
+  });
   plotSeries($('st-due'), dueSeries, false);
   const to = new Date(); to.setDate(to.getDate() + 13);
   $('st-due-to').textContent = to.toLocaleDateString();
+  const total = dueSeries.reduce((sum, d) => sum + d.n, 0);
+  const peak = dueSeries.reduce((a, d) => (d.n > a.n ? d : a), dueSeries[0]);
+  $('st-due-sum').textContent = total
+    ? `About ${Math.round(total / dueSeries.length)} a day · busiest ${peak.label} with ${peak.n} ` +
+      `(${peak.part} new) · if every answer is Good`
+    : 'Nothing due in the next two weeks.';
 
   // levels
   const levelSeries = [...LEVELS, DASH].map((l) => ({

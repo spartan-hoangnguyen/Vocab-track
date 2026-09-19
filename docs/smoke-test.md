@@ -403,6 +403,10 @@ not apply either to a tab that was already open.
 78. **Mastery preview.** On the review's Mastery card, the faint arc grows as
     words get longer intervals, before anything is mastered. Once a word is one
     Good away from mastery, the line under the ring says how many and when.
+79. **Review forecast.** Statistics → Review load: each bar is one day, with
+    the lighter top being new words. Hover a bar: `N reviews + N new`. Under
+    the chart: the average a day and the busiest day. Learn 20 new words, come
+    back: the next two weeks grow, including days 2 and ~13 after today.
 
 ## If something fails
 

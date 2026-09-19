@@ -247,6 +247,23 @@ async function parserTests() {
     eq('dayKey is the local date', VT.dayKey(new Date(2026, 0, 5, 23, 59).getTime()), '2026-01-05');
   }
 
+  // --- forecast: every return inside the window counts, not just the next one
+  {
+    const D = 24 * 60 * 60 * 1000;
+    const load = VT.forecast([
+      { word: 'n', reps: 0, interval: 0, due: -3 * D },   // new and overdue: today
+      { word: 'r', reps: 3, interval: 10, stability: 10, difficulty: 5, lastReview: -5 * D, due: 5 * D },
+      { word: 's', reps: 0, interval: 0, due: 0, skipped: true }
+    ], 0, 14);
+    eq('forecast: 14 days', load.length, 14);
+    eq('forecast: an overdue new word is today, as new', JSON.stringify(load[0]), '{"fresh":1,"review":0}');
+    eq('forecast: a new word Good today returns on day 2, then day 13',
+       [2, 13].map((d) => load[d].review).join(), '1,1');
+    eq('forecast: a review lands on its due day', load[5].review, 1);
+    eq('forecast: skipped words are left out, and nothing else is counted',
+       load.reduce((n, d) => n + d.fresh + d.review, 0), 4);
+  }
+
   // --- newEntry
   const entry = VT.newEntry('resilient', { level: 'C2', ipa: 'x', def: 'y', audio: null },
                             'kiên cường', 'https://example.com/a');
