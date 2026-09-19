@@ -9,7 +9,7 @@ PRACTICE.register('quiz', {
   icon: '✓',
   color: 'amber',
   why: 'Needs four words with a meaning',
-  eligible: (entry, pool) => !!VT.quizOptions(entry, pool),
+  eligible: (entry, pool) => !!VT.glossOf(entry) && distinctGlosses(pool) >= 4,
   ask(entry, host, ctx) {
     const { node } = ctx;
     const options = VT.quizOptions(entry, ctx.pool);
@@ -154,3 +154,23 @@ PRACTICE.register('quiz', {
     }
   }
 });
+
+// Eligibility runs for every word in scope on every render — and Mix asks it
+// again — so it must not build the question. quizOptions shuffles the whole
+// pool per call, which made the grid O(n²): ten seconds a render at 3,000
+// words. What quizOptions actually needs is three glosses other than this
+// word's own, and four distinct glosses in the pool guarantee that for any
+// word. Counted once per pool array, since one render passes the same array
+// to every mode.
+const glossCounts = new WeakMap();
+function distinctGlosses(pool) {
+  if (!glossCounts.has(pool)) {
+    const seen = new Set();
+    for (const entry of pool) {
+      const gloss = VT.glossOf(entry);
+      if (gloss) seen.add(gloss.trim().toLowerCase());
+    }
+    glossCounts.set(pool, seen.size);
+  }
+  return glossCounts.get(pool);
+}

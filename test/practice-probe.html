@@ -145,6 +145,17 @@ ready.then(() => setTimeout(async () => {
   check('the grid starts below the review card',
         document.getElementById('pr-grid').getBoundingClientRect().top > card.bottom);
 
+  /* ---- drawing the grid never builds a question ----
+     Eligibility runs for every word on every render, and Mix repeats it.
+     Calling quizOptions there (a full pool shuffle per word) made the grid
+     O(n²): ten seconds a render at 3,000 words, felt as lag everywhere. */
+  const realOptions = VT.quizOptions;
+  let built = 0;
+  VT.quizOptions = (...a) => { built++; return realOptions(...a); };
+  PRACTICE.renderGrid(document.createElement('div'), practicePool(Object.values(words)), {});
+  VT.quizOptions = realOptions;
+  check('rendering the grid builds no quiz question', built === 0, `${built} calls`);
+
   /* ---- a scope with too few words greys the card with the reason ---- */
   const tiny = Object.values(STORE.words).slice(0, 2);
   const host = document.createElement('div');
