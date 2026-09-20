@@ -920,14 +920,158 @@ ready.then(() => setTimeout(async () => {
   check('and the words view is back to the English set',
         document.getElementById('ov-total').textContent === String(Object.keys(savedWords).length),
         document.getElementById('ov-total').textContent);
-  // The queue is module state no render() reaches, so setLang has to rebuild it
-  // itself — otherwise the Korean card stays on screen under an EN toggle.
+  // The queue is module state no render() reaches, so the refresh behind the
+  // toggle has to rebuild it — otherwise the Korean card stays on screen under
+  // an EN toggle.
   check('and the session queue holds no Korean card',
         queue.every((e) => LANG.of(e).id === 'en'),
         queue.map((e) => e.word).join());
 
+  /* ---- the language moving by any path but the toggle ----
+     setLang() is not the only writer of the key: lookupNew() follows a word into
+     its own language, and a second dashboard tab reaches this one through
+     storage.onChanged. Both used to call only refresh(), which never touched the
+     queue — so the toggle read 한 while the card and the rest of the session
+     were still English, which is the IME switch mid-session the filter exists to
+     prevent. */
+  check('the EN session has English cards in flight to go stale',
+        queue.length > 0 && queue.every((e) => LANG.of(e).id === 'en'), String(queue.length));
+  STORE.lang = 'ko';
+  for (const f of listeners) f({ lang: { newValue: 'ko', oldValue: 'en' } }, 'local');
+  await tick();
+  check('a language change from another tab rebuilds the session queue',
+        queue.length > 0 && queue.every((e) => LANG.of(e).id === 'ko'),
+        queue.map((e) => e.word).join());
+  check('so the card on screen is in the language the toggle now reads',
+        segBtn('ko').getAttribute('aria-pressed') === 'true'
+        && LANG.of(queue[0]).id === activeLang,
+        document.getElementById('rv-input').placeholder);
+
+  // One change, two refreshes: setLang()'s own, and the one the onChanged
+  // listener runs for the write setLang() just made. Rebuilding on both would
+  // throw away a session that the first pass had already made correct.
+  const realStart = startReview;
+  let rebuilds = 0;
+  window.startReview = (...args) => { rebuilds++; return realStart(...args); };
+  await setLang('en');
+  for (const f of listeners) f({ lang: { newValue: 'en', oldValue: 'ko' } }, 'local');
+  await tick();
+  window.startReview = realStart;
+  check('two refreshes for one language change rebuild the queue once, not twice',
+        rebuilds === 1, String(rebuilds));
+  check('and it is the language just switched to that is queued',
+        queue.length > 0 && queue.every((e) => LANG.of(e).id === 'en'), String(queue.length));
+
   STORE.words = savedWords;
   delete STORE.lang;
+
+  /* ---- the folder GRID is language-scoped, not just the counts on it ------
+     The reported bug: a Korean session showed IELTS C1, IELTS C2, Phrasal A1
+     and Phrasal A2 as empty cards, because render() filtered `words` by the
+     active language and then built the grid from every folder in storage.
+     Two of the three folders below carry no `lang` at all, which is the case
+     that matters — `lang` is new and nobody's stored folders get migrated, so
+     an old folder has to be placed by the words inside it. */
+  const savedFolders = STORE.folders;
+  STORE.folders = {
+    ...STORE.folders,
+    'ielts-c1': { id: 'ielts-c1', name: 'IELTS C1', auto: false, added: 1 },
+    'ko-topik': { id: 'ko-topik', name: '초급', auto: false, added: 1 },
+    'ko-named': { id: 'ko-named', name: '내 단어', auto: false, added: 1, lang: 'ko' }
+  };
+  STORE.words = {
+    ...savedWords,
+    gridEn: mk('gridEn', { folders: ['ielts-c1'] }),
+    '신문': mk('신문', { lang: 'ko', folders: ['ko-topik'] })
+  };
+  showView('overview');
+  await refresh();
+  const gridIds = () => [...document.querySelectorAll('#ov-folders .f[data-folder]')]
+    .map((el) => el.dataset.folder);
+  check('an English session shows a folder whose words are English',
+        gridIds().includes('ielts-c1'), gridIds().join());
+  check('and hides a Korean folder that named its own language',
+        !gridIds().includes('ko-named'), gridIds().join());
+  await setLang('ko');
+  check('flipping to Korean takes the English list folder off the grid',
+        !gridIds().includes('ielts-c1'), gridIds().join());
+  check('and keeps the Korean one, placed by the words in it',
+        gridIds().includes('ko-topik'), gridIds().join());
+  check('a folder that names its own language needs no words to be placed',
+        gridIds().includes('ko-named'), gridIds().join());
+  check('From reading is nobody\'s language and stays in both',
+        gridIds().includes(VT.READING), gridIds().join());
+  check('and the subtitle counts the folders on screen, not the ones in storage',
+        document.getElementById('ov-sub').textContent.includes(`${gridIds().length} folder`),
+        document.getElementById('ov-sub').textContent);
+  await setLang('en');
+  check('flipping back brings the English folder home',
+        gridIds().includes('ielts-c1'), gridIds().join());
+
+  /* The words view is one level down and has the same problem: its scope is a
+     folder id, and the language moving under it would leave an English
+     folder's name sitting over an empty list. */
+  openFolder('ielts-c1');
+  check('opening an English folder puts its name on the words view',
+        document.getElementById('w-title').textContent === 'IELTS C1',
+        document.getElementById('w-title').textContent);
+  await setLang('ko');
+  check('flipping language drops a folder scope this language cannot show',
+        document.getElementById('w-title').textContent === 'All words',
+        document.getElementById('w-title').textContent);
+  await setLang('en');
+  openFolder(VT.READING);
+  await setLang('ko');
+  check('but From reading is every language\'s and survives the flip',
+        document.getElementById('w-title').textContent === 'From reading',
+        document.getElementById('w-title').textContent);
+  await setLang('en');
+  openFolder(null);
+
+  /* The tag picker is the other place a folder SET is rendered, and it is
+     scoped to the card's language rather than the session's — a Korean card
+     is reachable from an English session. Offering IELTS C1 for 신문 is worse
+     than noise: filing it there would make that folder hold both languages,
+     which reads as everyone's, and IELTS C1 would sit in the Korean overview
+     from then on. */
+  tagging = 'gridEn';
+  const offered = () => tagOptions().map((t) => t.name);
+  check('an English card is offered the English folder',
+        offered().includes('IELTS C1'), offered().join());
+  tagging = '신문';
+  check('a Korean card is not',
+        !offered().includes('IELTS C1'), offered().join());
+  check('but it is offered the Korean one',
+        offered().includes('초급'), offered().join());
+  check('and the presets, which belong to no language yet',
+        offered().includes(VT.TOPICS[0].name), offered().join());
+  tagging = null;
+
+  STORE.folders = savedFolders;
+  STORE.words = savedWords;
+  delete STORE.lang;
+  await refresh();
+
+  /* ---- "Learn N more" counts the cards that button is about to queue ----
+     It reads the same inScope() startReview() queues from, so the other
+     language's new words and the skipped ones are out of both. Pinned as
+     agreement rather than as a bare number: the button's only job is to start
+     the session it names, and a count that disagrees with it is the lie. */
+  STORE.words.mix1 = mk('mix1', { folders: ['mixed'], due: Date.now() + 1e9 });
+  STORE.words.mix2 = mk('mix2', { folders: ['mixed'], due: Date.now() + 1e9 });
+  STORE.words.mix3 = mk('mix3', { folders: ['mixed'], due: Date.now() + 1e9, skipped: true });
+  STORE.words['한글'] = mk('한글', { lang: 'ko', folders: ['mixed'], due: Date.now() + 1e9 });
+  await refresh();
+  queue = [];
+  reviewScope = 'mixed';
+  renderCard();
+  const rvMore = document.getElementById('rv-more');
+  check('“Learn N more” counts neither the other language nor a skipped word',
+        rvMore.textContent === 'Learn 2 more', rvMore.textContent);
+  rvMore.click();
+  check('and the session it starts is exactly the cards it counted',
+        queue.length === 2 && queue.every((e) => LANG.of(e).id === 'en' && !e.skipped),
+        queue.map((e) => e.word).join());
 
   /* ---- overview: progress, pins, suggestions ---- */
   showView('overview');

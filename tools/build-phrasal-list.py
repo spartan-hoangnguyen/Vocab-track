@@ -61,8 +61,9 @@ def crawl(words):
     print(f'{len(words)} phrasal verbs, {len(done)} cached, {len(todo)} to fetch', flush=True)
     if not todo:
         return
-    shutil.copy(REPO / 'lib.js', WORK / 'lib.js')
-    shutil.copy(HERE / 'ielts-parse.html', WORK / 'ielts-parse.html')
+    # ielts.stage, not a local copy of it: staging the parse page's scripts by
+    # hand here is what left lang/ behind when the packs were extracted.
+    ielts.stage(WORK)
     pages = WORK / 'pages'
     httpd = ielts.serve(WORK)
     try:

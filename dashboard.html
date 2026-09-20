@@ -152,10 +152,13 @@
 
       <form class="rvtype" id="rv-type" autocomplete="off">
         <!-- The placeholder here is the pre-render default only: renderCard
-             writes the card's own language into it (dashboard.js:969), which is
-             what makes it right on a Korean card. -->
+             writes the card's own language into it (dashboard.js:1016), which is
+             what makes it right on a Korean card. It says "the word" rather
+             than "the English word" because this markup is what shows for the
+             one frame before the first render, and naming a language there was
+             wrong half the time. -->
         <input id="rv-input" type="text" autocapitalize="off" autocorrect="off"
-               spellcheck="false" placeholder="type the English word">
+               spellcheck="false" placeholder="type the word">
         <button class="btn" type="submit">Check <kbd>enter</kbd></button>
       </form>
       <p class="rvtip" id="rv-tip">leave it blank and press <kbd>enter</kbd> if you don't know</p>

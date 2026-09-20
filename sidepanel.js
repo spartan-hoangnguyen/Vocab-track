@@ -57,11 +57,25 @@ function renderEntry(entry, failed) {
 function renderProns(entry) {
   const box = $('entry-prons');
   box.replaceChildren();
+  // The pack names the accents; this file used to hardcode UK and US, which
+  // put a Cambridge accent on a Korean word — 책 rendered a row labelled "UK"
+  // reading "—", and the screen reader said "Pronounce 책 (UK)".
+  //
+  // entry.ipa/audio is the FIRST voice and ipaUs/audioUs the SECOND: that is
+  // what those two field names have always meant, so the pairing is positional
+  // rather than a new per-voice schema on the entry. A one-voice pack reads
+  // the first pair and ignores the second, which for Korean is null anyway.
+  // register() guarantees every pack at least one voice (lang/lang.js:34), so
+  // voices[0] is always there.
+  const pairs = [[entry.ipa, entry.audio], [entry.ipaUs, entry.audioUs]];
+  const all = LANG.of(entry).voices
+    .map((voice, i) => [voice.label, ...(pairs[i] ?? [null, null])]);
   // Both accents when Cambridge has both; the play button always works, since
-  // pronounce() falls back to speech synthesis when there is no mp3.
-  const rows = [['UK', entry.ipa, entry.audio], ['US', entry.ipaUs, entry.audioUs]]
-    .filter(([, ipa, audio]) => ipa || audio);
-  if (!rows.length) rows.push(['UK', null, null]);
+  // pronounce() falls back to speech synthesis when there is no mp3 — which is
+  // why an entry with no pronunciation at all still keeps one row rather than
+  // losing the only way to hear it. For Korean that row is the whole feature.
+  const rows = all.filter(([, ipa, audio]) => ipa || audio);
+  if (!rows.length) rows.push(all[0]);
   for (const [tag, ipa, audio] of rows) {
     const row = document.createElement('div');
     row.className = 'pron';
@@ -214,9 +228,20 @@ async function renderTags(word) {
   }
   box.hidden = !mine.length;
   const own = Object.values(folders).filter((f) => !f.auto);
+  // `taken` is over ALL your folders; the offered list is only this word's
+  // language. Same split as the dashboard's tag picker, and for the same
+  // reason — see tagOptions in dashboard.js. The chips above are NOT filtered:
+  // a folder the word is already in has to stay removable whatever language it
+  // reads as.
   const taken = new Set(own.map((f) => f.name.toLowerCase()));
+  const lang = LANG.of(words[word]).id;
+  const owners = {};
+  for (const entry of Object.values(words)) {
+    for (const id of VT.foldersOf(entry)) (owners[id] ??= []).push(entry);
+  }
   const names = [
-    ...own.filter((f) => !mine.includes(f.id)).map((f) => f.name),
+    ...own.filter((f) => !mine.includes(f.id) && VT.inLang(f, owners[f.id], lang))
+      .map((f) => f.name),
     ...VT.TOPICS.filter((t) => !folders[t.id] && !taken.has(t.name.toLowerCase())).map((t) => t.name)
   ];
   $('entry-tag-options').replaceChildren(...names.map((value) => Object.assign(
@@ -229,8 +254,9 @@ async function addTag() {
   if (!name || !shownWord) return;
   const word = shownWord;
   input.value = '';
-  const id = await folderForName(name);
-  await setWordFolders(word, [...VT.foldersOf((await getWords())[word]), id]);
+  const saved = (await getWords())[word];
+  const id = await folderForName(name, LANG.of(saved).id);
+  await setWordFolders(word, [...VT.foldersOf(saved), id]);
   renderTags(word);
 }
 
@@ -252,8 +278,13 @@ function renderNotFound(word) {
   // Only a word reaches here, never an entry — nothing was saved — so the pack
   // comes from the script, the same route resolveWord took to get the answer.
   const dict = LANG.dict(LANG.pick(null, word).id);
+  // The dictionary's name is an ADJECTIVE here, never the object of "in".
+  // "is not in ${name}" read as an unfinished sentence the moment the name
+  // stopped being hard-coded — "is not in Cambridge" wants "dictionary" after
+  // it, and "is not in krdict" wants nothing after it at all. Naming it before
+  // the noun reads for both, and for the no-pack fallback on its own.
   $('lookup-empty').textContent =
-    `"${word}" is not in ${dict?.name ?? 'the dictionary'}. Nothing saved.`;
+    `No ${dict?.name ?? 'dictionary'} entry for "${word}". Nothing saved.`;
 }
 
 async function lookup(pending) {

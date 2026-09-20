@@ -107,9 +107,12 @@ function pronounce(entry, accent = 'uk') {
   speak(entry.word, accent, entry.lang);
 }
 
-// `lang` is a pack id and optional in the same way `accent` is: three call
-// paths reach here with neither (practice.js:22, sidepanel.js:71,
-// sidepanel.js:403), and the script of the word itself answers for them.
+// `lang` is a pack id, and optional for a different reason than `accent` is.
+// `accent` defaults because three call paths reach pronounce() without one
+// (practice.js:22, sidepanel.js:76, sidepanel.js:412). `lang` defaults because
+// pronounce() is the only caller and always passes `entry.lang` — but the field
+// postdates most of the store, so an older entry passes `undefined`, and the
+// script of the word itself answers for those (LANG.pick, lang/lang.js).
 function speak(word, accent = 'uk', lang) {
   const voices = LANG.pick(lang, word).voices;
   // reviewPrefs.accent is ONE string across every language, so a profile that

@@ -408,6 +408,80 @@ not apply either to a tab that was already open.
     the chart: the average a day and the busiest day. Learn 20 new words, come
     back: the next two weeks grow, including days 2 and ~13 after today.
 
+## Korean: what the browser does with Hangul
+
+Two questions the automated suite cannot reach at all, because neither is about
+anything this repo computes — both are about what Chrome itself does with the
+text. `lang/ko/index.js` was written without knowing either answer.
+
+80. **Double-click segmentation.** Open a Korean article and double-click a
+    noun carrying a 조사 — `책을`, `학교에서`, `친구에게`. **Write down which
+    one Chrome selected**: the whole 어절 (`책을`) or the bare noun (`책`).
+    Chrome segments with ICU, which has a Korean dictionary in it, so either is
+    plausible, and the answer decides how much of the 조사 stripper the click
+    path exercises at all. Whichever it selects, the word saved must be `책` —
+    `lemma()` strips the particle when there is one and is the identity when
+    there is not. A key of `책을` in storage (DevTools → Application →
+    Extension storage → local) means the pack never ran on that path: either
+    `LANG.detect` did not match the script, or `resolveWord` was handed the
+    selection without `lemma()`. Then drag-select just `책` on the same page —
+    it must merge into the one entry rather than make a twin.
+
+81. **An IME Enter must not grade the card.** Start a Korean review, switch to
+    2-Set Korean, and type the answer. While the last syllable is still
+    composing — underlined, not yet committed — press Enter **once**. It must
+    commit the syllable and do nothing else: the card stays unanswered with the
+    whole word in the box, and a second Enter is what submits it. If one Enter
+    both commits and grades, the answer was checked with a jamo still pending,
+    so a correct word is marked wrong and `suggestedGrade` turns that into a 0.
+    The shape of the guard `practice-blast.js:207` carries —
+    `if (e.key !== 'Enter' || e.isComposing) return;` — is a **keydown**
+    listener, and that is the shape the fix has to take. `#rv-type` is a form
+    whose only Enter path is the `submit` handler at `dashboard.js:1245`, and a
+    `SubmitEvent` has no `isComposing` at all, so the same line copied there
+    would read `undefined` and never fire. The card needs its own keydown
+    listener on the input. Try both the macOS IME and Chrome's own; they do not
+    always agree.
+
+## Korean: the starter list, and folders that know their language
+
+The one place the language scoping can be checked against real data rather
+than a fixture. Import first; 82 is the acceptance test for the whole change.
+
+82. **A Korean import lands, and says where.** Dashboard → **Import &
+    export** → import `data/ko/starter.json` from an **English** session. The
+    note must read *Imported: 3896 new, 0 merged with existing entries. In
+    Korean — switch the language toggle to see them.* Nothing on screen changes
+    yet, and that sentence is the only reason that is not alarming: the words
+    are filed under Korean folders and the session is showing English.
+
+83. **The toggle reaches the folder grid, not just the words.** Flip to **한**.
+    *All folders* shows **초급 669**, **중급 1,395**, **고급 1,832**, plus
+    *From reading* and *Starred*. **IELTS C1, IELTS C2, Phrasal A1 and Phrasal
+    A2 must all be gone** — that is the bug this change exists for, and an
+    empty card with a `0 words` count is the old behaviour, not the new one.
+    The subtitle counts the folders you can see. Flip back to **EN**: the
+    English folders return and the three Korean ones go.
+
+84. **A card from the list.** In **한**, open 초급 and review one. The meaning
+    is a Vietnamese gloss; the level chip reads 초급, not a CEFR band; the
+    level bars on the Overview are labelled 초급/중급/고급 and have words in
+    them. The pronunciation row on the side panel says **한국어**, never UK.
+    About seven cards in ten also carry a collocation with the word blanked
+    out; the rest ask from the gloss alone.
+
+85. **A folder scope cannot outlive its language.** In **EN**, open *IELTS C1*
+    so the words view is scoped to it. Flip to **한** without leaving the view:
+    the title falls back to *All words* rather than sitting over an empty list
+    under an English folder's name. *From reading* survives the same flip — it
+    belongs to every language.
+
+86. **The tag picker offers only this card's language.** Review a Korean card,
+    press **t**. *IELTS C1* must not be in the list; 초급 must be. Do the same
+    on an English card and the offers swap. Typing an English folder's name by
+    hand still files it there — that is the deliberate way to make one folder
+    hold both, and once it does, it shows in both sessions.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

@@ -90,9 +90,12 @@ def wordlist():
     return sorted(levels.items())
 
 
-def vietnamese(word):
+def vietnamese(word, lang='en'):
+    # `lang` is the study language, matching lookup.js's fetchVietnamese: the
+    # same endpoint answers for Korean unchanged, which is what lets the TOPIK
+    # build reuse this rather than copy it.
     url = ('https://translate.googleapis.com/translate_a/single'
-           '?client=dict-chrome-ex&sl=en&tl=vi&dt=t&q=' + urllib.parse.quote(word))
+           f'?client=dict-chrome-ex&sl={lang}&tl=vi&dt=t&q=' + urllib.parse.quote(word))
     try:
         body, _ = get(url, timeout=12)
         vi = json.loads(body)[0][0][0]
@@ -164,6 +167,26 @@ def parse_batch(n):
     return json.loads(base64.b64decode(payload))
 
 
+def stage(work):
+    """Copy everything ielts-parse.html loads into `work`, next to the page.
+
+    A function rather than two copies of three lines: build-phrasal-list.py
+    serves the same page out of its own work directory, and its copy still
+    staged lib.js alone — so the parse page 404'd every lang/ script and died
+    before it could parse a thing. One staging, one place to keep in step with
+    the page's <script> tags.
+
+    The parse page calls the English pack, not lib.js, for Cambridge markup,
+    and its <script> tags load the registry and every pack, so the whole
+    lang/ tree travels with it.
+    """
+    work.mkdir(parents=True, exist_ok=True)
+    shutil.copy(REPO / 'lib.js', work / 'lib.js')
+    shutil.rmtree(work / 'lang', ignore_errors=True)
+    shutil.copytree(REPO / 'lang', work / 'lang')
+    shutil.copy(REPO / 'tools' / 'ielts-parse.html', work / 'ielts-parse.html')
+
+
 def crawl(words):
     WORK.mkdir(parents=True, exist_ok=True)
     # The cache lives in /tmp and a reboot takes it, but the generated file
@@ -185,12 +208,7 @@ def crawl(words):
     if not todo:
         return
 
-    shutil.copy(REPO / 'lib.js', WORK / 'lib.js')
-    # The parse page calls the English pack, not lib.js, for Cambridge markup,
-    # so the whole lang/ tree has to travel with it.
-    shutil.rmtree(WORK / 'lang', ignore_errors=True)
-    shutil.copytree(REPO / 'lang', WORK / 'lang')
-    shutil.copy(REPO / 'tools' / 'ielts-parse.html', WORK / 'ielts-parse.html')
+    stage(WORK)
     pages = WORK / 'pages'
     httpd = serve(WORK)
     try:

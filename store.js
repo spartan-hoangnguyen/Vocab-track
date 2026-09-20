@@ -197,15 +197,20 @@ function recordPractice(mode, word, correct) {
 // A tag name to a folder id, making the folder when the name is new. Matched
 // without case against your folders first, then the preset topics — a preset
 // keeps its fixed id — so typing a name you already have never makes a twin.
-async function folderForName(name) {
+// `lang` is the language of the word being filed, which every caller has in
+// hand — a topic invented while reading Korean is a Korean topic. Only a NEW
+// folder takes it: matching an existing one by name returns that folder
+// unchanged, so filing a Korean word under an English topic you already have
+// widens that folder to both rather than retagging it.
+async function folderForName(name, lang = null) {
   const key = String(name).trim().toLowerCase();
   const own = Object.values(await getFolders())
     .find((f) => !f.auto && f.name.toLowerCase() === key);
   if (own) return own.id;
   const topic = VT.TOPICS.find((t) => t.name.toLowerCase() === key);
   const folder = topic
-    ? { ...VT.newFolder(topic.name, { icon: topic.icon }), id: topic.id }
-    : VT.newFolder(name);
+    ? { ...VT.newFolder(topic.name, { icon: topic.icon, lang }), id: topic.id }
+    : VT.newFolder(name, { lang });
   await putFolder(folder);
   return folder.id;
 }

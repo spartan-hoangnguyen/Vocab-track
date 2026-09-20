@@ -14,6 +14,10 @@ let activeFolder = null;   // null = all words
 // LANG.get(activeLang) locally rather than closing over a scale that was right
 // when the file loaded.
 let activeLang = LANG.FALLBACK;
+// The language `queue` below was built from. Declared up here beside the value
+// it is compared against rather than beside the queue itself, because refresh()
+// is what compares the two.
+let queueLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
 let pins = [];
 // How a review session runs. A key missing from storage is a default, not
@@ -54,7 +58,33 @@ async function refresh() {
   [words, folders, writing, practice, prefs, pins, activeLang] = await Promise.all(
     [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
      getLang()]);
+  // `queue` is the one piece of state no render() reaches — it is built once per
+  // session from the word map — so the language moving under it leaves the old
+  // language's cards on screen beneath a switched toggle. The rebuild belongs
+  // here rather than to setLang() because this is the single place that re-reads
+  // the key, so every path that writes it arrives: the toggle, lookupNew
+  // following a word into its own language, and another dashboard tab through
+  // storage.onChanged. Keyed off the queue's own language, not off a before/after
+  // pair, so the two refreshes one toggle press causes — its own and the
+  // onChanged it fires — rebuild once between them.
+  if (queueLang !== activeLang) startReview(reviewScope);
+  // And the words view's scope, for the same reason and one level down: a
+  // folder this language does not show cannot stay the thing you are looking
+  // at. Flipping to Korean while inside IELTS C1 otherwise leaves that name
+  // over an empty list. One pass over the word map, and only when there is a
+  // folder open to invalidate.
+  if (activeFolder && folders[activeFolder]
+      && !VT.inLang(folders[activeFolder], ownersOf(activeFolder), activeLang)) {
+    activeFolder = null;
+  }
   render();
+}
+
+// Every word in a folder, in every language — which is what decides whose
+// folder it is. The language-filtered list cannot answer that: it says "empty"
+// for exactly the folders the question is about.
+function ownersOf(id) {
+  return Object.values(words).filter((e) => VT.foldersOf(e).includes(id));
 }
 
 function render() {
@@ -83,6 +113,23 @@ function dueCount(entries) {
 }
 
 function renderOverview(all) {
+  // One pass over the words, not one filter per folder. Twice over, because
+  // the two maps answer different questions: `members` is what a card COUNTS,
+  // and that is this language's words only; `owners` is what decides whether
+  // the card is shown at all, and that has to see every word, or a folder the
+  // filter is already hiding would look empty and therefore universal.
+  const members = {};
+  const owners = {};
+  for (const id of Object.keys(folders)) { members[id] = []; owners[id] = []; }
+  for (const entry of all) {
+    for (const id of VT.foldersOf(entry)) members[id]?.push(entry);
+  }
+  for (const entry of Object.values(words)) {
+    for (const id of VT.foldersOf(entry)) owners[id]?.push(entry);
+  }
+  const mine = (folder) => VT.inLang(folder, owners[folder.id], activeLang);
+  const shown = Object.values(folders).filter(mine);
+
   const due = dueCount(all);
   // The active language's scale, read per render rather than closed over: the
   // toggle changes it, and `all` holds only that language's words. Passed
@@ -94,7 +141,7 @@ function renderOverview(all) {
   $('ov-median').textContent = VT.medianLevel(all, levels) ?? DASH;
   $('ov-sub').textContent =
     `${all.length} word${all.length === 1 ? '' : 's'} collected while reading · ` +
-    `${Object.keys(folders).length} folder${Object.keys(folders).length === 1 ? '' : 's'}`;
+    `${shown.length} folder${shown.length === 1 ? '' : 's'}`;
   $('review-btn').textContent = due ? `Review ${due} due` : 'Review';
 
   // One hue, not one per level: the axis already names the level, so colouring
@@ -116,14 +163,12 @@ function renderOverview(all) {
     bars.appendChild(wrap);
   }
 
-  // One pass over the words, not one filter per folder.
-  const members = {};
-  for (const id of Object.keys(folders)) members[id] = [];
-  for (const entry of all) {
-    for (const id of VT.foldersOf(entry)) members[id]?.push(entry);
-  }
-  const live = pins.filter((id) => folders[id]);
+  const live = pins.filter((id) => folders[id] && mine(folders[id]));
   fillGrid('ov-pinned', live.map((id) => folderCard(folders[id], members[id])));
+  // suggestFolders needs no language filter of its own: it drops anything that
+  // scores zero (lib.js:391), and a folder with no words in this language has
+  // nothing due, nothing missed and nothing learning. A second guard here
+  // would only restate the first.
   const suggested = VT.suggestFolders(
     Object.values(folders).map((folder) => ({ folder, members: members[folder.id] })),
     Date.now(), practice.misses, live);
@@ -131,7 +176,7 @@ function renderOverview(all) {
     suggested.map(({ folder, reason }) => folderCard(folder, members[folder.id], reason)));
 
   const grid = $('ov-folders');
-  grid.replaceChildren(...Object.values(folders)
+  grid.replaceChildren(...shown
     .filter((folder) => !live.includes(folder.id))
     .map((folder) => folderCard(folder, members[folder.id])));
 
@@ -454,12 +499,28 @@ function openTagPicker(entry) {
 
 // Your own folders first, then the preset topics you have not used yet. A
 // preset stops being a suggestion the moment it becomes a folder.
+//
+// Scoped to the language of the word being tagged, not to activeLang: the
+// picker opens on a card, and a card can be Korean inside an English session.
+// Offering IELTS C1 for 책 is not just noise — filing it there would put an
+// English list folder into the Korean overview permanently, because a folder
+// holding both languages reads as everyone's (VT.folderLang). Deliberately
+// mixing one is still possible, by typing the folder's name: folderForName
+// matches on name and hands back the folder you meant.
 function tagOptions() {
+  const lang = LANG.of(words[tagging]).id;
+  const owners = {};
+  for (const entry of Object.values(words)) {
+    for (const id of VT.foldersOf(entry)) (owners[id] ??= []).push(entry);
+  }
   const own = Object.values(folders).filter((f) => !f.auto);
+  // `taken` stays over ALL your folders, not the shown ones: a preset whose
+  // name you already used in the other language must not be offered again, or
+  // accepting it makes a second folder with the same name under a new id.
   const taken = new Set(own.map((f) => f.name.toLowerCase()));
   const suggested = VT.TOPICS.filter((t) => !folders[t.id] && !taken.has(t.name.toLowerCase()))
     .map((t) => ({ ...t, suggested: true }));
-  return [...own, ...suggested];
+  return [...own.filter((f) => VT.inLang(f, owners[f.id], lang)), ...suggested];
 }
 
 function renderTags() {
@@ -499,7 +560,11 @@ async function fileWord(word, id, on) {
 }
 
 async function toggleTag(tag, on) {
-  const id = tag.suggested ? await folderForName(tag.name) : tag.id;
+  // The word's own language, not activeLang: the card being tagged can be a
+  // Korean one reached from an English session.
+  const id = tag.suggested
+    ? await folderForName(tag.name, LANG.of(words[tagging]).id)
+    : tag.id;
   await fileWord(tagging, id, on);
   folders = await getFolders();
   renderTags();
@@ -511,7 +576,7 @@ async function toggleTag(tag, on) {
 async function createTag() {
   const name = $('tag-q').value.trim();
   if (!name) return;
-  const id = await folderForName(name);
+  const id = await folderForName(name, LANG.of(words[tagging]).id);
   $('tag-q').value = '';
   await toggleTag({ id }, true);
 }
@@ -550,7 +615,9 @@ async function lookupNew(word, button) {
   const { entry, notFound } = await resolveWord(word, null, activeFolder ? [activeFolder] : []);
   if (notFound) {
     const dict = LANG.dict(LANG.pick(null, word).id);
-    button.textContent = `“${word}” is not in ${dict?.name ?? 'the dictionary'}`;
+    // Same shape as the panel's (sidepanel.js:256), and for the same reason:
+    // the name reads as an adjective, never as the object of "in".
+    button.textContent = `No ${dict?.name ?? 'dictionary'} entry for “${word}”`;
     return;
   }
   // Follow the word. The CTA above dispatches on the term's script, so typing 책
@@ -608,7 +675,11 @@ $('folder-dlg').addEventListener('close', async () => {
   const name = $('dlg-name').value.trim();
   if (!name) return;
   const patch = { name, desc: $('dlg-desc').value.trim(), color: $('dlg-color').value };
-  await putFolder(editing ? { ...editing, ...patch } : { ...VT.newFolder(name), ...patch });
+  // A new folder belongs to the session it was made in. An edit leaves `lang`
+  // alone — renaming an English folder while reading Korean must not move it.
+  await putFolder(editing
+    ? { ...editing, ...patch }
+    : { ...VT.newFolder(name, { lang: activeLang }), ...patch });
   editing = null;
   await refresh();
 });
@@ -663,7 +734,18 @@ $('import-file').addEventListener('change', async (event) => {
     for (const folder of Object.values(data.folders ?? {})) {
       if (folder.id !== VT.READING && folder.id !== VT.STARRED) await putFolder(folder);
     }
-    note.textContent = `Imported: ${added} new, ${merged} merged with existing entries.`;
+    // Name the language when the file lands somewhere this session is not
+    // looking. Folders are language-scoped now, so importing the Korean list
+    // from an English session puts 3,900 words and three folders on screen
+    // nowhere at all — and an import that appears to do nothing reads as an
+    // import that failed.
+    const elsewhere = [...new Set(Object.values(data.words).map((e) => LANG.of(e).id))]
+      .filter((id) => id !== activeLang)
+      .map((id) => LANG.get(id)?.name ?? id);
+    note.textContent = `Imported: ${added} new, ${merged} merged with existing entries.`
+      + (elsewhere.length
+        ? ` In ${elsewhere.join(' and ')} — switch the language toggle to see them.`
+        : '');
     await refresh();
   } catch (err) {
     console.error('[vocab-track] import failed', err);
@@ -743,13 +825,10 @@ function renderLang() {
 async function setLang(id) {
   if (id === activeLang) return;
   await chrome.storage.local.set({ lang: id });
-  // Set before the queue is rebuilt, not left to refresh(): inScope reads this,
-  // so queueing first would fill the session with the language being left.
-  activeLang = id;
-  // The queue is module state built once per session — no re-render reaches it,
-  // so without this the old language's cards stay on screen under a switched
-  // toggle. Same folder scope: the toggle changes the language, not the set.
-  startReview(reviewScope);
+  // Writing the key is the whole change: refresh() re-reads it, and rebuilds the
+  // session from the new language because it can see the queue no longer matches.
+  // The toggle was never the only way the key moves, so it is not the place that
+  // knows the session is stale.
   await refresh();
   // A click in the top bar takes focus off the typing box mid-review, which is
   // the problem the theme button already solves this way.
@@ -896,6 +975,9 @@ function newCards(entries) {
 
 function startReview(folderId, { ahead = false } = {}) {
   reviewScope = folderId;
+  // Recorded, not assumed: this is what lets refresh() tell a queue that has
+  // gone stale from one that was just rebuilt for the same change.
+  queueLang = activeLang;
   const now = Date.now();
   // isLearnable first, so a skipped word cannot be reached even by a
   // folder-scoped session or by the ahead-of-schedule new queue below.

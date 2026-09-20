@@ -111,7 +111,13 @@ window.chrome = {
 };
 // Nothing in a headless probe should make a sound or wait on one.
 window.Audio = class { play() { return Promise.resolve(); } };
-window.speechSynthesis = { speak() {}, cancel() {} };
+// getVoices is in the stub because Listening now asks it whether a card can be
+// played at all, and headless Chrome reports no voices whatsoever. This is a
+// machine with both languages installed, so the rows below measure eligibility
+// rather than this page's furniture; the no-voice machine is stubbed inside
+// listening's selfTest, which puts this back after each case.
+window.speechSynthesis = { speak() {}, cancel() {},
+  getVoices: () => [{ lang: 'en-GB' }, { lang: 'en-US' }, { lang: 'ko-KR' }] };
 </script>
 
 <script>
@@ -172,6 +178,14 @@ ready.then(() => setTimeout(async () => {
         listening.eligible({ word: '책', lang: 'ko' }));
   check('a bare initial is not a word to dictate',
         !listening.eligible({ word: 'a b', lang: 'en' }));
+  // The hyphen is INSIDE the word, and en's isCandidate already allows it.
+  // Splitting the word on it applied the two-letter minimum to each half and
+  // dropped every one of these out of Listening without a word said.
+  check('a hyphenated word with a one-letter part is still a word',
+        ['x-ray', 'e-mail', 't-shirt', 'u-turn', 'a-list']
+          .every((w) => listening.eligible({ word: w, lang: 'en' })),
+        ['x-ray', 'e-mail', 't-shirt', 'u-turn', 'a-list']
+          .filter((w) => !listening.eligible({ word: w, lang: 'en' })).join());
 
   // The pack is what carries the forms and the matching, so a word passed with
   // one explicitly is graded by that language's rules — the seam practice-speak

@@ -397,6 +397,44 @@ async function parserTests() {
   check('newFolder id is generated, not derived', folder.id.startsWith('f_') && folder.id.length > 2);
   check('newFolder ids are unique', VT.newFolder('a').id !== VT.newFolder('a').id);
   eq('newFolder is not auto', folder.auto, false);
+  eq('newFolder has no language unless it is given one', folder.lang, null);
+  eq('newFolder keeps the language it is given',
+     VT.newFolder('\ud559\uc2b5', { lang: 'ko' }).lang, 'ko');
+
+  /* --- which session a folder belongs in ---------------------------------
+     The bug this pins: the dashboard filtered WORDS by the active language and
+     never the folder list, so a Korean session showed IELTS C1 and Phrasal A1
+     as empty cards. `lang` is new, so every folder already in storage has to
+     be placed by inference rather than by a migration — same contract LANG.of
+     gives a word that predates entry.lang. */
+  const enWord = { word: 'strategy' };
+  const koWord = { word: '\ucc45', lang: 'ko' };
+  const plain = VT.newFolder('IELTS C1');
+  eq('a folder with no lang is placed by the words in it',
+     VT.folderLang(plain, [enWord, enWord]), 'en');
+  eq('and by their script, not by a stored field',
+     VT.folderLang(plain, [koWord, koWord]), 'ko');
+  eq('what the words say beats the lang it was stamped with',
+     VT.folderLang(VT.newFolder('x', { lang: 'ko' }), [enWord, enWord]), 'en');
+  eq('the stamp answers while there is nothing in it to read',
+     VT.folderLang(VT.newFolder('x', { lang: 'ko' }), []), 'ko');
+  // folderForName reuses a folder by NAME across languages: a preset topic
+  // stamped 'ko' that later takes an English word must become everyone's, not
+  // stay Korean with an English word stranded inside it.
+  eq('and stops answering once a second language is in the folder',
+     VT.folderLang(VT.newFolder('x', { lang: 'ko' }), [enWord, koWord]), null);
+  eq('an empty folder belongs to everyone, so a new one cannot vanish',
+     VT.folderLang(plain, []), null);
+  eq('and so does a folder holding both languages',
+     VT.folderLang(plain, [enWord, koWord]), null);
+  eq('From reading collects in every language',
+     VT.folderLang({ id: VT.READING, auto: true }, [enWord, enWord]), null);
+
+  check('an English folder is hidden from a Korean session',
+        !VT.inLang(plain, [enWord, enWord], 'ko'));
+  check('and shown in an English one', VT.inLang(plain, [enWord, enWord], 'en'));
+  check('a universal folder is shown in both',
+        VT.inLang(plain, [], 'ko') && VT.inLang(plain, [], 'en'));
 
   // --- preset topics: fixed ids, so picking one twice is one folder
   const topicIds = VT.TOPICS.map((t) => t.id);
@@ -670,6 +708,23 @@ async function parserTests() {
   const longCap = VT.captureWord('resilient ' + 'padding '.repeat(200)).context;
   check('a very long selection is capped', longCap.length <= VT.MAX_CONTEXT + 1, String(longCap.length));
   check('and marked as truncated', longCap.endsWith('…'));
+
+  // --- the NFD path. A Quick Action capture of a Korean sentence arrives
+  // DECOMPOSED, while the word is saved composed (normaliseWord). A context
+  // left in NFD is one match() can never hit, so it would be stored and then
+  // never highlight, never blank, and never answer a Fill-the-gap card. The
+  // fold belongs where the context is BUILT, not in match(), which hands back
+  // indices into the caller's own string.
+  const nfd = '나는 책을 읽었다'.normalize('NFD');
+  eq('an NFD sentence yields a composed context',
+     VT.sentenceAround(nfd, '책'), '나는 책을 읽었다'.normalize('NFC'));
+  // The whole-selection fallback too: captureWord takes it whenever
+  // sentenceAround finds no sentence, and it does not pass through the fold.
+  const koCap = VT.captureWord(nfd);
+  check('an NFD capture is matched by its own word',
+        VT.has(koCap.word, koCap.context), `${koCap.word} / ${koCap.context}`);
+  eq('and its context is stored composed',
+     koCap.context, koCap.context.normalize('NFC'));
 
   // --- sourceLink only links things a browser can open
   eq('a mac app source is not a link', VT.sourceLink('macos:Kindle', 'a resilient b', 'resilient'), null);

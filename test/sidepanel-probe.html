@@ -245,6 +245,34 @@ ready.then(() => setTimeout(async () => {
   check('and the saved sentence marks the word behind its particle',
         $$('entry-context').querySelector('mark')?.textContent === '책을',
         $$('entry-context').textContent);
+  /* The one row this probe never checked, which is how it shipped saying "UK"
+     on a Korean word: renderProns hardcoded Cambridge's two accents instead of
+     reading the pack's voices. The row still EXISTS with nothing in it — the
+     play button is the only way to hear 책, since pronounce() falls back to
+     speech synthesis — so the fix is the label, not the row. */
+  const koTags = [...$$('entry-prons').querySelectorAll('.tag')].map((t) => t.textContent);
+  check('a Korean word gets one pronunciation row, not two accents',
+        koTags.length === 1, koTags.join(' | '));
+  check('and it is labelled by the pack, not by Cambridge',
+        koTags[0] === '한국어', koTags[0]);
+  check('the play button says the same thing to a screen reader',
+        $$('entry-prons').querySelector('button')?.getAttribute('aria-label')
+          === 'Pronounce 책 (한국어)',
+        $$('entry-prons').querySelector('button')?.getAttribute('aria-label'));
+
+  /* ---- the not-found sentence, in both dictionaries ----
+     The dictionary's name is interpolated now, so the sentence has to survive
+     every name a pack can carry. "is not in Cambridge" read as unfinished, and
+     "is not in the krdict dictionary" would read as a stutter. Pinned in full
+     because nothing else in the suite would notice the wording drifting back. */
+  renderNotFound('zzqqxwv');
+  check('an unknown English word names Cambridge and still reads as a sentence',
+        $$('lookup-empty').textContent === 'No Cambridge entry for "zzqqxwv". Nothing saved.',
+        $$('lookup-empty').textContent);
+  renderNotFound('쟄쿽');
+  check('and an unknown Korean word names krdict in the same shape',
+        $$('lookup-empty').textContent === 'No krdict entry for "쟄쿽". Nothing saved.',
+        $$('lookup-empty').textContent);
 
   $$('out').textContent = log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }, 60));

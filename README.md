@@ -1,12 +1,18 @@
 # Vocab-track
 
-A personal Chrome extension for learning English vocabulary while reading.
+A personal Chrome extension for learning vocabulary while reading. English and
+Korean.
 
 Select a word on any page, click the button that appears, and the side panel
-shows its Cambridge entry — CEFR level, UK and US pronunciation, every sense
-with its own level and example, synonyms — alongside a Vietnamese translation
-and **the sentence you met it in**. Saved words are highlighted when you
-revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
+shows what the dictionary has. For English that is the Cambridge entry — CEFR
+level, UK and US pronunciation, every sense with its own level and example,
+synonyms — alongside a Vietnamese translation and **the sentence you met it
+in**. Saved words are highlighted when you revisit the page, and reviewed as
+flashcards on a spaced-repetition schedule.
+
+Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
+highlighting and the review schedule, with no dictionary behind it yet. See
+*Languages* below, which says plainly what it does and does not do.
 
 Built for one person. No accounts, no sync, no server.
 
@@ -17,6 +23,10 @@ Built for one person. No accounts, no sync, no server.
 ## What it does
 
 - **Look up while reading.** Select a word, click 📘. No typing, no tab switch.
+- **In two languages.** English and Korean, switched in the dashboard's top
+  bar. The *lookup* needs no switch — it routes on the script of what you
+  selected — so `책을` picked out of a Korean page saves as `책` while you are
+  still in an English session, and the toggle catches up. See *Languages*.
 - **Look up while watching.** On YouTube, click a word in the subtitles. The
   video pauses, the word is saved with the line it was said in, and the source
   link takes you back to that exact second.
@@ -39,12 +49,13 @@ Built for one person. No accounts, no sync, no server.
   not normally tell you. See *Writing* below.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
-- **Review by typing.** The card shows the meaning and you type the English
-  word; Enter checks it and marks the letters you got wrong, so `pidgeon` reads
+- **Review by typing.** The card shows the meaning and you type the word back
+  — in whichever language the card is, which is what its placeholder says;
+  Enter checks it and marks the letters you got wrong, so `pidgeon` reads
   as one slip rather than as a failure. Typing already says how well you knew
   it, so Enter also takes the grade that fits — exact goes to Good, one or two
   letters out to Hard, anything else to Blank — and `1`-`4` override it.
-  SM-2 spaced repetition underneath, in the dashboard or the panel.
+  FSRS-6 spaced repetition underneath, in the dashboard or the panel.
 - **Learn a band, not just what you met.** `data/ielts-c1-c2.json` is an
   importable C1/C2 word list — the vocabulary IELTS band 7+ is made of — with
   Cambridge definitions, pronunciation and an example sentence on every card.
@@ -60,8 +71,53 @@ No build step.
 2. **Load unpacked** → select this folder
 3. Pin it. The toolbar icon toggles the side panel; the dashboard is one click
    further, from the panel's **Open dashboard →**.
+4. Open the dashboard. **EN / 한** sits in the top bar, beside Review. That is
+   the whole of the setup — there is nothing to configure per language. Korean
+   is keyless too, in the sense that it works without one; what a krdict key
+   would buy it is under *Known limits*.
 
 Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
+
+## Languages
+
+**EN / 한** in the dashboard's top bar decides which language you are studying
+*right now*. It filters the words list, the folders, the level bars, the
+statistics and the review queue, and it swaps the CEFR scale for 초급/중급/고급.
+Flip it mid-review and the session rebuilds against the other language. It is
+saved, so the dashboard opens where you left it, and it is hidden altogether
+while only one language pack is loaded.
+
+**Saving a word ignores the toggle**, on purpose. The 📘 button and the panel
+route on the script of what you selected, so a Korean word saves as Korean
+while the dashboard is showing English — and the dashboard follows it, rather
+than dropping the word into a list it is filtering out.
+
+**What Korean gives you today.** The whole review side works: highlighting,
+the sentence you met it in, the typing card, FSRS-6, folders, statistics, and
+every practice mode, plus a shipped starter list of 3,896 graded words — see
+*Word lists*. What it does not have is a dictionary. There is no krdict API
+key, so a Korean word you look up carries **a Vietnamese machine translation
+and nothing else** — no pronunciation, no definition, no senses, no audio file.
+The **krdict ↗** link on the card opens the real entry in a tab; that is the
+substitute until a key exists.
+
+**Folders belong to a language too.** The toggle filters the folder grid, not
+just the words in it, so *IELTS C1* is not sitting empty in your Korean
+overview. A folder made before folders had a language is placed by the words
+inside it, so nothing had to be migrated; a folder holding both languages is
+shown in both, which is the right answer for a topic like *Politics*.
+
+**Matching is a scan, not a pattern.** Korean is agglutinative — 책 appears on
+the page as 책을, 책이, 책에서는 — and `\b` is an ASCII boundary that never
+fires between Hangul syllables. So the pack finds occurrences rather than
+handing out a regex, and strips the 조사 off a selection before saving it: you
+click 책을, the store gets 책.
+
+The stripping is **nouns only, and it over-strips**. It is arithmetic on the
+Hangul syllable block plus a per-particle minimum length, not a dictionary, and
+the classes it gets wrong are listed under *Known limits* — they are written
+into the pack's own tests as the values it actually produces, so they are facts
+under test rather than surprises.
 
 ## Saving from outside Chrome
 
@@ -141,11 +197,11 @@ Open the folder and its header carries the way in: **Review N due** while
 there is work waiting, and **Learn 20 new** once there is not — the next twenty
 words the file has queued up, pulled forward; finish a session and the end
 screen offers the next twenty without leaving the review. The folder cards on the overview
-say the same thing. Both run the same SM-2 review as everything else.
+say the same thing. Both run the same FSRS-6 review as everything else.
 
 The cards do not all arrive at once. Twenty become due a day, C1 first, so the
 file behaves like a course rather than a wall — the last word is due in 97 days,
-and SM-2 takes over from there. Importing twice does not reset that: an existing
+and FSRS takes over from there. Importing twice does not reset that: an existing
 word is never overwritten.
 
 The countdown starts from the day the file was **built**, not the day you
@@ -190,24 +246,62 @@ exist is dropped rather than matched to a neighbour (`run out of` redirects to
 python3 tools/build-phrasal-list.py
 ```
 
-It reuses `build-ielts-list.py`'s fetching and headless-Chrome parsing, with a
-cache in `/tmp/vocab-track-phrasal`. Cambridge gives each sense of a phrasal
+It reuses `build-ielts-list.py`'s staging, fetching and headless-Chrome parsing,
+with a cache in `/tmp/vocab-track-phrasal`. Cambridge gives each sense of a phrasal
 verb its own entry block, so the parse page folds them into one, easiest band
 first — otherwise `give up` would teach "to stop guessing".
 
 A phrasal verb is a multi-word key, so it reviews like any word but is not
 highlighted on pages or offered as a lookup — those match single words only.
 
+### Korean
+
+`data/ko/starter.json` imports the same way: **3,896 words** graded into three
+folders — **초급 669, 중급 1,395, 고급 1,832** — which are the same three bands
+the level bars are drawn against. Import it from an English session and the
+note says so rather than appearing to do nothing: the words are there, behind
+the toggle.
+
+Every card carries a Vietnamese gloss, **2,825 carry a collocation** with the
+word blanked out of it, and 2,476 carry their 漢字. None carries a definition,
+IPA or audio, for the reason the *Languages* section gives: there is no krdict
+key, so a Korean card is a gloss. Twenty a day, 초급 first, so the last card is
+due in 194 days. Five of the 3,901 graded words came back with no gloss at all
+and are not in the file: a card with no meaning has nothing to ask you.
+
+**Verbs and adjectives are deliberately not in it.** The source lists them in
+dictionary form — 가다, 가깝다 — and the pack strips 조사, not verb endings, so
+a page saying 갑니다 would never match the card. 1,642 of the 5,541 graded
+words are dropped on that rule: a card that cannot highlight is the thing this
+list exists to avoid.
+
+```bash
+python3 tools/build-korean-list.py
+```
+
+Resumable, cache in `/tmp/vocab-track-korean`, and much the smaller build of
+the three: with no dictionary to scrape there is no page to parse and no
+headless Chrome in it at all — only the Vietnamese gloss, through the same
+endpoint and the same throttle the English builds use.
+
+Sources: the word list is
+[julienshim/combined_korean_vocabulary_list](https://github.com/julienshim/combined_korean_vocabulary_list)
+(MIT), which merges 국립국어원's 한국어 학습용 어휘 목록 with the public TOPIK
+어휘 목록. The grades are 국립국어원's A/B/C — the list TOPIK preparation is
+built from, though the band mapping is unofficial, which is why the folders
+carry the 초급/중급/고급 names and not TOPIK levels.
+
 ## How it is put together
 
 | File | Responsibility |
 |---|---|
-| `lib.js` | All pure logic — parser, SM-2, word matching, text fragments. No Chrome API, no network. |
+| `lib.js` | All pure logic — parser, FSRS-6, word matching, text fragments. No Chrome API, no network. |
+| `lang/` | One folder per language. `lang.js` is the registry — register, detect, pick — and `lang/<id>/index.js` is a pack: what counts as a word, how it inflects, how to find it in a page. `lang/<id>/dictionary.js` is its lookup, where it has one. |
 | `store.js` | `chrome.storage` access and the serialised write queue |
 | `lookup.js` | Cambridge + translation pipeline, pronunciation |
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
-| `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py` and `build-phrasal-list.py`, which generate the files in `data/`. |
+| `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
@@ -222,18 +316,20 @@ content script gets no bypass.
 bash test/run.sh
 ```
 
-Serves the repo, runs five pages in headless Chrome, and exits non-zero unless
+Serves the repo, runs seven pages in headless Chrome, and exits non-zero unless
 every assertion passes:
 
 | Page | Checks |
 |---|---|
-| `test.js` | Pure logic. The Cambridge parser runs against four real saved pages, including one with no CEFR level and one that is not a dictionary entry at all. |
+| `test.js` | Pure logic. The Cambridge parser runs against four real saved pages, including one with no CEFR level and one that is not a dictionary entry at all. It also runs every registered pack's own `selfTest()` by loop, so a new `lang/<id>/` is covered the moment it is loaded, with no edit here. |
 | `yt-probe.html` | That a caret still reads caption text through YouTube's `user-select:none`. |
 | `reader-probe.html` | Article extraction against a page of nav, footer and comment junk, and that the RSVP focal letter does not move. |
 | `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, and that the review card never shows the word before you commit. It loads the real `dashboard.html`, so it cannot drift from what ships. |
 | `writer-probe.html` | The textarea mirror over a content-box and a border-box field, the contenteditable offset index, and that a tag typed into a field stays text. |
+| `sidepanel-probe.html` | The panel at the 400px Chrome actually gives it: three tabs sharing one row, and the quiz view's rules — one right answer, the answer revealed after a wrong pick, the review schedule left alone. |
+| `practice-probe.html` | Every practice mode's own checks, plus the rules they share: the grid, the dialog owning the keyboard, and the review schedule left alone. |
 
-The last four exist because these are failures no unit test can see: they are
+The last six exist because these are failures no unit test can see: they are
 about what the browser actually renders.
 
 Chrome-facing behaviour cannot be tested this way — `docs/smoke-test.md` is the
@@ -261,7 +357,108 @@ manual checklist for it.
   and folders reach the rest.
 - **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
+- **Korean has no dictionary behind it.** There is no krdict key, so `lookup()`
+  in `lang/ko/dictionary.js` returns level, pronunciation, definition, senses
+  and audio as `null` for every Korean word, and the card carries the
+  Vietnamese machine translation alone. The review card's `/…/` line is hidden
+  rather than empty, because it assumes IPA; a pack that one day supplies
+  romanisation wants its own delimiters. The **krdict ↗** link is the
+  substitute until a key exists, and krdict goes behind that same function the
+  day one does.
+- **The 조사 stripper is nouns only, and it over-strips.** It is arithmetic on
+  the Hangul syllable block — the 받침 the particle's allomorph agrees with,
+  plus a per-particle minimum stem — not a dictionary, so three classes come
+  back wrong and are written into the pack's own `selfTest()` as the values it
+  actually produces: nouns ending in a productive **-이** or **-도**
+  (종이→종, 고양이→고양, 어린이→어린, 만족도→만족); 2-syllable **Sino-Korean
+  nouns in -과 or -가** where the allomorph genuinely agrees (결과→결, 학과→학,
+  휴가→휴, 화가→화, and 고속도로→고속도); and **-밖 compounds**, the price of
+  keeping 나밖에→나 (창밖에→창). A stricter minimum only swaps which pair
+  breaks — 책과, 차가 and 비가 are the real particles on real one-syllable
+  nouns. **Verbs are not handled at all**, and there a miss is the good case:
+  the dictionary form ends in 다 and never reaches the surface, so a verb comes
+  back whole and the gloss still answers. Real morphology — verb stems, the
+  irregulars where the stem itself changes (듣다→들어요) — wants garu-ko, 1.7MB
+  of WASM, which is a bigger decision than this phase.
+- **Stripping is a single pass**, so a stack of particles loses only the last
+  one it reaches: 책에서만 saves as 책에서, not 책.
+- **And it deliberately under-strips too.** The particles with no allomorph
+  pair — 도, 만, 께, 랑, 로 — demand a two-syllable stem, which is what saves
+  지도, 포도, 함께, 자랑, 도로 and 별로 from being read as a noun plus a
+  particle; the price is that 책도 and 책만 save as they stand. And 의 is
+  absent from the strip table altogether: the -의 noun class is large (회의,
+  정의, 강의) and -주의 is productive, which defeats any length guard, so 책의
+  saves whole too. A small miss class beats a large false-positive one. All
+  three are pinned in the pack's `selfTest()` next to the over-strips — the
+  wrong answer IS the expected value, in both directions.
+- **Korean highlighting drops one of saving's two guards and keeps the
+  other**, so it is looser in one direction and stricter in the other. Looser:
+  once the word is known there is no ambiguity left to guard against, so 책도
+  is correctly a hit for 책 — but that also means a one-syllable word collides
+  with a two-syllable noun whose tail is a pairless particle, and 포도, 지도,
+  도로, 서로, 회의 and 자랑 all highlight for 포, 지, 도, 서, 회 and 자.
+  Stricter: the tail has to be a **listed** particle, and the list carries
+  eleven common stacks rather than every combination, so an 어절 ending in an
+  unlisted stack highlights **not at all** — 책에는, 책과는, 책만은, 책까지도
+  and the plural 책들 are all misses for a word saved as 책. A miss, not a
+  wrong range; the word is still in the list and still due for review.
+- **Unspaced Korean finds nothing.** The scan works in 어절, so 나는책을읽었다
+  highlights nothing at all. Korean is space-delimited in practice; this is a
+  stated limit rather than a bug waiting to be filed.
+- **A page served in NFD highlights no Korean at all.** The scan looks for
+  precomposed syllables, and decomposed Hangul matches none of them. Folding
+  inside the matcher is not the fix: the highlighter hands raw text-node
+  offsets to a `Range`, so a fold would shift every index off the text those
+  offsets belong to. Rare — HTML is almost always NFC — and silent when it
+  happens.
+- **Sentences saved before the NFC fold stay unmatched.** Contexts are folded
+  to NFC now, at the one seam every context creator routes through, but there
+  is no migration — and re-looking-up the word does not repair it, since a
+  context is only ever filled when the entry has none. Re-saving the word is
+  the way back.
+- **"Almost right" is calibrated in Latin letters.** Two wrong characters on an
+  answer of at least four is a slip; a two- or three-syllable Hangul answer can
+  therefore never be graded *almost*, and the card turns that into a 0 rather
+  than a Hard. The comparison also runs over composed syllables, so one wrong
+  jamo reads as a whole syllable missed.
+- **The speed reader's pacing is tuned to Latin.** Splitting on whitespace and
+  the `\p{L}` pivot classes both hold on Hangul, but the focal-letter formula is
+  calibrated to Latin letter widths and the long-word beat never fires on an
+  어절, which is rarely over four characters.
+- **Nothing tells you the OS has no voice for a language.** Chrome neither
+  throws nor reports it — it simply stays silent, and a Mac ships no Korean
+  voice until one is downloaded. Listening checks and hides the word rather
+  than playing nothing, but a machine with a genuinely empty voice list is
+  indistinguishable from one still filling it in, so on those the card is still
+  offered. The review card's play button has no such check and is just quiet.
+- **A Listening card you could not hear still counts as a miss.** The verdict
+  names the missing voice instead of blaming you, but the practice loop records
+  every answer and a mode has no way to opt out.
+- **Speaking's five-word minimum counts 어절**, so it asks for a longer
+  sentence in Korean than in English.
+- **The writing check is English only, and stays that way.** LanguageTool has
+  no Korean at all, and it checks the prose you type into someone else's
+  textarea — third-party text, not your word store — so the dashboard's
+  language toggle deliberately does not govern it.
 - **Storage is local to this Chrome profile.** Export is the only backup.
+- **A folder's language is inferred from the words in it**, not stored, for
+  every folder made before folders had a language — which is why nothing had
+  to be migrated. The cost is that a folder holding both languages shows in
+  both sessions. That is the right answer for a topic like *Politics* and the
+  wrong one for a list you mixed a word into by accident; empty it or rename
+  it to separate them.
+- **The Korean list's meanings are machine-translated and unchecked.** 3,896
+  glosses, none read by a human, from the same keyless endpoint the extension
+  uses live — so a rare noun's gloss can be literal or simply the wrong sense.
+  The **krdict ↗** link is the way to check one.
+- **Its collocations are not sentences.** They are 국립국어원's collocation
+  lines with the headword put back (가격 + `이 비싸다` → `가격이 비싸다`), so a
+  Fill-the-gap card built on one is two or three words, not the paragraph an
+  English card gets. 1,071 words have no usable line at all and carry none: the
+  source gives those a bare semantic hint (가을 → `계절`) rather than a phrase,
+  and a hint is not a sentence with the word in it.
+- **All three shipped lists imported at once is most of the quota.** Roughly
+  5MB of `chrome.storage.local`'s 10MB, before a single word of your own.
 - **The writing check sends your text to a third party.** `api.languagetool.org`,
   subject to the exclusions above. It is the one part of this extension that
   shows anything you write to a server you do not run.

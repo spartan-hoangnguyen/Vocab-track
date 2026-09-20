@@ -70,7 +70,14 @@ const VT = {
   // word keeps the context that made it worth saving. Pure: the content
   // script hands in the surrounding block's text.
   sentenceAround(blockText, word, lang) {
-    const text = String(blockText ?? '').replace(/\s+/g, ' ').trim();
+    // NFC for the same reason normaliseWord does it, and HERE rather than in
+    // match(): the word is already composed, so a DECOMPOSED haystack — a
+    // macOS capture, a page serving NFD — matches nothing and the sentence is
+    // silently dropped. This is the one place the fold is free: what this
+    // returns IS the stored context, so nobody holds an index into the
+    // pre-fold string. Folding inside match() would shift every m.index off
+    // the caller's own text and corrupt the ranges it slices with.
+    const text = String(blockText ?? '').replace(/\s+/g, ' ').trim().normalize('NFC');
     if (!text) return null;
     // Split after . ! ? followed by a space — deliberately naive. It can cut
     // an abbreviation ("Dr. Smith") in two; a wrong sentence boundary costs a
@@ -426,14 +433,55 @@ const VT = {
 
   // Folder ids are generated, never derived from the name, so renaming a
   // folder cannot strand the words that point at it.
-  newFolder(name, { color = 'sage', icon = '\u{1F4C1}', desc = '' } = {}) {
+  newFolder(name, { color = 'sage', icon = '\u{1F4C1}', desc = '', lang = null } = {}) {
     return {
       id: 'f_' + Math.random().toString(36).slice(2, 10),
       name: String(name).trim(),
-      color, icon, desc,
+      color, icon, desc, lang,
       auto: false,
       added: Date.now()
     };
+  },
+
+  // Which language's session a folder belongs in, or null for "every one".
+  //
+  // Same shape as LANG.of for a word, and for the same reason: `lang` is a new
+  // field, every folder already in storage predates it, and a migration that
+  // rewrites someone's folders to add one is a worse idea than inferring it.
+  // So: what it says, else what its words say, else everyone's.
+  //
+  // The inference reads ALL the words, not the active language's — the whole
+  // point is to answer "whose folder is this" for a folder the current session
+  // is filtering out, and a filtered list would say "nobody's" every time.
+  //
+  // Null covers three real cases and they all want the same answer. An `auto`
+  // folder (From reading, Starred) collects in every language by definition. A
+  // folder you just made is empty, and it must not vanish from the session you
+  // made it in. And a folder holding both languages is genuinely both — hiding
+  // it from either would strand the words inside it.
+  //
+  // Contents beat the stored `lang`, and the asymmetry with LANG.of is the
+  // point: a word has exactly one language, so its field is the truth; a
+  // folder can hold two, so its words are. The field only answers for a folder
+  // with nothing in it to look at yet.
+  //
+  // Which matters because folderForName reuses a folder by NAME. Tag 책 with
+  // Science in a Korean session and t_science is stamped 'ko'; tag
+  // photosynthesis with Science later and it lands in that same folder. If the
+  // stamp won, Science would be invisible in English from then on, with an
+  // English word sitting inside it.
+  folderLang(folder, entries) {
+    if (!folder || folder.auto) return null;
+    const langs = new Set((entries ?? []).map((e) => LANG.of(e).id));
+    if (langs.size === 1) return [...langs][0];
+    if (!langs.size) return folder.lang ?? null;
+    return null;
+  },
+
+  // Does this folder belong on screen in `lang`'s session?
+  inLang(folder, entries, lang) {
+    const owner = VT.folderLang(folder, entries);
+    return owner === null || owner === lang;
   },
 
   // The video id, or null for anything that is not a YouTube watch page.
@@ -575,7 +623,12 @@ const VT = {
   // word you stopped to look up is almost never "the", and length is the one
   // signal available without a dictionary call.
   captureWord(selection) {
-    const text = String(selection ?? '').replace(/\s+/g, ' ').trim();
+    // Composed before anything reads it, not just before sentenceAround: the
+    // Quick Action hands back DECOMPOSED Hangul, and the context branch below
+    // has a `?? text.slice()` fallback that bypasses sentenceAround's own fold
+    // — the branch every NFD selection TOOK, back when match() could not find
+    // the composed word in a decomposed sentence.
+    const text = String(selection ?? '').replace(/\s+/g, ' ').trim().normalize('NFC');
     if (!text) return null;
 
     const candidates = VT.tokenise(text)

@@ -24,6 +24,17 @@
     return (syllables.codePointAt(syllables.length - 1) - 0xAC00) % 28;
   }
 
+  // Does `stem` have the 받침 shape this particle's allomorph demands? One
+  // function rather than the two `continue` lines it used to be, because
+  // lemma() and match() BOTH need it and a copy in each would drift — match()
+  // shipped without it at all and claimed 사과 was 사 + 과 (fixed 2026-09-20).
+  // null shape (에, 에서, 도, 의 …) has no pair to disagree with, so: true.
+  function agrees(stem, shape) {
+    if (shape === 'closed') return jong(stem) !== 0;
+    if (shape === 'open') return jong(stem) === 0;
+    return true;
+  }
+
   // The strip table: [particle, minimum stem length, required stem shape].
   // LONGEST FIRST, and that order is load-bearing — 에서 must be tried before
   // 에 (or 학교에서 truncates to 학교서), 으로 before 로, 이랑 before 랑,
@@ -54,6 +65,11 @@
     ['으로는', 1, null], ['부터는', 1, null], ['까지는', 1, null],
     ['에서', 1, null], ['에게', 1, null], ['한테', 1, null], ['께서', 1, null],
     ['으로', 1, null], ['부터', 1, null], ['까지', 1, null], ['보다', 1, null],
+    // 밖에 min 1 is a coin toss that CEILING (5) below pins: it costs the -밖
+    // compounds (창밖에 → 창, not 창밖) and buys 나밖에 → 나. min 2 just swaps
+    // which pair breaks, and there is no structural test — 창밖+에 and 나+밖에
+    // are the same three syllables with the same shapes. min 1 wins on counts:
+    // -밖 compounds are a closed handful, 밖에 on a 1-syllable noun is not.
     ['처럼', 1, null], ['마다', 1, null], ['밖에', 1, null],
     ['이랑', 1, 'closed'],
     ['을', 1, 'closed'], ['를', 1, 'open'],
@@ -64,12 +80,26 @@
     ['랑', 2, 'open'], ['로', 2, null], ['께', 2, null], ['도', 2, null], ['만', 2, null]
   ];
 
-  // What match() will accept as an eojeol's tail. A SUPERSET of the strip table:
-  // every particle above regardless of its guards, plus the ones lemma() cannot
-  // afford. The guards exist to decide whether an ambiguous surface form IS
-  // inflected; here the lemma is already known, so that ambiguity is gone and a
-  // guard would only cost recall.
-  const JOSA_MATCH = new Set([...JOSA.map((entry) => entry[0]), '의', '하고', '이나', '나']);
+  // What match() will accept as an eojeol's tail, and the shape each one still
+  // demands. A superset of the strip table by PARTICLE — every particle above
+  // plus the ones lemma() cannot afford — but it drops only ONE of the two
+  // guards, and the asymmetry is the point:
+  //
+  //   minStem is dropped. It guards against over-stripping an UNKNOWN surface
+  //   form, and here the lemma is known, so 책도 is a legitimate hit for 책 and
+  //   the guard would only cost recall.
+  //
+  //   shape is KEPT. It is not a guess about what the word is, it is whether
+  //   the parse is legal Korean at all: 사 is open and 과 is the post-consonant
+  //   allomorph, so 사과 is not 사 + 과 no matter how certain we are of 사.
+  //   Dropping it made match('사', '사과 두 개') return the whole 사과 — exactly
+  //   the six nouns (사과 마을 아이 나이 국가 가을) lemma() exists to protect.
+  //
+  // The four extras carry null: 의/하고/이나/나 have no allomorph pair.
+  const JOSA_MATCH = new Map([
+    ...JOSA.map(([particle, , shape]) => [particle, shape]),
+    ['의', null], ['하고', null], ['이나', null], ['나', null]
+  ]);
 
   LANG.register('ko', {
     name: 'Korean',
@@ -136,8 +166,9 @@
       // ONE pass, not a loop to a fixpoint. A loop over-strips without bound —
       // 사랑을 → 사랑 → 사 — and the 받침 test cannot stop it, because every
       // intermediate looks like a valid stem. Stacked particles are covered by
-      // the 11 literal stack entries in JOSA instead; the cost is that 책에서만
-      // keeps its 만.
+      // the 11 literal stack entries in JOSA instead; the cost is that an
+      // unlisted stack loses its LAST particle only — 책에서만 → 책에서, 만
+      // gone and 에서 kept, because 만 is what the one pass reaches first.
       for (const [particle, minStem, shape] of JOSA) {
         if (word.length <= particle.length || !word.endsWith(particle)) continue;
         const stem = word.slice(0, word.length - particle.length);
@@ -146,8 +177,7 @@
         // longest suffix 이랑 wants a closed stem and 나 is open, so it fails —
         // and the loop then reaches 랑 (open, min 2) with stem 나이 and gets it
         // right. Read this as "first particle that fits", not "longest wins".
-        if (shape === 'closed' && jong(stem) === 0) continue;
-        if (shape === 'open' && jong(stem) !== 0) continue;
+        if (!agrees(stem, shape)) continue;
         return stem;
       }
       return word;
@@ -181,9 +211,12 @@
       while ((m = re.exec(str))) {
         const run = m[0];
         // startsWith ALONE is what would give 책상 for 책. The tail has to be a
-        // known particle, and 상 is not one.
+        // known particle (상 is not one) AND its allomorph has to agree with
+        // the word's own 받침 — see JOSA_MATCH: known lemma or not, 사과 is not
+        // 사 + 과.
+        const tail = run.slice(w.length);
         const hit = run === w
-          || (run.startsWith(w) && JOSA_MATCH.has(run.slice(w.length)));
+          || (run.startsWith(w) && JOSA_MATCH.has(tail) && agrees(w, JOSA_MATCH.get(tail)));
         if (hit) out.push({ index: m.index, length: run.length });
       }
       return out;
@@ -284,6 +317,19 @@
         // stems escape by luck — 는 wants open, 먹/있 are closed.
         L('하는', '하'), L('보는', '보'), L('먹는', '먹는'), L('있는', '있는'),
 
+        // --- CEILING (4): the class the 받침 test cannot see, because the
+        // allomorph AGREES. 2-syllable Sino-Korean nouns in -과 on a closed
+        // first syllable, and in -가 on an open one, read as stem + 과/가 by
+        // every test this pack has. minStem 2 is not the fix: it would break
+        // 책과 (and 차가/비가 on the 가 side), which are the real particles on
+        // real 1-syllable nouns. The wrong answer IS the expected value.
+        L('결과', '결'), L('학과', '학'), L('휴가', '휴'), L('화가', '화'),
+        // -로 on a 3-syllable compound is the same shape of miss past minStem.
+        L('고속도로', '고속도'),
+        // CEILING (5): -밖 compounds, the price of 밖에 at minStem 1. See the
+        // JOSA entry — the two lines below cannot both be right.
+        L('창밖에', '창'), L('하나밖에', '하나'),
+
         // --- match: offsets, and the surface form the range slices back to.
         M('책', '나는 책을 읽었다', [[3, 2, '책을']]),
         // THE false-positive trap: 책상's tail 상 is not a particle, so the only
@@ -312,6 +358,23 @@
         M('책', '나는책을읽었다', []),
         M('', '나는 책을', []),
         M('책', '', []),
+
+        // --- the shape test inside match(), the half that used to be missing.
+        // These six are the nouns lemma() protects; match() claimed every one
+        // of them was its own first syllable plus a particle.
+        M('사', '사과 두 개', []), M('마', '마을 이야기', []),
+        M('아', '아이 둘', []), M('나', '나이 많다', []),
+        M('국', '국가 대표', []), M('가', '가을 하늘', []),
+        // And the same particles where the allomorph DOES agree, so a filter
+        // that merely rejected 과/와 outright would go red here.
+        M('책', '책과 공책', [[0, 2, '책과']]),
+        M('친구', '친구와 간다', [[0, 3, '친구와']]),
+        // CEILING: the shape test only sees allomorph pairs, so a 1-syllable
+        // word still collides with a 2-syllable noun ending in a pairless
+        // particle — 별로 지도 하나 회의 주의 도로 서로 함께 포도, and 자랑,
+        // where 랑 is paired but 자 is open so it agrees. lemma() rejects these
+        // on minStem, which match() deliberately does not apply.
+        M('포', '포도 있다', [[0, 2, '포도']]),
 
         // --- routing. The NFD form is what a macOS Quick Action hands back.
         ['NFD Hangul detects as Korean',

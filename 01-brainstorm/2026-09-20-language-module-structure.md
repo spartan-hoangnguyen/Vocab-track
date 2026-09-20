@@ -217,5 +217,176 @@ ever have failed.
 readers (`:77` bars, `:1405` stats series), `sidepanel.js:46`'s "Cambridge
 lookup failed" by name, and `speak()`'s `en-GB`/`en-US` in `lookup.js`.
 
+*All three are done — see Step 4 below. The line stays as it was written so
+the ledger reads as a record rather than as a plan that was quietly edited.*
+
 **Gone for free:** the `/g` `lastIndex` hazard, along with the comment at
 `practice-fill.js:29` that used to warn about it.
+
+---
+
+## Step 2 — done, 2026-09-20
+
+`lang/ko/index.js`: the 조사 strip table, `lemma()`, `match()`, `isCandidate()`,
+`levels` (초급/중급/고급) and a `selfTest()` that is the bulk of the file.
+
+The design held. The one thing the plan did not have is the guard that makes it
+work: **the allomorph agreement test.** Every true 조사 pair is chosen by the
+받침 of the syllable in front of it — 을 after a consonant, 를 after a vowel —
+so "does this particle's allomorph agree with the stem's shape" is five lines
+of arithmetic on the Hangul block and a real-linguistics filter on
+over-stripping. It saves 사과, 가을, 마을, 아이, 나이 and 국가 for free. The
+second guard is a per-particle `minStem`, for the five particles with no pair
+(도, 만, 께, 랑, 로), which saves 지도, 포도, 함께, 자랑, 도로, 별로 and 서로.
+
+Neither guard can be the only one, and together they still leave five classes
+of miss. They are written into `selfTest()` as the values they actually produce
+— **the wrong answer IS the expected value** — so the ceiling is a fact under
+test rather than a comment that can rot:
+
+1. **-이 nouns.** 이 is both the subject marker and a productive nominalizer,
+   and 종/고양/어린 all carry a 받침, so the allomorph agrees. 종이 → 종,
+   고양이 → 고양, 어린이 → 어린. Nothing structural separates 종이 from 책이.
+2. **-도 nouns.** Same shape, 도 being a productive '-degree' suffix:
+   만족도 → 만족.
+3. **Verbs, entirely.** Out of scope by design, and a miss is the good case —
+   the dictionary form ends in 다 and never reaches the surface, so 읽었습니다
+   comes back whole and the MT gloss still answers. The exception is the
+   vowel-stem attributive: 하는 → 하, 보는 → 보, because 는 wants an open stem
+   and 하/보 are open. Consonant stems escape by luck (먹는, 있는).
+4. **Sino-Korean -과/-가.** 2-syllable nouns in -과 on a closed first syllable
+   and -가 on an open one: the allomorph agrees, so every test this pack has
+   reads them as stem + particle. 결과 → 결, 학과 → 학, 휴가 → 휴, 화가 → 화,
+   and 고속도로 → 고속도 for -로 past `minStem`. `minStem` 2 is not the trade:
+   it breaks 책과 on one side and 차가/비가 on the other, which are the real
+   particles on real 1-syllable nouns.
+5. **-밖 compounds.** 창밖에 → 창, 뜻밖에 → 뜻, the price of 밖에 at `minStem`
+   1. `minStem` 2 only swaps which pair breaks — 나밖에 → 나 and 하나밖에 →
+   하나 are correct today, and 창밖+에 and 나+밖에 are the same three syllables
+   with the same shapes, so no structural test separates them. min 1 wins on
+   counts: -밖 compounds are a closed handful.
+
+`match()` is looser than `lemma()` on purpose and carries its own residue: it
+does not apply `minStem`, so a 1-syllable saved word still collides with a
+2-syllable noun whose tail is a pairless particle — 별로, 지도, 하나, 회의,
+주의, 도로, 서로, 함께, 포도, and 자랑, where 랑 is paired but 자 is open so
+the shapes genuinely agree. That is a recall tradeoff, not a bug: `match()`
+already knows the word it is looking for, and a saved 별 should highlight
+inside 별로.
+
+`lemma()` is **one pass**, so an unlisted particle stack loses only its last
+particle: 책에서만 → 책에서. 만 is what the single pass reaches first. The 11
+common stacks are literal table entries rather than a stacking loop.
+
+**Upgrade path, for all of the above:** garu-ko — 1.7MB WASM, MIT, claimed
+F1 96.0 — is what real morphology costs. Cheaper first step, once a krdict key
+exists: retry the surface form when krdict answers not-found on the lemma.
+
+## Step 3 — registered, not built, 2026-09-20
+
+`lang/ko/dictionary.js` exists and is fifteen lines. It supplies `name`,
+`base` and `href` and a `lookup()` that returns four nulls.
+
+**Registering a stub is not the neutral choice, it is the correct one.** Left
+out, `lookup.js`'s fallback sets `failed: no dictionary registered for ko`, and
+`sidepanel.js:44` renders that under a bold "Cambridge lookup failed." on every
+Korean word — the wrong dictionary and the wrong category, since a pack that
+was never built is not a call that failed. A missing pack also drops the full
+entry link from all three surfaces, which guard on `if (dict)`.
+
+The `href` is the **mobile Vietnamese** krdict interface, and that is not a
+preference. Probed live with a Chrome UA on 2026-09-20: `/m/vie/searchResult`
+answers 200 with the real 책 entry and its Vietnamese glosses in 68KB, while
+every desktop path either 404s or serves krdict's own 500 page. Accepted cost:
+a phone layout in a desktop tab.
+
+**What a Korean word therefore carries today: the MT gloss and nothing else.**
+No level, no pronunciation, no definition, no senses, no audio. The Vietnamese
+comes from the same keyless endpoint English uses — verified `sl=ko&tl=vi` on
+책 returns "sách" — which means the one unofficial dependency this repo already
+had is now the *only* source of meaning for a whole language rather than a
+second opinion beside Cambridge. krdict goes behind the same `lookup()` once a
+key exists, reading a flat `krdictKey` off `chrome.storage.local` **inside** the
+function; a top-level read would throw in `test/test.html`, which has no
+`chrome`.
+
+## Step 4 — done, 2026-09-20
+
+The toggle is a segmented control in the dashboard's top bar (`#lang-seg`),
+built from `LANG.list()` so a third pack needs no markup, and hidden entirely
+while only one pack is registered — a segmented control with one segment is not
+a choice. `setLang()` writes `chrome.storage.local.lang` and nothing else;
+`refresh()` re-reads it, because the toggle was never the only way that key
+moves (`dashboard.js:575` writes it too, when a lookup saves into the other
+language).
+
+All three step-1 leftovers are closed:
+
+- **`LEVELS`** is gone. Every reader takes `LANG.get(activeLang).levels`, so
+  the overview bars and the statistics series read 초급/중급/고급 in Korean.
+- **"Cambridge lookup failed"** is now `${dict?.name ?? 'Dictionary'} lookup
+  failed` (`sidepanel.js:52`), and the review card's full-entry link writes its
+  label next to its href in one place (`dashboard.js:940`) so the two cannot
+  name different dictionaries. The line hides for a language with no dictionary
+  at all.
+- **`en-GB`/`en-US`** are gone from `lookup.js`. A pack declares its voices and
+  `speak()` reads `voice.bcp47`; the default registration gives a pack one
+  voice labelled with its own native name, so the review's Voice picker hides
+  itself on Korean rather than offering a UK/US choice that is a Cambridge fact
+  and not a universal one.
+
+Also per-language: the typing box's placeholder, written per card rather than
+per page so it is right on a Korean card inside an English session; the
+`maskContext` blanking; and practice `eligible()`, which now asks the entry's
+own pack instead of an ASCII regex.
+
+### The Writing view is deliberately NOT language-gated
+
+**This is a change from the plan, and the reason is worth more than the
+consistency would have been.**
+
+Every other surface in the dashboard filters by `activeLang`, because every
+other surface reads the word store, and a word in the store belongs to a
+language. The Writing view does not. LanguageTool checks the prose *you type
+into someone else's textarea* — third-party text on a third-party page — which
+never enters the store and has no `entry.lang` to filter on. Gating it on the
+toggle would mean flipping to Korean emptied a list of English writing
+mistakes that are still exactly as true as they were a second earlier.
+
+So `service-worker.js:141` pins `language: 'en-US'` and says why. LanguageTool
+has no Korean at all, so there is nothing to dispatch to even if the store
+could answer. `language: 'auto'` is the one-word change the day that stops
+being true.
+
+### What was deliberately not done
+
+- **`data/ko/` and `tools/ko/`.** The tree at the top of this document has
+  them; the note under it ("data/ and the builders move last, or not at all")
+  is what actually happened. There is no Korean word list to put there, and
+  moving the English files would break the README's documented import path and
+  `build-ielts-list.py`'s output path for no behavioural gain.
+- **A krdict key**, and therefore everything in step 3 above.
+- **`tools/ielts-parse.html`'s staging** still copies `lib.js` and the whole
+  `lang/` tree by hand, listed in `stage()` rather than read off the page's
+  `<script>` tags. A fourth top-level script means one more line there.
+  Parsing the page to avoid that is more machinery than the problem.
+- **Contexts already saved in NFD.** `normaliseWord` NFC-folds from step 1 on,
+  and the context fold landed with the Korean pack, but there is no migration.
+  An old NFD context stays unmatched — and re-looking-up the word does not fix
+  it, since `lookup.js` only fills a context when the entry has none. Re-saving
+  the word is the only way back.
+- **A guard on the first `startReview(null)`.** `queueLang` starts at
+  `LANG.FALLBACK`, so a profile with `lang: 'ko'` stored runs one
+  `startReview(null)` on the first `refresh()` at page load. Harmless — the
+  review view is hidden, and both the nav link and the Review button call
+  `startReview()` again on the way in — but it pre-sets `#rv-card`'s
+  `dataset.word`, so that user's first card does not replay the 'fresh' entry
+  animation. The guard costs more than the animation is worth.
+- **Deduping the double `refresh()`.** In real Chrome one toggle press runs
+  `refresh()` twice — `setLang`'s own call, and the `storage.onChanged` it
+  fires. Only the queue rebuild is deduped, which is the part that would have
+  been visible.
+- **Rebuilding the queue on a word-map change.** The rebuild is keyed on the
+  language alone. Another tab saving a word, or an import, still leaves an
+  in-flight queue untouched — exactly as before, and deliberately: rebuilding
+  mid-session on every storage write would throw away a half-answered card.
