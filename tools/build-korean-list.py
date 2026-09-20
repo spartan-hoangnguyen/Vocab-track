@@ -5,9 +5,10 @@ The Korean counterpart to build-ielts-list.py, and much the smaller job: there
 is no krdict key, so there is no dictionary to scrape, no page to parse and no
 headless Chrome in this build at all. A Korean card carries a Vietnamese gloss
 and nothing else, exactly as one saved from a page does (lang/ko/dictionary.js).
-So this reuses build-ielts-list.py's `get`, `vietnamese` and its pacing and
+So this reuses build-ielts-list.py's `get`, `vietnamese` and its batching and
 staggering constants, and skips `stage`, `serve` and `parse_batch` entirely —
-they exist to run VT.parseCambridge over cached HTML, and there is none.
+they exist to run VT.parseCambridge over cached HTML, and there is none. The
+pacing is its own, and slower; see the warning below.
 
 Source: https://github.com/julienshim/combined_korean_vocabulary_list (MIT),
 which merges 국립국어원's 한국어 학습용 어휘 목록 (2003) with the public TOPIK
@@ -31,6 +32,15 @@ The TSV is rougher than its README suggests, and `clean` handles all of it:
     조사, not verb endings, so a page saying 갑니다 would never match the card.
     A word that cannot highlight is the stale-data problem this list exists to
     fix, in a new costume. 3,901 of 5,541 survive.
+
+A WARNING worth the paragraph: this build puts ~3,900 requests through the
+same keyless endpoint the extension uses live, from your IP. The first run of
+it earned an HTTP 429 that made every lookup in the browser fail for a while —
+the list got built and the tool stopped working. Hence the pacing below, which
+is half the speed the Cambridge builds run at: they scrape a different host,
+this one competes with the extension itself. If you see a 429 anyway, stop and
+come back later; the cache keeps everything it already has, and the extension
+now backs off for ten minutes rather than joining in (lookup.js GLOSS).
 
 Resumable, like the other two builds: every gloss is appended as it lands, so
 a rate-limit partway through ~3,900 calls costs only the batch in flight.
@@ -75,6 +85,15 @@ FOLDERS = {
     '고급': {'id': 'ko-c', 'color': 'clay', 'icon': '\U0001F333',
              'desc': 'Advanced band. 국립국어원 C grade.'},
 }
+# Half the Cambridge builds' rate, and its own constants rather than theirs:
+# those crawl dictionary.cambridge.org, this one competes with the extension
+# for the one endpoint that gives a Korean word its only meaning. ~2 req/s.
+# ponytail: a guess, not a measurement — the endpoint documents no budget. It
+# survived 3,901 words at twice this and still ended in a 429, so the number
+# to trust is "slower than that".
+WORKERS = 2
+PAUSE = 0.5
+
 # 동사 verbs, 형용사 adjectives, 보조 용언 auxiliaries: dictionary forms that
 # never reach the surface. See the module docstring.
 INFLECTED = {'동사', '형용사', '보조 용언'}
@@ -176,12 +195,12 @@ def crawl(items):
 
     def gloss(item):
         vi = ielts.vietnamese(item['word'], 'ko')
-        time.sleep(ielts.PAUSE)
+        time.sleep(PAUSE)
         return item['word'], vi
 
     for start in range(0, len(todo), ielts.BATCH):
         chunk = todo[start:start + ielts.BATCH]
-        with concurrent.futures.ThreadPoolExecutor(ielts.WORKERS) as pool:
+        with concurrent.futures.ThreadPoolExecutor(WORKERS) as pool:
             got = list(pool.map(gloss, chunk))
         # A null gloss is never cached. For the English builds a missing
         # translation is cosmetic next to the Cambridge definition; here the

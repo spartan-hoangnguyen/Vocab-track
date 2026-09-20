@@ -354,7 +354,36 @@ ready.then(() => setTimeout(async () => {
   check('and raises no banner, because that is a real answer about the word',
         $$('entry-warn').hidden, $$('entry-warn').textContent.slice(0, 60));
 
+  /* ---- 429 stops the asking instead of joining in -----------------------
+     This is what actually happened: building the Korean starter list put ~3,900
+     requests through the same keyless endpoint from one IP, and every lookup
+     afterwards came back HTTP 429. Retrying on each one is useless and is part
+     of the problem, so the first 429 pauses the asking and the banner says how
+     long for. */
+  GLOSS.pausedUntil = 0;
+  let calls = 0;
+  window.fetchVietnamese = async () => { calls++; throw new Error('HTTP 429'); };
+  STORE.words = { '조치': thinOf('조치') };
+  const limited = await resolveWord('조치', null, null, null);
+  check('a 429 is reported in words, not as a status code',
+        /rate-limiting/.test(limited.failed?.gloss ?? ''), String(limited.failed?.gloss));
+  check('and says roughly how long to wait',
+        /\d+ minutes?\./.test(limited.failed?.gloss ?? ''), String(limited.failed?.gloss));
+  STORE.words = { '조치': thinOf('조치') };
+  const second = await resolveWord('조치', null, null, null);
+  check('the next lookup does not ask again while the pause holds',
+        calls === 1, `${calls} calls`);
+  check('but still says why, rather than going quiet',
+        /rate-limiting/.test(second.failed?.gloss ?? ''), String(second.failed?.gloss));
+  GLOSS.pausedUntil = 0;
+  STORE.words = { '조치': thinOf('조치') };
+  window.fetchVietnamese = async () => { calls++; return 'hoạt động'; };
+  const after = await resolveWord('조치', null, null, null);
+  check('and once the pause is over the gloss lands',
+        after.entry.vi === 'hoạt động' && calls === 2, `${after.entry.vi} / ${calls} calls`);
+
   window.fetchVietnamese = realVi;
+  GLOSS.pausedUntil = 0;
   STORE.words = WORDS;
 
   /* ---- the not-found sentence, in both dictionaries ----

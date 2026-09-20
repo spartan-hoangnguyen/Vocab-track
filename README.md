@@ -291,8 +291,14 @@ python3 tools/build-korean-list.py
 
 Resumable, cache in `/tmp/vocab-track-korean`, and much the smaller build of
 the three: with no dictionary to scrape there is no page to parse and no
-headless Chrome in it at all — only the Vietnamese gloss, through the same
-endpoint and the same throttle the English builds use.
+headless Chrome in it at all — only the Vietnamese gloss.
+
+**It will rate-limit your IP if you let it.** That endpoint is the same one
+the extension uses live, and ~3,900 requests through it earned an HTTP 429
+that made every lookup in the browser fail for a while. The builder now runs
+at half the Cambridge builds' rate for that reason, and the extension backs
+off for ten minutes on a 429 instead of joining in. If lookups start failing,
+that banner tells you; the fix is to wait, or to use a different network.
 
 Sources: the word list is
 [julienshim/combined_korean_vocabulary_list](https://github.com/julienshim/combined_korean_vocabulary_list)
@@ -449,6 +455,13 @@ manual checklist for it.
   is that a word the endpoint genuinely cannot translate asks again every
   time; it is one small request, and the alternative is storing a "we tried"
   flag that would then have to expire.
+- **The translation endpoint rate-limits, and it is shared with the builder.**
+  `tools/build-korean-list.py` puts ~3,900 requests through the same keyless
+  endpoint a live lookup uses, so running it can cost you translations in the
+  browser for a while afterwards — HTTP 429, for hours rather than minutes.
+  The first 429 now pauses the asking for ten minutes rather than retrying on
+  every lookup, since retrying is both useless and part of the problem. Ten
+  minutes is a guess: the response carries no `Retry-After` to read.
 - **A failed translation and a word with no translation used to look the same.**
   Both were a bare `—` on the card, which is how "the endpoint was rate-limited
   for a minute" got mistaken for "this word has no meaning" for three rounds of

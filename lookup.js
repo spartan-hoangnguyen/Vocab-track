@@ -36,15 +36,40 @@ async function fetchVietnamese(word, lang = 'en') {
   return data?.[0]?.[0]?.[0] ?? null;
 }
 
+// 429 is the endpoint saying one IP has asked too much, and it keeps saying it
+// for a while. Asking again on every lookup during that window is useless AND
+// part of the problem, so the first 429 stops the asking.
+//
+// An object rather than a bare `let` so a test can put it back; module scope
+// rather than storage because a panel reload clears it, which is the right
+// failure mode — a stale pause cannot outlive the real limit by much, and
+// nothing has to be migrated.
+//
+// ponytail: a flat ten minutes, because the response carries no Retry-After
+// header to read. Read one if it ever appears.
+const GLOSS = { pausedUntil: 0, PAUSE_MS: 10 * 60 * 1000 };
+
+function rateLimited() {
+  const mins = Math.max(1, Math.ceil((GLOSS.pausedUntil - Date.now()) / 60000));
+  return `too many lookups from this network for now — the free translation `
+    + `endpoint is rate-limiting it. Try again in about ${mins} minute`
+    + `${mins === 1 ? '' : 's'}.`;
+}
+
 // The reason a gloss is missing, kept rather than swallowed. Both were a bare
 // `—` on the card before, so a rate-limited minute and a word the endpoint
 // genuinely cannot translate were indistinguishable on screen — which is what
 // made this take three rounds to pin down.
 async function glossFor(word, lang) {
+  if (Date.now() < GLOSS.pausedUntil) return { vi: null, failed: rateLimited() };
   try {
     return { vi: await fetchVietnamese(word, lang), failed: null };
   } catch (err) {
     console.error('[vocab-track] translation failed for', word, err);
+    if (/\b429\b/.test(String(err.message))) {
+      GLOSS.pausedUntil = Date.now() + GLOSS.PAUSE_MS;
+      return { vi: null, failed: rateLimited() };
+    }
     return { vi: null, failed: `${err.name}: ${err.message}` };
   }
 }
