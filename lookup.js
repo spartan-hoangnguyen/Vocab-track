@@ -97,15 +97,32 @@ function pronounce(entry, accent = 'uk') {
   if (src) {
     new Audio(src).play().catch((err) => {
       console.error('[vocab-track] audio playback failed for', entry.word, err);
-      speak(entry.word, accent);
+      speak(entry.word, accent, entry.lang);
     });
     return;
   }
-  speak(entry.word, accent);
+  // The only caller that holds an entry, so the only place the word's language
+  // can still be recovered. Without these two arguments every synthesised word
+  // on every surface is English.
+  speak(entry.word, accent, entry.lang);
 }
 
-function speak(word, accent = 'uk') {
+// `lang` is a pack id and optional in the same way `accent` is: three call
+// paths reach here with neither (practice.js:22, sidepanel.js:71,
+// sidepanel.js:403), and the script of the word itself answers for them.
+function speak(word, accent = 'uk', lang) {
+  const voices = LANG.pick(lang, word).voices;
+  // reviewPrefs.accent is ONE string across every language, so a profile that
+  // picked US in English arrives here with 'us' on a Korean word. Falling back
+  // to the pack's first voice is what makes that an accent that does not apply
+  // rather than utterance.lang = undefined.
+  const voice = voices.find((v) => v.id === accent) ?? voices[0];
   const utterance = new SpeechSynthesisUtterance(word);
-  utterance.lang = accent === 'us' ? 'en-US' : 'en-GB';
+  utterance.lang = voice.bcp47;
+  // ponytail: says nothing at all when the OS has no voice for this tag —
+  // Chrome neither throws nor fires an error, it just stays silent, and a Mac
+  // ships no Korean voice until one is downloaded. getVoices() is the check,
+  // but it fills asynchronously (voiceschanged) and this seam owns no surface
+  // to warn on. The warning belongs to a caller that has one.
   speechSynthesis.speak(utterance);
 }

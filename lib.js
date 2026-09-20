@@ -269,11 +269,18 @@ const VT = {
     // edits on a long word is a slip; two on a three-letter word is a
     // different word. Requiring an answer of at least 4 characters keeps
     // `cat`/`cut` out of it.
+    //
+    // ponytail: calibrated in Latin letters, and that shows on a short
+    // Hangul answer — a two- or three-syllable word can never be graded
+    // "almost", which dashboard.js's suggestedGrade turns straight into a 0
+    // rather than a 3. The LCS also runs over composed NFC syllables, so one
+    // wrong jamo reads as a whole-syllable miss. Upgrade path: a per-pack
+    // `near` threshold, or decompose to jamo before the LCS.
     return { exact: false, near: wrong > 0 && wrong <= 2 && y.length >= 4,
              typed: typedMarks, answer: answerMarks };
   },
 
-  // The gloss a quiz asks about: the Vietnamese, or the English definition when
+  // The gloss a quiz asks about: the Vietnamese, or the dictionary definition when
   // there is no translation. Null when the entry has neither — a word saved
   // while both the dictionary and the translator were down cannot be an
   // option, right or wrong.
@@ -531,6 +538,13 @@ const VT = {
     return Math.min(str.length - 1, lead + (core < 2 ? 0 : Math.min(4, (core + 2) >> 2)));
   },
 
+  // ponytail: this and pivotOf above are tuned to Latin and stay that way.
+  // tokenise splits on whitespace, which Korean 어절 respect, and pivotOf's
+  // classes are \p{L}-based, so neither breaks on Hangul — but the ORP formula
+  // is calibrated to Latin letter widths, and the long-word beat below never
+  // fires on an 어절, which is rarely over four characters. Upgrade path:
+  // per-pack pivotOf/holdFor overrides. reader.js needs no edit either way.
+  //
   // Milliseconds to hold one token. A flat 60000/wpm reads like a metronome
   // and loses every sentence boundary; these are the pauses a real reader
   // takes anyway.

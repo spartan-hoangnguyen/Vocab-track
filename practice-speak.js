@@ -14,6 +14,9 @@ const SPEAK = (() => {
   // Long enough for a sentence said slowly; short enough that a mic left open
   // by a distracted click does not sit there listening.
   const LISTEN_MS = 8000;
+  // ponytail: five of anything, counted by whitespace. Five 어절 is a longer
+  // sentence in Korean than five words are in English. Per-pack minimum if it
+  // proves annoying in use.
   const MIN_WORDS = 5;
   const UNAVAILABLE = 'Speech recognition is not available here — type your sentence instead.';
 
@@ -27,27 +30,30 @@ const SPEAK = (() => {
     'no-speech': 'Didn\'t hear anything — try again, or type it.'
   };
 
-  // The forms that count as "the word": itself, +s/es/ed/d/ing, and a final e
-  // dropped before ing/ed (accelerate → accelerating, accelerated). Not y→ied
-  // or doubled consonants: a looser rule starts accepting neighbours
-  // ("accelerator" is a different word), and "studies" is always there.
-  function forms(word) {
-    const w = String(word ?? '').trim().toLowerCase();
-    if (!w) return [];
-    const out = [w, `${w}s`, `${w}es`, `${w}ed`, `${w}d`, `${w}ing`];
-    if (w.endsWith('e')) out.push(`${w.slice(0, -1)}ing`, `${w.slice(0, -1)}ed`);
-    return out;
-  }
-
-  // The first form found in the sentence, as {index, text}, or null. Whole
-  // words only, and longest form first so the alternation cannot stop short.
-  function findWord(sentence, word) {
-    const alts = forms(word)
-      .sort((a, b) => b.length - a.length)
-      .map((f) => f.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&'));
-    if (!alts.length) return null;
-    const m = new RegExp(`\\b(?:${alts.join('|')})\\b`, 'i').exec(String(sentence ?? ''));
-    return m ? { index: m.index, text: m[0] } : null;
+  // The first form of the word found in the sentence, as {index, text}, or null.
+  //
+  // Which forms those are belongs to the language (pack.inflections), and so
+  // does what "found" means (pack.match). This used to build one
+  // \b(?:a|b|c)\b alternation, which is the wall step 1 hit everywhere else:
+  // \b is an ASCII boundary and never fires between Hangul syllables, so a
+  // Korean sentence could never contain its own word. Longest form first for
+  // the reason the alternation needed it — the earliest hit wins, but a shorter
+  // form must not claim a position a longer one also covers.
+  //
+  // The pack defaults off the word's own script, so the selfTest below and any
+  // future caller can still pass two arguments.
+  function findWord(sentence, word, pack = LANG.pick(null, word)) {
+    const text = String(sentence ?? '');
+    let best = null;
+    for (const form of pack.inflections(word).sort((a, b) => b.length - a.length)) {
+      const at = pack.match(form, text)[0];
+      if (at && (!best || at.index < best.index)) {
+        // Sliced out of the sentence rather than taken from the form: the
+        // marked text has to keep the spelling that was actually said.
+        best = { index: at.index, text: text.slice(at.index, at.index + at.length) };
+      }
+    }
+    return best;
   }
 
   function wordCount(sentence) {
@@ -56,8 +62,10 @@ const SPEAK = (() => {
 
   // Pure, so selfTest can pin the rules without a DOM. The word is checked
   // first: a two-word answer that also misses the word needs the word more.
-  function grade(sentence, word) {
-    const hit = findWord(sentence, word);
+  // `pack` is optional here for the same reason it is in findWord, which is
+  // where an omitted one gets filled in.
+  function grade(sentence, word, pack) {
+    const hit = findWord(sentence, word, pack);
     if (!hit) return { ok: false, hit, reason: 'Use the word itself' };
     if (wordCount(sentence) < MIN_WORDS) {
       return { ok: false, hit, reason: `Make it a full sentence — at least ${MIN_WORDS} words` };
@@ -70,6 +78,9 @@ const SPEAK = (() => {
 
   function ask(entry, host, ctx) {
     const { node } = ctx;
+    // The word's own pack, resolved once: it says which forms count as the word
+    // and which language the recogniser listens in.
+    const pack = LANG.of(entry);
     // Everything this question hangs listeners on dies with it — or with the
     // dialog, whichever is first.
     const done = new AbortController();
@@ -123,7 +134,7 @@ const SPEAK = (() => {
         done.abort();
         mic.disabled = true;
         box.disabled = true;
-        const result = grade(text, entry.word);
+        const result = grade(text, entry.word, pack);
         root.appendChild(said(text, result.hit, node, ctx.speak));
         resolve(ctx.next(result.ok, result.reason));
       };
@@ -136,7 +147,11 @@ const SPEAK = (() => {
         reason.textContent = '';
         live.textContent = '';
         const r = new Rec();
-        r.lang = 'en-GB';
+        // The pack's first voice, not prefs.accent: recognition wants the
+        // language, and choosing between two English accents for it buys
+        // nothing. This line said 'en-GB' regardless even while speak() was
+        // honouring the UK/US picker.
+        r.lang = pack.voices[0].bcp47;
         r.interimResults = true;
         r.onresult = (e) => {
           if (rec !== r) return;
@@ -202,7 +217,7 @@ const SPEAK = (() => {
     return row;
   }
 
-  return { forms, findWord, grade, ask };
+  return { findWord, grade, ask };
 })();
 
 PRACTICE.register('speak', {

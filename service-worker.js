@@ -138,6 +138,10 @@ async function ltCheck(text) {
     // Truncated rather than refused: a long draft should still get its opening
     // checked, and the alternative is telling the user nothing.
     text: String(text ?? '').slice(0, LT_MAX_TEXT),
+    // ponytail: English only, and staying that way. LanguageTool has no Korean
+    // at all, and this checks what you type in someone else's textarea — third
+    // party prose, not the word store — so the dashboard's language toggle does
+    // not govern it. `language: 'auto'` is the one-word change if it ever does.
     language: 'en-US',
     level: 'picky'
   });

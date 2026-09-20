@@ -40,6 +40,11 @@
       <span class="kbd">⌘K</span>
     </div>
     <span class="sp"></span>
+    <!-- After .sp (flex:1), so it right-aligns into the bar's settings cluster
+         with Review and the moon rather than sitting beside the search box.
+         Empty: renderLang fills it from LANG.list(), so a third pack needs no
+         markup, and it stays hidden while only one language is registered. -->
+    <div class="langseg" id="lang-seg" hidden></div>
     <button class="btn" id="review-btn">Review</button>
     <!-- Last in the bar, where the design keeps its moon. One icon for both
          themes: aria-pressed is the state, and night fills the moon in. -->
@@ -101,11 +106,11 @@
           <input type="checkbox" role="switch" id="rv-autoplay" checked>
           Auto-play pronunciation
         </label>
+        <!-- Empty: UK/US is a Cambridge fact, not a universal one. renderPrefs
+             fills this from the active language's voices and hides the whole
+             label when there is only one to pick. -->
         <label class="rvopt">Voice
-          <select id="rv-voice">
-            <option value="uk">UK</option>
-            <option value="us">US</option>
-          </select>
+          <select id="rv-voice"></select>
         </label>
       </div>
     </div>
@@ -146,6 +151,9 @@
       <blockquote class="rvseen" id="rv-context" hidden></blockquote>
 
       <form class="rvtype" id="rv-type" autocomplete="off">
+        <!-- The placeholder here is the pre-render default only: renderCard
+             writes the card's own language into it (dashboard.js:969), which is
+             what makes it right on a Korean card. -->
         <input id="rv-input" type="text" autocapitalize="off" autocorrect="off"
                spellcheck="false" placeholder="type the English word">
         <button class="btn" type="submit">Check <kbd>enter</kbd></button>
@@ -155,9 +163,11 @@
       <div id="rv-answer" hidden>
         <p class="rvdiff" id="rv-diff"></p>
         <h2 class="rvword" id="rv-word"></h2>
-        <!-- Inside #rv-answer, never outside it: the card asks for the English
-             word and this URL contains it. -->
-        <p class="rvlinks"><a id="rv-cam" target="_blank" rel="noreferrer">Cambridge ↗</a></p>
+        <!-- Inside #rv-answer, never outside it: the card asks for the word and
+             this URL contains it. Empty, and hidden: renderCard writes the label
+             next to the href (dashboard.js:940) so the two cannot name different
+             dictionaries, and hides the line for a language that has none. -->
+        <p class="rvlinks" hidden><a id="rv-cam" target="_blank" rel="noreferrer"></a></p>
         <!-- <details>, not a JS toggle: the platform already has this control. -->
         <details class="rvfull" id="rv-full" hidden>
           <summary>Full entry</summary>
@@ -342,7 +352,9 @@
 <script src="lib.js"></script>
 <script src="lang/lang.js"></script>
 <script src="lang/en/index.js"></script>
+<script src="lang/ko/index.js"></script>
 <script src="lang/en/dictionary.js"></script>
+<script src="lang/ko/dictionary.js"></script>
 <script src="store.js"></script>
 <script src="lookup.js"></script>
 <script src="practice.js"></script>

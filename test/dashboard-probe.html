@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/en/dictionary.js', '../store.js', '../lookup.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -830,6 +830,104 @@ ready.then(() => setTimeout(async () => {
   check('the forecast bars say reviews and new apart',
         /: \d+ reviews? \+ \d+ new$/.test(document.querySelector('#st-due i').title),
         document.querySelector('#st-due i').title);
+
+  /* ---- a Korean card, reviewable on the MT gloss alone ----
+     No dictionary data exists for it: only `vi` is set, which is what makes
+     canType true (dashboard.js:878) and keeps this a typing card rather than
+     a recognition one. The store is swapped for one word and put back, so the
+     overview counts below still measure the seeded English set. */
+  const savedWords = STORE.words;
+  STORE.words = { '책': { word: '책', lang: 'ko', vi: 'sách', level: null, ipa: null,
+    def: null, folders: ['reading'], senses: [], synonyms: [], related: [],
+    context: '나는 책을 읽다', sources: ['https://example.com/ko'],
+    added: Date.now() - 86400000, ease: 2.5, interval: 0, reps: 0, due: Date.now() - 1000 } };
+  // The language too, not only the words: every view and the review queue now
+  // filter on the `lang` key, so a Korean store read in EN mode is an empty
+  // dashboard and an empty session — which is the point of the toggle.
+  STORE.lang = 'ko';
+  // refresh() is what loads storage into `words`, which is what startReview
+  // queues from — swapping STORE alone would review the English set again.
+  await refresh();
+  startReview(null);
+  showView('review');
+  renderCard();
+  check('a Korean word with only a gloss is still a typing card',
+        !document.getElementById('rv-input').hidden
+        && document.getElementById('rv-type').querySelector('button').textContent.startsWith('Check'),
+        document.getElementById('rv-type').querySelector('button').textContent);
+  check('and the gloss is what it prompts with',
+        document.getElementById('rv-vi').textContent === 'sách',
+        document.getElementById('rv-vi').textContent);
+  check('an ungraded word shows the dash where the level goes',
+        document.getElementById('rv-level').textContent === DASH,
+        document.getElementById('rv-level').textContent);
+  // The reason this phase ships after lang/ko/index.js: masking runs through
+  // VT.find, so without the Korean match() the sentence would print the answer.
+  check('the Korean sentence has the word masked behind its particle',
+        !/책/.test(document.getElementById('rv-context').textContent),
+        document.getElementById('rv-context').textContent);
+  submitAnswer();
+  check('the full-entry link is labelled with this language’s dictionary',
+        document.getElementById('rv-cam').textContent === 'krdict ↗',
+        document.getElementById('rv-cam').textContent);
+  check('and points at the krdict entry for the word',
+        document.getElementById('rv-cam').href.endsWith('=%EC%B1%85'),
+        document.getElementById('rv-cam').href);
+
+  /* ---- and everything the card says ABOUT the language follows it ---- */
+  check('the typing box asks for the Korean word',
+        document.getElementById('rv-input').placeholder === 'type the Korean word',
+        document.getElementById('rv-input').placeholder);
+  // One voice, so the picker is not a choice. Hidden as a whole label, not left
+  // as an empty select under the word "Voice".
+  check('a one-voice language hides the accent picker',
+        document.getElementById('rv-voice').parentElement.hidden
+        && document.getElementById('rv-voice').options.length === 1,
+        String(document.getElementById('rv-voice').options.length));
+  // reviewPrefs.accent is still 'uk' here — a string this language's voice list
+  // has never heard of. Without the fallback the utterance goes out with
+  // lang = undefined and the OS picks whatever it likes.
+  const koSaid = [];
+  const realKoSpeak = speechSynthesis.speak;
+  speechSynthesis.speak = (u) => koSaid.push(u.lang);
+  speakWord(STORE.words['책']);
+  speak('책', 'uk', 'ko');
+  check('a Korean word is spoken in Korean despite a stored English accent',
+        koSaid.length === 2 && koSaid.every((l) => l === 'ko-KR'), koSaid.join());
+  speechSynthesis.speak = realKoSpeak;
+  showView('overview');
+  check('the level bars use this language’s scale, not CEFR',
+        [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join() === `초급,중급,고급,${DASH}`,
+        [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join());
+  check('and the median never reports a CEFR band',
+        document.getElementById('ov-median').textContent === DASH,
+        document.getElementById('ov-median').textContent);
+
+  /* ---- the toggle itself ---- */
+  const seg = document.getElementById('lang-seg');
+  const segBtn = (id) => seg.querySelector(`[data-lang="${id}"]`);
+  check('both registered packs get a segment, labelled with their short name',
+        !seg.hidden && seg.children.length === 2
+        && segBtn('en')?.textContent === 'EN' && segBtn('ko')?.textContent === '한',
+        [...seg.children].map((b) => b.textContent).join());
+  check('and the active one is the pressed segment',
+        segBtn('ko').getAttribute('aria-pressed') === 'true'
+        && segBtn('en').getAttribute('aria-pressed') === 'false');
+  STORE.words = { ...savedWords, ...STORE.words };
+  segBtn('en').click();
+  await tick();
+  check('clicking a segment saves the language', STORE.lang === 'en', STORE.lang);
+  check('and the words view is back to the English set',
+        document.getElementById('ov-total').textContent === String(Object.keys(savedWords).length),
+        document.getElementById('ov-total').textContent);
+  // The queue is module state no render() reaches, so setLang has to rebuild it
+  // itself — otherwise the Korean card stays on screen under an EN toggle.
+  check('and the session queue holds no Korean card',
+        queue.every((e) => LANG.of(e).id === 'en'),
+        queue.map((e) => e.word).join());
+
+  STORE.words = savedWords;
+  delete STORE.lang;
 
   /* ---- overview: progress, pins, suggestions ---- */
   showView('overview');

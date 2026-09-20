@@ -44,7 +44,12 @@ function renderEntry(entry, failed) {
   warn.hidden = !failed;
   if (failed) {
     const lead = document.createElement('b');
-    lead.textContent = 'Cambridge lookup failed. ';
+    // The dictionary that failed is the word's own, the way the "full entry"
+    // link below already reads it (sidepanel.js:126). `?? 'Dictionary'` because
+    // lookup.js:13-18 supports a language with no dictionary registered, and
+    // "no dictionary registered for ko" is itself one of the `failed` strings
+    // that reach here.
+    lead.textContent = `${LANG.dict(LANG.of(entry).id)?.name ?? 'Dictionary'} lookup failed. `;
     warn.append(lead, `Level, pronunciation and definition are missing for this reason, not because the word has none. ${failed}`);
   }
 }
@@ -244,7 +249,11 @@ $('entry-tag-q').addEventListener('input', (event) => {
 function renderNotFound(word) {
   $('entry').hidden = true;
   $('lookup-empty').hidden = false;
-  $('lookup-empty').textContent = `"${word}" is not in the Cambridge dictionary. Nothing saved.`;
+  // Only a word reaches here, never an entry — nothing was saved — so the pack
+  // comes from the script, the same route resolveWord took to get the answer.
+  const dict = LANG.dict(LANG.pick(null, word).id);
+  $('lookup-empty').textContent =
+    `"${word}" is not in ${dict?.name ?? 'the dictionary'}. Nothing saved.`;
 }
 
 async function lookup(pending) {

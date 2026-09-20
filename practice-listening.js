@@ -9,7 +9,19 @@ PRACTICE.register('listening', {
   blurb: 'Hear it, type it',
   icon: '♪',
   color: 'green',
-  eligible: (entry) => VT.isLookupCandidate(entry.word) || /^[a-z]+(?:[ -][a-z]+)+$/i.test(entry.word),
+  // A phrase is candidate words joined by a space or a hyphen, which covers the
+  // single-word case for free ('cat'.split(/[ -]/) is ['cat']) — so one clause
+  // replaces the two this had, and no language needs a branch. The clause it
+  // replaces was /^[a-z]+(?:[ -][a-z]+)+$/i, the saved-phrase escape hatch for
+  // "give up": ASCII-anchored, so no Korean phrase could ever pass it.
+  //
+  // Through the entry's own pack rather than VT.isLookupCandidate, which would
+  // re-detect the script once per part. One behaviour change, accepted: en's
+  // isCandidate wants two letters, so "a b" is no longer eligible.
+  eligible: (entry) => {
+    const pack = LANG.of(entry);
+    return String(entry.word).split(/[ -]/).every((part) => pack.isCandidate(part));
+  },
   ask(entry, host, ctx) {
     const { node } = ctx;
     const root = node('div', 'pr-listening');

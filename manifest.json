@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Vocab-track",
   "version": "0.1.0",
-  "description": "Look up English words while reading, and review them as flashcards.",
+  "description": "Look up words while reading, and review them as flashcards.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
@@ -38,6 +38,7 @@
         "lib.js",
         "lang/lang.js",
         "lang/en/index.js",
+        "lang/ko/index.js",
         "content-script.js",
         "reader.js",
         "writer.js"

@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/en/dictionary.js', '../store.js', '../lookup.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -163,6 +163,22 @@ ready.then(() => setTimeout(async () => {
   const quizCard = host.querySelector('[data-mode="quiz"]');
   check('a mode that cannot run is disabled, not a dead end',
         quizCard.disabled && /four words/i.test(quizCard.textContent), quizCard.textContent);
+
+  /* ---- eligibility asks the word's own pack ---- */
+  const listening = PRACTICE.list().find((m) => m.id === 'listening');
+  check('a saved phrase is still something you can hear and type',
+        listening.eligible({ word: 'give up', lang: 'en' }));
+  check('and a Korean word is too, which the old ASCII rule could not allow',
+        listening.eligible({ word: '책', lang: 'ko' }));
+  check('a bare initial is not a word to dictate',
+        !listening.eligible({ word: 'a b', lang: 'en' }));
+
+  // The pack is what carries the forms and the matching, so a word passed with
+  // one explicitly is graded by that language's rules — the seam practice-speak
+  // uses to grade a card it was handed.
+  const hit = SPEAK.findWord('The car accelerates up the steep hill', 'accelerate', LANG.get('en'));
+  check('speak finds the inflected form, keeping the spelling that was said',
+        hit?.index === 8 && hit?.text === 'accelerates', JSON.stringify(hit));
 
   /* ---- every ask-mode opens, owns the keyboard, and leaves the schedule alone ---- */
   const queued = queue.length;

@@ -30,7 +30,7 @@
             .replace(/<script[\s\S]*?<\/script>/g, '');
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/en/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
+    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
       // Serial, not Promise.all: each of these reads the one before it at load.
       .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
         const tag = document.createElement('script');
@@ -221,6 +221,30 @@ ready.then(() => setTimeout(async () => {
   await tick();
   check('clicking a chip takes the word out of that topic',
         !STORE.words.strategy.folders.includes('t_science') && !!STORE.folders.t_science);
+
+  /* ---- a Korean word, carrying nothing but the MT gloss ----
+     Everything a dictionary would have given it is null, and that has to read
+     as an ordinary thin entry rather than as a broken lookup. The red warning
+     fires on `failed`, which is exactly what lang/ko/dictionary.js exists to
+     never set — an unregistered language would have set it on every word. */
+  const koEntry = { word: '책', lang: 'ko', vi: 'sách', level: null, ipa: null,
+    def: null, audio: null, senses: [], synonyms: [], related: [],
+    folders: ['reading'], context: '나는 책을 읽다',
+    sources: ['https://example.com/ko'], added: Date.now(),
+    ease: 2.5, interval: 0, reps: 0, due: Date.now() };
+  renderEntry(koEntry, null);
+  await tick();
+  check('a Korean word does not read as a failed lookup', $$('entry-warn').hidden);
+  check('its gloss is the whole of its meaning',
+        $$('entry-vi').textContent === 'sách', $$('entry-vi').textContent);
+  check('and its level is the dash, not a blank',
+        $$('entry-level').textContent === DASH, $$('entry-level').textContent);
+  const koLinks = [...$$('entry-links').querySelectorAll('a')].map((a) => a.textContent);
+  check('the full entry points at krdict, not Cambridge',
+        koLinks.includes('krdict ↗'), koLinks.join(' | '));
+  check('and the saved sentence marks the word behind its particle',
+        $$('entry-context').querySelector('mark')?.textContent === '책을',
+        $$('entry-context').textContent);
 
   $$('out').textContent = log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }, 60));

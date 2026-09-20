@@ -26,6 +26,17 @@ const LANG = (() => {
       // every pack from having to write `lemma: (w) => w`.
       lemma: (word) => word,
       normalise: (raw) => VT.normaliseWord(raw),
+      // One voice, labelled with the language's own name. Same reasoning as the
+      // identity lemma above: a language with a single voice writes nothing, and
+      // the review controls hide a picker that has only one option. The BCP-47
+      // tag defaults to the id because the two agree for a bare language subtag
+      // — a pack whose region is load-bearing (ko-KR) names it itself.
+      voices: [{ id: 'std', label: pack.native ?? id, bcp47: id }],
+      // The written forms that still count as this word when it is looked for
+      // in a sentence — practice-speak's grading. English has real morphology to
+      // add (lang/en/index.js); for a language that does not inflect the word it
+      // is looking for, the word is the word.
+      inflections: (word) => [word],
       ...pack
     });
   }

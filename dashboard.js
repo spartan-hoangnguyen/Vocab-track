@@ -1,6 +1,5 @@
 const $ = (id) => document.getElementById(id);
 const DASH = VT.DASH;
-const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VIEWS = ['overview', 'words', 'review', 'stats', 'writing', 'io'];
 
 // One in-memory snapshot per render pass. Every view reads from this rather
@@ -10,6 +9,11 @@ let words = {};
 let folders = {};
 let writing = { on: true, off: [], mistakes: {} };
 let activeFolder = null;   // null = all words
+// Which language you are studying right now. Not a const and not a pack: the
+// toggle moves it between renders, so every reader hoists what it needs off
+// LANG.get(activeLang) locally rather than closing over a scale that was right
+// when the file loaded.
+let activeLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
 let pins = [];
 // How a review session runs. A key missing from storage is a default, not
@@ -37,17 +41,33 @@ for (const a of document.querySelectorAll('nav a')) {
   });
 }
 
+// A flat key of its own, like `theme`, not a field of reviewPrefs: reviewPrefs
+// is how one review session runs, and this governs six views. Routed through
+// LANG.get rather than read raw, so an id whose pack has been removed falls
+// back once here instead of throwing on every render.
+async function getLang() {
+  const { lang } = await chrome.storage.local.get('lang');
+  return LANG.get(lang)?.id ?? LANG.FALLBACK;
+}
+
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins] = await Promise.all(
-    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins()]);
+  [words, folders, writing, practice, prefs, pins, activeLang] = await Promise.all(
+    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
+     getLang()]);
   render();
 }
 
 function render() {
-  const all = Object.values(words);
+  // The one load point every view fans out from, so filtering here is what
+  // makes the toggle reach all of them. The exception is the streak below.
+  const all = Object.values(words).filter((e) => LANG.of(e).id === activeLang);
   renderOverview(all);
   renderWords(all);
-  renderStreak(all);
+  renderLang();
+  // Unfiltered, and deliberately: "days with a new word" is a habit, not a view
+  // of the language being studied. Halving the streak on a toggle press would
+  // read as data loss for something the toggle did not touch.
+  renderStreak(Object.values(words));
   renderStats(all);
   renderPrefs();
   renderCard();
@@ -64,13 +84,14 @@ function dueCount(entries) {
 
 function renderOverview(all) {
   const due = dueCount(all);
+  // The active language's scale, read per render rather than closed over: the
+  // toggle changes it, and `all` holds only that language's words. Passed
+  // explicitly even though lib.js:629 would now default to the same list —
+  // the call says which scale it means.
+  const levels = LANG.get(activeLang).levels;
   $('ov-total').textContent = all.length;
   $('ov-due').textContent = due;
-  // The scale is passed explicitly, never inferred from whichever entry
-  // happens to be first: `all` is unfiltered until the language toggle lands,
-  // and one Korean word at the head of it would score every CEFR level
-  // against 초급/중급/고급 and report no median at all.
-  $('ov-median').textContent = VT.medianLevel(all, LEVELS) ?? DASH;
+  $('ov-median').textContent = VT.medianLevel(all, levels) ?? DASH;
   $('ov-sub').textContent =
     `${all.length} word${all.length === 1 ? '' : 's'} collected while reading · ` +
     `${Object.keys(folders).length} folder${Object.keys(folders).length === 1 ? '' : 's'}`;
@@ -78,7 +99,7 @@ function renderOverview(all) {
 
   // One hue, not one per level: the axis already names the level, so colouring
   // by level would encode nothing the label does not already say.
-  const buckets = [...LEVELS, DASH].map((l) => [
+  const buckets = [...levels, DASH].map((l) => [
     l, all.filter((e) => (e.level ?? DASH) === l).length
   ]);
   const max = Math.max(1, ...buckets.map((b) => b[1]));
@@ -275,7 +296,12 @@ function renderWords(all) {
       const btn = document.createElement('button');
       btn.className = 'btn';
       btn.style.marginTop = '14px';
-      btn.textContent = `Look up “${term}” on Cambridge`;
+      // Named after the dictionary the term's own script will actually be sent
+      // to — the same detect() isLookupCandidate just ran. A language with no
+      // dictionary yet still offers the lookup: the Vietnamese gloss arrives
+      // either way (lookup.js:13-18).
+      const dict = LANG.dict(LANG.detect(term)?.id);
+      btn.textContent = dict ? `Look up “${term}” on ${dict.name}` : `Look up “${term}”`;
       btn.addEventListener('click', () => lookupNew(term, btn));
       empty.append(line, btn);
     } else {
@@ -331,8 +357,13 @@ function wordCard(entry) {
   if (entry.vi) card.appendChild(el('p', 'wc-vi', entry.vi));
   card.appendChild(el('p', 'wc-def', entry.def ?? DASH));
   if (entry.senses?.length > 1) {
+    // Senses only exist where a dictionary parsed them, so the name is there
+    // too; the fallback is for a pack whose dictionary was removed under
+    // entries it had already saved.
+    const dict = LANG.dict(LANG.of(entry).id);
     card.appendChild(el('p', 'wc-more',
-      `+${entry.senses.length - 1} more meaning${entry.senses.length > 2 ? 's' : ''} on Cambridge`));
+      `+${entry.senses.length - 1} more meaning${entry.senses.length > 2 ? 's' : ''} ` +
+      `on ${dict?.name ?? 'the dictionary'}`));
   }
 
   // --- the sentence it was met in, with the word marked
@@ -516,11 +547,18 @@ $('tag-q').addEventListener('keydown', async (event) => {
 async function lookupNew(word, button) {
   button.disabled = true;
   button.textContent = `Looking up “${word}”…`;
-  const { notFound } = await resolveWord(word, null, activeFolder ? [activeFolder] : []);
+  const { entry, notFound } = await resolveWord(word, null, activeFolder ? [activeFolder] : []);
   if (notFound) {
-    button.textContent = `“${word}” is not in the Cambridge dictionary`;
+    const dict = LANG.dict(LANG.pick(null, word).id);
+    button.textContent = `“${word}” is not in ${dict?.name ?? 'the dictionary'}`;
     return;
   }
+  // Follow the word. The CTA above dispatches on the term's script, so typing 책
+  // in EN mode correctly offers a Korean lookup — and then the word would save
+  // into a list this page is filtering out, which reads as the lookup having
+  // done nothing. refresh() below re-reads the key, so writing it is enough.
+  const saved = LANG.of(entry).id;
+  if (saved !== activeLang) await chrome.storage.local.set({ lang: saved });
   $('q').value = '';
   await refresh();
 }
@@ -680,6 +718,44 @@ function setTheme(theme) {
   return chrome.storage.local.set({ theme });
 }
 
+/* ---------- the language toggle ---------- */
+
+// Built from the registry, so a third pack appears here the moment its script
+// is loaded. Hidden below two: a segmented control with one segment is not a
+// choice, and every surface downstream already defaults to the one pack.
+function renderLang() {
+  const packs = LANG.list();
+  const seg = $('lang-seg');
+  seg.hidden = packs.length < 2;
+  if (seg.hidden) return;
+  seg.replaceChildren(...packs.map((pack) => {
+    const btn = el('button', 'rvopt', pack.short ?? pack.id.toUpperCase());
+    btn.dataset.lang = pack.id;
+    btn.title = pack.name;
+    // aria-pressed, not a class: it is the state the .rvopt styling already
+    // reads, in both themes, and it is what a screen reader announces.
+    btn.setAttribute('aria-pressed', String(pack.id === activeLang));
+    btn.addEventListener('click', () => setLang(pack.id));
+    return btn;
+  }));
+}
+
+async function setLang(id) {
+  if (id === activeLang) return;
+  await chrome.storage.local.set({ lang: id });
+  // Set before the queue is rebuilt, not left to refresh(): inScope reads this,
+  // so queueing first would fill the session with the language being left.
+  activeLang = id;
+  // The queue is module state built once per session — no re-render reaches it,
+  // so without this the old language's cards stay on screen under a switched
+  // toggle. Same folder scope: the toggle changes the language, not the set.
+  startReview(reviewScope);
+  await refresh();
+  // A click in the top bar takes focus off the typing box mid-review, which is
+  // the problem the theme button already solves this way.
+  refocusCard();
+}
+
 $('theme-btn').addEventListener('click', () => {
   setTheme(document.documentElement.dataset.theme === 'night' ? 'light' : 'night');
   // Mid-review the click took focus from the typing box; hand it back.
@@ -703,7 +779,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // only way this page ever sees the counts move.
   // Another dashboard tab flipped the theme: follow it.
   if (changes.theme) applyTheme(changes.theme.newValue);
-  if (changes.words || changes.folders || changes.pins ||
+  // `lang` for the same reason as the theme, and with more at stake: it governs
+  // six views, so a second dashboard tab left on the other language would keep
+  // writing words into a list this one is filtering out.
+  if (changes.words || changes.folders || changes.pins || changes.lang ||
       changes.writeOn || changes.writeOff || changes.writeMistakes) refresh();
 });
 
@@ -791,6 +870,23 @@ const GRADE_FOR = { exact: 4, near: 3, wrong: 0 };
 // One day's worth, the same pace the imported list arrives at.
 const AHEAD_BATCH = 20;
 
+// The words a review session may draw from: learnable, in the active language,
+// and in the folder if there is one.
+//
+// It has to be its own filter rather than render()'s, because `queue` is built
+// once per session and survives every render — startReview reads the store
+// itself, so nothing in render() can ever reach it. The language clause is not
+// housekeeping either: a card is single-language by construction. The typing box
+// wants one IME, VT.diffWord grades against one script, speakWord picks one
+// voice and the placeholder names one language, so a Korean card inside an
+// English queue means an IME switch mid-session on the one screen whose point is
+// that you never touch the mouse.
+function inScope(folderId) {
+  return Object.values(words).filter((e) => VT.isLearnable(e)
+    && LANG.of(e).id === activeLang
+    && (!folderId || VT.foldersOf(e).includes(folderId)));
+}
+
 // Words that have never been graded and are not due yet — Anki's new queue.
 function newCards(entries) {
   const now = Date.now();
@@ -803,8 +899,7 @@ function startReview(folderId, { ahead = false } = {}) {
   const now = Date.now();
   // isLearnable first, so a skipped word cannot be reached even by a
   // folder-scoped session or by the ahead-of-schedule new queue below.
-  const scope = Object.values(words)
-    .filter((e) => VT.isLearnable(e) && (!folderId || VT.foldersOf(e).includes(folderId)));
+  const scope = inScope(folderId);
   queue = scope
     .filter((e) => e.due <= now)
     // Oldest due first: the most overdue card is the one most at risk.
@@ -849,8 +944,7 @@ function renderCard() {
     // Without this the only way to the next twenty is back to the overview and
     // into the folder again — four clicks to keep doing the thing you are
     // already doing.
-    const waiting = newCards(Object.values(words)
-      .filter((e) => !reviewScope || VT.foldersOf(e).includes(reviewScope))).length;
+    const waiting = newCards(inScope(reviewScope)).length;
     $('rv-more').hidden = !waiting;
     $('rv-more').textContent = `Learn ${Math.min(AHEAD_BATCH, waiting)} more`;
     return;
@@ -877,6 +971,10 @@ function renderCard() {
 
   canType = !!(entry.vi || entry.def);
   $('rv-level').textContent = entry.level ?? DASH;
+  // Instruction text, and wrong on screen the moment a Korean card appears. Per
+  // card rather than per toggle, because the card is the thing being asked for;
+  // dashboard.html's attribute is only the value before the first render.
+  $('rv-input').placeholder = `type the ${LANG.of(entry).name} word`;
 
   // The prompt is the meaning; the word is what you produce. A card with
   // nothing to prompt with shows the word instead and goes back to being a
@@ -892,6 +990,10 @@ function renderCard() {
 
   // The IPA and the play button are the answer's shape and the answer's sound.
   // Both would hand it to you, so neither appears until you have committed.
+  //
+  // ponytail: the /…/ delimiters assume IPA. Nothing to do yet — a Korean entry
+  // has no `ipa` at all while its dictionary is MT-only, so this line is hidden
+  // — but a pack that one day supplies romanisation wants its own delimiters.
   $('rv-ipa').hidden = !(revealed && entry.ipa);
   $('rv-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : '';
   $('rv-play').hidden = !revealed;
@@ -919,17 +1021,26 @@ function renderCard() {
   renderStar(entry);
 
   // The answer is only written into the DOM once revealed, so it is never
-  // sitting in the page while you are still trying to recall it. The Cambridge
+  // sitting in the page while you are still trying to recall it. The dictionary
   // href and the full entry are written here for the same reason: both spell
   // the word out.
   $('rv-answer').hidden = !revealed;
   $('rv-word').textContent = revealed ? entry.word : '';
   // The attribute is removed rather than blanked, so before the answer this is
   // an inert <a> and not a focusable link to the top of the page.
-  if (revealed) {
-    const dict = LANG.dict(LANG.of(entry).id);
-    if (dict) $('rv-cam').href = dict.href(entry.word);
-    else $('rv-cam').removeAttribute('href');
+  const dict = revealed ? LANG.dict(LANG.of(entry).id) : null;
+  // The label is written with the href rather than left to dashboard.html's
+  // static text. The side panel (sidepanel.js:126) and the word card
+  // (dashboard.js:378) already read dict.name; this was the one surface that
+  // would have pointed a Korean card at krdict under a Cambridge name.
+  //
+  // The whole <p> goes when the language has no dictionary registered, not just
+  // the href: an anchor with no href is still a line of text, and a label with
+  // nothing behind it reads as a broken link rather than as an absent one.
+  $('rv-cam').parentElement.hidden = !dict;
+  if (dict) {
+    $('rv-cam').href = dict.href(entry.word);
+    $('rv-cam').textContent = `${dict.name} ↗`;
   } else {
     $('rv-cam').removeAttribute('href');
   }
@@ -1201,7 +1312,24 @@ function setReviewPrefs(patch) {
 function renderPrefs() {
   $('rv-shuffle').setAttribute('aria-pressed', String(prefs.shuffle));
   $('rv-autoplay').checked = prefs.autoplay;
-  $('rv-voice').value = prefs.accent;
+
+  // The accents belong to the language, not to the app: English has Cambridge's
+  // two recordings, Korean has one voice and nothing to choose between. A picker
+  // with one option is hidden the way the card already hides an empty drawer.
+  const voices = LANG.get(activeLang).voices;
+  const voice = $('rv-voice');
+  voice.replaceChildren(...voices.map((v) => {
+    const option = document.createElement('option');
+    option.value = v.id;
+    option.textContent = v.label;
+    return option;
+  }));
+  voice.parentElement.hidden = voices.length < 2;
+  // reviewPrefs.accent is one string shared by every language, so on a language
+  // that never heard of 'uk' it names no option here and the assignment would
+  // silently keep the select empty. The options are built first for the same
+  // reason: a value with no matching option does not stick.
+  voice.value = voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id;
 }
 
 // A click moves focus off the typing box; give it back, or the next letters
@@ -1262,8 +1390,9 @@ const CHEERS = [
 ];
 
 function renderSide() {
-  const scope = Object.values(words)
-    .filter((e) => VT.isLearnable(e) && (!reviewScope || VT.foldersOf(e).includes(reviewScope)));
+  // The same set the session queues from, so "3 words left to master" counts
+  // the cards you are actually going to be asked.
+  const scope = inScope(reviewScope);
   const mastered = scope.filter((e) => VT.isMastered(e)).length;
   const left = scope.length - mastered;
   const pct = scope.length ? Math.round((mastered / scope.length) * 100) : 0;
@@ -1307,13 +1436,22 @@ function renderSide() {
 // Every place the dashboard says a word goes through here, so an accent or
 // autoplay setting has exactly one seam to change.
 function speakWord(entry) {
-  pronounce(entry, prefs.accent);
+  // Resolved against the ENTRY's pack, never activeLang: PRACTICE.hooks.speak
+  // and the words-view title click can both be handed a word from outside the
+  // current filter. Same fallback as the picker — one stored accent, many
+  // languages, and 'uk' means nothing on a Korean voice list.
+  const voices = LANG.of(entry).voices;
+  pronounce(entry, voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id);
 }
 
 // The words a practice mode draws from: the review's folder when it has one,
 // everything otherwise. Skipped words are out, as they are out of review.
+// Filtered here rather than at the callers, because PRACTICE.hooks.changed
+// re-renders from the whole store after every answer — patching only render()'s
+// call would put the other language back into the pool mid-round.
 function practicePool(all) {
   return all.filter((e) => VT.isLearnable(e)
+    && LANG.of(e).id === activeLang
     && (!reviewScope || VT.foldersOf(e).includes(reviewScope)));
 }
 
@@ -1404,8 +1542,9 @@ function renderStats(all) {
       `(${peak.part} new) · if every answer is Good`
     : 'Nothing due in the next two weeks.';
 
-  // levels
-  const levelSeries = [...LEVELS, DASH].map((l) => ({
+  // levels — the active language's scale, hoisted here rather than module-wide
+  // for the reason renderOverview gives.
+  const levelSeries = [...LANG.get(activeLang).levels, DASH].map((l) => ({
     label: l, n: all.filter((e) => (e.level ?? DASH) === l).length
   }));
   plotSeries($('st-levels'), levelSeries, true);

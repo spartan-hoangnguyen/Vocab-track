@@ -440,6 +440,15 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .rvopt input[role="switch"]:checked::after{transform:translateX(13px)}
 .rvopt :focus-visible{outline:2px solid var(--bar);outline-offset:2px}
 
+/* The language toggle in the top bar. Two .rvopt buttons ARE a segmented
+   control: aria-pressed already carries the state and is already styled above,
+   including the night override. This adds only the row. The focus ring is its
+   own rule because the one above is a DESCENDANT selector — it dresses the
+   select and the switch inside a .rvopt, never a .rvopt that is itself the
+   button, and this control is reached by keyboard from the search box. */
+.langseg{display:flex;gap:6px}
+.langseg .rvopt:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+
 .rvstar{font-size:15px;line-height:1.2;padding:1px 8px}
 .rvstar[aria-pressed="true"]{color:var(--ochre-ink);border-color:var(--ochre-ink)}
 

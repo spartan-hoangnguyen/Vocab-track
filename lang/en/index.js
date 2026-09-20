@@ -4,6 +4,9 @@
 LANG.register('en', {
   name: 'English',
   native: 'English',
+  // The toggle's label, which has to fit a segment in the top bar. Not
+  // id.toUpperCase(): an id is a key, and '한' is not 'KO'.
+  short: 'EN',
 
   // Latin letters. Tested against a selection to route it to this pack, so it
   // is a "does this contain" test, not an anchored one.
@@ -12,6 +15,32 @@ LANG.register('en', {
   // The CEFR bands, easiest first. medianLevel and the dashboard's level bars
   // read the scale from here rather than closing over one.
   levels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+
+  // The two accents Cambridge records, which is why this is the one pack with a
+  // choice to make. The ids are NOT free strings: reviewPrefs.accent stores one
+  // of them, and lookup.js's pronounce() picks entry.audioUs over entry.audio by
+  // the id 'us'. The tags are what reaches SpeechSynthesisUtterance.lang.
+  voices: [{ id: 'uk', label: 'UK', bcp47: 'en-GB' },
+           { id: 'us', label: 'US', bcp47: 'en-US' }],
+
+  // The forms that count as "the word" when it is looked for in a spoken
+  // sentence: itself, +s/es/ed/d/ing, and a final e dropped before ing/ed
+  // (accelerate → accelerating, accelerated). Not y→ied or doubled consonants:
+  // a looser rule starts accepting neighbours ("accelerator" is a different
+  // word), and "studies" is always there.
+  //
+  // The mirror of lemma(): that strips a surface form back to the saved word,
+  // this grows the saved word back out to the forms a sentence may use it in.
+  // It lives on the pack for the same reason lemma() does — it was English
+  // morphology sitting inside practice-speak.js, a mode shared by every
+  // language.
+  inflections(word) {
+    const w = String(word ?? '').trim().toLowerCase();
+    if (!w) return [];
+    const out = [w, `${w}s`, `${w}es`, `${w}ed`, `${w}d`, `${w}ing`];
+    if (w.endsWith('e')) out.push(`${w.slice(0, -1)}ing`, `${w.slice(0, -1)}ed`);
+    return out;
+  },
 
   // A selection worth offering a lookup for: one word, letters and inner
   // hyphens only, 2 to 40 characters. Deliberately rejects digits and

@@ -63,9 +63,63 @@ eq('a word with no lang falls back to English', LANG.of({ word: 'cat' }).id, 'en
 eq('an explicit lang wins', LANG.pick('en', '\uCC45').id, 'en');
 eq('normalise folds NFD to NFC',
    VT.normaliseWord('\uCC45'.normalize('NFD')), '\uCC45');
-check('the English pack self-tests clean',
-      LANG.get('en').selfTest().every((row) => row[1]),
-      LANG.get('en').selfTest().filter((row) => !row[1]).map((row) => row[0]).join());
+// Every registered pack, not 'en' by name. A selfTest that is never invoked
+// is worse than none — the suite would go green while saying nothing at all
+// about the pack — so a new lang/<id>/ is covered the moment it is loaded,
+// with no edit here. row[2] is the pack's own detail (what it actually
+// produced), which is the only way to read a failure out of ~80 vectors
+// behind one aggregate check.
+for (const pack of LANG.list()) {
+  const rows = pack.selfTest();
+  check(`the ${pack.id} pack self-tests clean`,
+        rows.every((row) => row[1]),
+        rows.filter((row) => !row[1])
+            .map((row) => (row[2] ? `${row[0]} [${row[2]}]` : row[0])).join('; '));
+}
+
+// --- two packs loaded at once, which is the state that only exists now.
+// Script routing has to separate them in both directions, because nothing
+// that calls resolveWord passes a langId.
+eq('Hangul is detected as Korean', LANG.detect('책')?.id, 'ko');
+eq('Latin is still detected as English', LANG.detect('cat')?.id, 'en');
+eq('a Korean word with no lang routes to the Korean pack',
+   LANG.of({ word: '책' }).id, 'ko');
+// VT.find through the registry: the eojeol, not the bare lemma, and at the
+// offset the original string has it.
+const koHit = VT.find('책', '나는 책을 읽었다');
+eq('find locates a Korean word behind its particle', koHit.length, 1);
+eq('and the range covers the whole eojeol',
+   '나는 책을 읽었다'.slice(koHit[0].index, koHit[0].index + koHit[0].length),
+   '책을');
+// The packs must not bleed: an English word run over Korean text goes to the
+// English pack (Latin script) and finds nothing, rather than throwing.
+eq('an English word does not match Korean text',
+   VT.find('cat', '나는 책을 읽었다').length, 0);
+eq('a Korean word does not match English text',
+   VT.find('책', 'the cat sat').length, 0);
+
+// --- what the packs carry for the UI: the voices and the inflection list.
+// Both are register() defaults for every pack that says nothing, which is what
+// keeps a new language from having to know these exist.
+eq('English offers the two accents Cambridge records',
+   LANG.get('en').voices.map((v) => `${v.id}:${v.bcp47}`).join(), 'uk:en-GB,us:en-US');
+eq('Korean names its region, so the utterance is not a bare language match',
+   LANG.get('ko').voices.map((v) => `${v.id}:${v.bcp47}`).join(), 'std:ko-KR');
+check('every pack has at least one voice, so voices[0] is always a fallback',
+      LANG.list().every((pack) => pack.voices.length >= 1
+        && pack.voices.every((v) => v.id && v.bcp47)));
+check('English inflects a verb for practice-speak',
+      ['accelerates', 'accelerating', 'accelerated']
+        .every((f) => LANG.get('en').inflections('accelerate').includes(f)),
+      LANG.get('en').inflections('accelerate').join());
+// The registry default. A pack that does not inflect the word it is looking
+// for writes nothing and gets the identity.
+eq('a pack with no morphology inflects to itself',
+   LANG.get('ko').inflections('책').join(), '책');
+// Pins what practice-speak's longest-form-first ordering is NOT load-bearing
+// for: en.match is word-bounded, so a form can only hit where it stands alone.
+eq('an inflected form does not match the bare word',
+   LANG.get('en').match('accelerate', 'The car accelerates').length, 0);
 
 // --- isLearnable
 check('a plain entry is learnable', VT.isLearnable({ word: 'cat' }));
@@ -135,6 +189,35 @@ async function fixture(name) {
 }
 
 async function parserTests() {
+  // --- the Korean dictionary pack. Here rather than at the top level only
+  // because lookup() is async and this file is a classic script.
+  //
+  // It is a stub with no key and no network, and every assertion below is
+  // about what it must NOT say. A missing pack would set
+  // `failed: no dictionary registered for ko`, which sidepanel.js:44 renders
+  // as "Cambridge lookup failed." on every Korean word; a `notFound` would
+  // make lookup.js:73 abort the save and throw away the MT gloss that is the
+  // whole of phase 1.
+  const ko = LANG.dict('ko');
+  check('Korean has a dictionary registered', !!ko);
+  eq('and it names itself', ko?.name, 'krdict');
+  eq('and carries its base, as en does', ko?.base, 'https://krdict.korean.go.kr');
+  const koLookup = await ko.lookup('책');
+  eq('a keyless Korean lookup has no level', koLookup.level, null);
+  eq('nor pronunciation', koLookup.ipa, null);
+  eq('nor a definition', koLookup.def, null);
+  eq('nor audio', koLookup.audio, null);
+  check('and does not report a failure, which would fire the panel warning',
+        !('failed' in koLookup), JSON.stringify(koLookup.failed));
+  check('nor not-found, which would abort the save and lose the gloss',
+        !('notFound' in koLookup), JSON.stringify(koLookup.notFound));
+  // The encoding, not the string: the path can move (the desktop ones 404 and
+  // 500, so this is the mobile Vietnamese interface, verified 2026-09-20) but
+  // the word has to survive the URL either way.
+  const koHref = ko.href('책');
+  eq('the full-entry link points at krdict', new URL(koHref).origin, ko.base);
+  check('and carries the word percent-encoded', koHref.endsWith('=%EC%B1%85'), koHref);
+
   const resilient = LANG.dict('en').parse(await fixture('resilient'));
   eq('resilient level', resilient.level, 'C2');
   eq('resilient ipa', resilient.ipa, 'rɪˈzɪl.i.ənt');
