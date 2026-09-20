@@ -27,14 +27,25 @@ async function fetchVietnamese(word, lang = 'en') {
   const url = 'https://translate.googleapis.com/translate_a/single'
     + `?client=dict-chrome-ex&sl=${encodeURIComponent(lang)}&tl=vi`
     + `&dt=t&q=${encodeURIComponent(word)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  // Null means the endpoint answered and had nothing, which is a real answer
+  // about the word. Throwing means it could not be asked, which is a fact
+  // about the network. They are not the same and must not look the same.
+  return data?.[0]?.[0]?.[0] ?? null;
+}
+
+// The reason a gloss is missing, kept rather than swallowed. Both were a bare
+// `—` on the card before, so a rate-limited minute and a word the endpoint
+// genuinely cannot translate were indistinguishable on screen — which is what
+// made this take three rounds to pin down.
+async function glossFor(word, lang) {
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return data?.[0]?.[0]?.[0] ?? null;
+    return { vi: await fetchVietnamese(word, lang), failed: null };
   } catch (err) {
     console.error('[vocab-track] translation failed for', word, err);
-    return null;
+    return { vi: null, failed: `${err.name}: ${err.message}` };
   }
 }
 
@@ -79,27 +90,32 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
     // on every click. One small request, and the alternative is storing a
     // "we tried" flag that then has to expire — the retry IS the repair, so
     // it cannot be a one-off. Store the attempt if the traffic ever shows up.
+    let glossFailed = null;
     if (!known.vi) {
-      const vi = await fetchVietnamese(word, pack.id);
-      if (vi) {
-        known.vi = vi;
-        patch.vi = vi;
+      const gloss = await glossFor(word, pack.id);
+      glossFailed = gloss.failed;
+      if (gloss.vi) {
+        known.vi = gloss.vi;
+        patch.vi = gloss.vi;
       }
     }
     if (Object.keys(patch).length) await putWord(word, patch);
-    return { entry: known };
+    return { entry: known, failed: { dict: null, gloss: glossFailed } };
   }
 
-  const [parsed, vi] = await Promise.all([
+  const [parsed, gloss] = await Promise.all([
     fetchEntry(word, pack.id),
-    fetchVietnamese(word, pack.id)
+    glossFor(word, pack.id)
   ]);
   if (parsed.notFound) return { notFound: true };
 
-  const entry = VT.newEntry(word, parsed, vi, url, pack.id);
+  const entry = VT.newEntry(word, parsed, gloss.vi, url, pack.id);
   if (context) entry.context = context;
-  // Not persisted: it describes this attempt, not the word.
-  const failed = parsed.failed ?? null;
+  // Not persisted: it describes this attempt, not the word. Two channels
+  // because the two failures want different sentences — a missing definition
+  // and a missing gloss are different losses, and for Korean only the second
+  // one is a loss at all.
+  const failed = { dict: parsed.failed ?? null, gloss: gloss.failed };
   if (folderIds?.length) {
     entry.folders = [...new Set([VT.READING, ...folderIds])];
   }

@@ -445,10 +445,17 @@ manual checklist for it.
   the upgrade path.
 - **A gloss that never arrived is re-asked on every click.** The translation
   endpoint rate-limits, so a word saved during a bad minute keeps no meaning —
-  clicking it again now retries rather than answering from storage. The cost
+  looking it up again now retries rather than answering from storage. The cost
   is that a word the endpoint genuinely cannot translate asks again every
   time; it is one small request, and the alternative is storing a "we tried"
   flag that would then have to expire.
+- **A failed translation and a word with no translation used to look the same.**
+  Both were a bare `—` on the card, which is how "the endpoint was rate-limited
+  for a minute" got mistaken for "this word has no meaning" for three rounds of
+  debugging. They are now separate: a lookup that could not be *asked* raises a
+  banner naming the reason and saying to look the word up again, while an
+  endpoint that answers with nothing stays quiet, because that is a real answer
+  about the word.
 - **Nothing tells you the OS has no voice for a language.** Chrome neither
   throws nor reports it — it simply stays silent, and a Mac ships no Korean
   voice until one is downloaded. Listening checks and hides the word rather

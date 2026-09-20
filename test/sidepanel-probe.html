@@ -319,6 +319,41 @@ ready.then(() => setTimeout(async () => {
   check('a word that already has one does not ask again', asked === 0, String(asked));
   check('and the gloss it has is never overwritten',
         settled.entry.vi === 'Biển Đông', String(settled.entry.vi));
+
+  /* ---- a gloss that COULD NOT be asked for says so ----------------------
+     The two were one dash on the card: a rate-limited minute and a word the
+     endpoint genuinely has no translation for looked identical, which is why
+     this took three rounds of guessing to pin down. Now only the first one
+     raises a banner, and it carries the reason. */
+  // `vi: null` restated, not inherited: resolveWord above filled it in on the
+  // very object `thin` names, so spreading it alone would hand the known path
+  // a word that already has a gloss and skip the branch under test.
+  const thinOf = (word) => ({ ...thin, word, vi: null });
+  window.fetchVietnamese = async () => { throw new TypeError('Failed to fetch'); };
+  STORE.words = { '조치': thinOf('조치') };
+  const broke = await resolveWord('조치', null, null, null);
+  check('a translation that could not be asked for reports itself',
+        !!broke.failed?.gloss, String(broke.failed?.gloss));
+  renderEntry(broke.entry, broke.failed);
+  await tick();
+  check('and the panel says so rather than showing a bare dash',
+        !$$('entry-warn').hidden && /Translation failed/.test($$('entry-warn').textContent),
+        $$('entry-warn').textContent.slice(0, 90));
+  check('naming the reason, so it can be reported without a console',
+        /Failed to fetch/.test($$('entry-warn').textContent));
+  check('and pointing at the way out, which is to look it up again',
+        /look the word up again/.test($$('entry-warn').textContent));
+
+  window.fetchVietnamese = async () => null;
+  STORE.words = { '조치': thinOf('조치') };
+  const nothing = await resolveWord('조치', null, null, null);
+  check('but an endpoint that answers with nothing is not a failure',
+        !nothing.failed?.gloss, String(nothing.failed?.gloss));
+  renderEntry(nothing.entry, nothing.failed);
+  await tick();
+  check('and raises no banner, because that is a real answer about the word',
+        $$('entry-warn').hidden, $$('entry-warn').textContent.slice(0, 60));
+
   window.fetchVietnamese = realVi;
   STORE.words = WORDS;
 

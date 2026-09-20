@@ -39,10 +39,12 @@ function renderEntry(entry, failed) {
   renderSenses(entry);
   renderChips(entry);
 
+  // Two channels, because the two losses are different sentences and a Korean
+  // word only ever suffers the second one: it has no dictionary to fail.
   const warn = $('entry-warn');
   warn.replaceChildren();
-  warn.hidden = !failed;
-  if (failed) {
+  warn.hidden = !failed?.dict && !failed?.gloss;
+  if (failed?.dict) {
     const lead = document.createElement('b');
     // The dictionary that failed is the word's own, the way the "full entry"
     // link below already reads it (sidepanel.js:126). `?? 'Dictionary'` because
@@ -50,7 +52,16 @@ function renderEntry(entry, failed) {
     // "no dictionary registered for ko" is itself one of the `failed` strings
     // that reach here.
     lead.textContent = `${LANG.dict(LANG.of(entry).id)?.name ?? 'Dictionary'} lookup failed. `;
-    warn.append(lead, `Level, pronunciation and definition are missing for this reason, not because the word has none. ${failed}`);
+    warn.append(lead, `Level, pronunciation and definition are missing for this reason, not because the word has none. ${failed.dict}`);
+  }
+  if (failed?.gloss) {
+    // Named, and with the reason attached: this used to be a bare dash, which
+    // reads as "this word has no translation" when it means "nobody could be
+    // asked". Looking the word up again retries — resolveWord re-asks for any
+    // gloss that is still null — so the way out is in the sentence.
+    const lead = document.createElement('b');
+    lead.textContent = 'Translation failed. ';
+    warn.append(lead, `The meaning is missing for this reason, not because the word has none — look the word up again to retry. ${failed.gloss}`);
   }
 }
 
