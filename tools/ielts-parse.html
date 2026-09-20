@@ -6,6 +6,9 @@
      & or a < in it would come back corrupted otherwise. -->
 <pre id="out">running</pre>
 <script src="lib.js"></script>
+<script src="lang/lang.js"></script>
+<script src="lang/en/index.js"></script>
+<script src="lang/en/dictionary.js"></script>
 <script>
   const out = document.getElementById('out');
   const die = (what) => { out.textContent = 'ERR ' + what; };
@@ -42,7 +45,7 @@
       let parsed = { level: null, ipa: null, def: null, audio: null };
       if (item.file) {
         const html = await (await fetch(item.file)).text();
-        parsed = VT.parseCambridge(item.phrasal ? foldSenses(html) : html);
+        parsed = LANG.dict('en').parse(item.phrasal ? foldSenses(html) : html);
       }
       const entry = VT.newEntry(item.word, parsed, item.vi, item.url);
       // The CEFR band comes from the word list, not the dictionary: it is the
@@ -59,7 +62,7 @@
       // word-bounded regex, so an example that only contains an inflection
       // ("meticulously") would hand the answer straight to you.
       const example = parsed.senses?.[0]?.example ?? null;
-      entry.context = example && VT.wordRegex(item.word).test(example) ? example : null;
+      entry.context = example && VT.has(item.word, example) ? example : null;
       entries.push(entry);
     }
     // Chunked, not a spread: one batch is ~45KB and spreading that many

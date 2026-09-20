@@ -186,6 +186,10 @@ def crawl(words):
         return
 
     shutil.copy(REPO / 'lib.js', WORK / 'lib.js')
+    # The parse page calls the English pack, not lib.js, for Cambridge markup,
+    # so the whole lang/ tree has to travel with it.
+    shutil.rmtree(WORK / 'lang', ignore_errors=True)
+    shutil.copytree(REPO / 'lang', WORK / 'lang')
     shutil.copy(REPO / 'tools' / 'ielts-parse.html', WORK / 'ielts-parse.html')
     pages = WORK / 'pages'
     httpd = serve(WORK)

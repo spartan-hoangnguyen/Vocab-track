@@ -120,7 +120,10 @@ function highlightStyle() {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 
-function rangesFor(words) {
+// Takes entries, not strings: each word is matched by the rules of its own
+// language, so `lang` has to travel with it. A bare { word } is fine — VT.find
+// falls back to detecting the script.
+function rangesFor(entries) {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
@@ -135,17 +138,16 @@ function rangesFor(words) {
     }
   });
 
-  const regexes = words.map((word) => VT.wordRegex(word));
   const ranges = [];
   let node;
   while ((node = walker.nextNode())) {
-    for (const regex of regexes) {
-      regex.lastIndex = 0;
-      let match;
-      while ((match = regex.exec(node.nodeValue))) {
+    for (const entry of entries) {
+      // Each word is matched by the rules of its own language, so an English
+      // and a Korean word saved from the same page both light up.
+      for (const hit of VT.find(entry.word, node.nodeValue, entry.lang)) {
         const range = document.createRange();
-        range.setStart(node, match.index);
-        range.setEnd(node, match.index + match[0].length);
+        range.setStart(node, hit.index);
+        range.setEnd(node, hit.index + hit.length);
         ranges.push(range);
       }
     }
@@ -161,8 +163,7 @@ async function applyHighlights() {
   // said, so no two sources for one video are string-equal.
   const key = VT.pageKey(location.href);
   const here = Object.values(words)
-    .filter((entry) => entry.sources?.some((source) => VT.pageKey(source) === key))
-    .map((entry) => entry.word);
+    .filter((entry) => entry.sources?.some((source) => VT.pageKey(source) === key));
   if (!here.length) return;
 
   const ranges = rangesFor(here);
@@ -233,8 +234,8 @@ document.addEventListener('click', (event) => {
 
 // rangesFor() already knows how to locate a word in the page, so scrolling to
 // one is just taking the first range it finds.
-function scrollToWord(word) {
-  const ranges = rangesFor([word]);
+function scrollToWord(word, lang) {
+  const ranges = rangesFor([{ word, lang }]);
   if (!ranges.length) return false;
 
   const first = ranges[0];
@@ -263,7 +264,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'scroll-to') {
     // In a video the word's position is a moment, not a place on the page.
     sendResponse({
-      found: typeof message.t === 'number' ? seekTo(message.t) : scrollToWord(message.word)
+      found: typeof message.t === 'number' ? seekTo(message.t) : scrollToWord(message.word, message.lang)
     });
     return;
   }

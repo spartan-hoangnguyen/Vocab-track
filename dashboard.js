@@ -66,7 +66,11 @@ function renderOverview(all) {
   const due = dueCount(all);
   $('ov-total').textContent = all.length;
   $('ov-due').textContent = due;
-  $('ov-median').textContent = VT.medianLevel(all) ?? DASH;
+  // The scale is passed explicitly, never inferred from whichever entry
+  // happens to be first: `all` is unfiltered until the language toggle lands,
+  // and one Korean word at the head of it would score every CEFR level
+  // against 초급/중급/고급 and report no median at all.
+  $('ov-median').textContent = VT.medianLevel(all, LEVELS) ?? DASH;
   $('ov-sub').textContent =
     `${all.length} word${all.length === 1 ? '' : 's'} collected while reading · ` +
     `${Object.keys(folders).length} folder${Object.keys(folders).length === 1 ? '' : 's'}`;
@@ -334,15 +338,10 @@ function wordCard(entry) {
   // --- the sentence it was met in, with the word marked
   if (entry.context) {
     const quote = el('blockquote', 'wc-seen');
-    const re = VT.wordRegex(entry.word);
-    let last = 0;
-    let match;
-    while ((match = re.exec(entry.context))) {
-      quote.append(entry.context.slice(last, match.index));
-      quote.appendChild(el('mark', null, match[0]));
-      last = match.index + match[0].length;
+    for (const piece of VT.pieces(entry.context, VT.find(entry.word, entry.context, entry.lang))) {
+      if (piece.hit) quote.appendChild(el('mark', null, piece.text));
+      else quote.append(piece.text);
     }
-    quote.append(entry.context.slice(last));
     card.appendChild(quote);
   }
 
@@ -362,19 +361,22 @@ function wordCard(entry) {
     const link = el('a', 'wc-link', `↩ ${host}`);
     // A text fragment, so this lands on the sentence rather than the top of a
     // long article. Falls back to the plain URL when there is no context.
-    link.href = VT.sourceLink(source, entry.context, entry.word);
+    link.href = VT.sourceLink(source, entry.context, entry.word, entry.lang);
     link.target = '_blank';
     link.rel = 'noreferrer';
     link.title = `Jump back to where you read it\n${source}`;
     foot.appendChild(link);
   }
 
-  const cam = el('a', 'wc-link', 'Cambridge ↗');
-  cam.href = `${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(entry.word)}`;
-  cam.target = '_blank';
-  cam.rel = 'noreferrer';
-  cam.title = 'Full entry on Cambridge Dictionary';
-  foot.appendChild(cam);
+  const dict = LANG.dict(LANG.of(entry).id);
+  if (dict) {
+    const cam = el('a', 'wc-link', `${dict.name} ↗`);
+    cam.href = dict.href(entry.word);
+    cam.target = '_blank';
+    cam.rel = 'noreferrer';
+    cam.title = `Full entry on ${dict.name}`;
+    foot.appendChild(cam);
+  }
 
   foot.appendChild(el('span', 'wc-spacer'));
 
@@ -824,11 +826,10 @@ function startReview(folderId, { ahead = false } = {}) {
 }
 
 // The prompt must not contain its own answer. The sentence a word was saved
-// from nearly always does, so it is blanked — wordRegex is the same
-// word-bounded matcher the page highlighter uses, so `read` does not blank
-// `already`.
-function maskContext(text, word) {
-  return String(text ?? '').replace(VT.wordRegex(word), '\u2026');
+// from nearly always does, so it is blanked — VT.find is the same matcher
+// the page highlighter uses, so `read` does not blank `already`.
+function maskContext(text, word, lang) {
+  return VT.blank(text, VT.find(word, text, lang));
 }
 
 function renderCard() {
@@ -884,7 +885,7 @@ function renderCard() {
   $('rv-def').textContent = canType ? (entry.def ?? '') : '';
   const seen = $('rv-context');
   const context = entry.context
-    ? (revealed ? entry.context : maskContext(entry.context, entry.word))
+    ? (revealed ? entry.context : maskContext(entry.context, entry.word, entry.lang))
     : '';
   seen.hidden = !context;
   seen.textContent = context;
@@ -926,7 +927,9 @@ function renderCard() {
   // The attribute is removed rather than blanked, so before the answer this is
   // an inert <a> and not a focusable link to the top of the page.
   if (revealed) {
-    $('rv-cam').href = `${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(entry.word)}`;
+    const dict = LANG.dict(LANG.of(entry).id);
+    if (dict) $('rv-cam').href = dict.href(entry.word);
+    else $('rv-cam').removeAttribute('href');
   } else {
     $('rv-cam').removeAttribute('href');
   }

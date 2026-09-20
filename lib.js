@@ -2,8 +2,6 @@
 // No Chrome API and no network here: everything in this file must be callable
 // from test/test.html in a plain browser tab.
 const VT = {
-  CAMBRIDGE: 'https://dictionary.cambridge.org',
-
   // Storage caps. Entries are stored whole, and chrome.storage.local is
   // about 10MB, so these bound how much one word can cost.
   MAX_SENSES: 3,
@@ -11,114 +9,75 @@ const VT = {
   MAX_CONTEXT: 220,
   FRAGMENT_WORDS: 4,
 
+  // NFC, because a macOS Quick Action capture can hand back DECOMPOSED
+  // Hangul: '책'.normalize('NFD') is three code points and compares unequal to
+  // the one-code-point form, so the same word would be saved twice under two
+  // keys. A no-op on Latin text, so English is unaffected.
   normaliseWord(raw) {
-    return String(raw ?? '').trim().toLowerCase();
+    return String(raw ?? '').trim().toLowerCase().normalize('NFC');
   },
 
-  // A selection worth offering a lookup for: one word, letters and inner
-  // hyphens only, 2 to 40 characters. Deliberately rejects digits and
-  // punctuation so the button does not appear on code, prices or dates.
+  // Dispatched to the language the selection is written in. A script no pack
+  // is registered for is not a candidate, so the button stays hidden rather
+  // than offering a lookup nothing can answer.
   isLookupCandidate(raw) {
-    const word = VT.normaliseWord(raw);
-    return /^[a-z]+(-[a-z]+)*$/.test(word) && word.length >= 2 && word.length <= 40;
+    return LANG.detect(raw)?.isCandidate(raw) ?? false;
   },
 
-  // Word-bounded and case-insensitive, so "cat" never lights up inside
-  // "category". Exact match only: "resilient" does not match "resilience".
-  // Stemming is deliberately out of scope.
-  wordRegex(word) {
-    const safe = word.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
-    return new RegExp(`\\b${safe}\\b`, 'gi');
+  // Every occurrence of `word` in `text`, as {index, length} ranges, found by
+  // the rules of that word's language.
+  //
+  // Ranges rather than a RegExp — which is what this used to hand back — so
+  // the seam can serve a language whose matching no regular expression can
+  // express. It also ends the /g lastIndex hazard every caller had to
+  // remember: a range list carries no cursor.
+  //
+  // `lang` is optional. Without it the script decides, which is what lets a
+  // word saved before the field existed still match.
+  find(word, text, lang) {
+    return LANG.pick(lang, word).match(word, String(text ?? ''));
   },
 
-  // Selectors verified against real Cambridge pages on 2026-09-13.
-  // Each field is independent: a markup change that breaks one selector
-  // yields null for that field and leaves the others intact.
-  //
-  // Scoped to the first `.entry-body__el` (the actual dictionary entry),
-  // not the whole document: an off-entry page (e.g. the dictionary index a
-  // not-found lookup redirects to) carries a Word-of-the-Day promo block
-  // with its own `.ipa` and `source[src$=".mp3"]`, which would otherwise be
-  // picked up as if they belonged to the looked-up word.
-  //
-  // level/ipa/def/audio stay top level and describe the FIRST sense, so
-  // entries saved before senses existed keep rendering unchanged.
-  parseCambridge(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const root = doc.querySelector('.entry-body__el');
-    if (!root) return { level: null, ipa: null, def: null, audio: null };
+  has(word, text, lang) {
+    return VT.find(word, text, lang).length > 0;
+  },
 
-    const text = (el, sel) => el?.querySelector(sel)?.textContent.trim() || null;
-    const audioIn = (el) => {
-      const src = el?.querySelector('source[src$=".mp3"]')?.getAttribute('src');
-      return src ? VT.CAMBRIDGE + src : null;
-    };
-    const uk = root.querySelector('.uk.dpron-i');
-    const us = root.querySelector('.us.dpron-i');
+  // A text and its ranges as alternating pieces: [{ text, hit }]. Four places
+  // mark a word inside its own sentence — the panel, the words view, the
+  // review prompt and Fill the gap — and each used to walk the regex itself.
+  // A hit piece carries the word as the TEXT spelled it, which is what lets a
+  // blank be filled back in with the original capitalisation.
+  pieces(text, ranges) {
+    const str = String(text ?? '');
+    const out = [];
+    let at = 0;
+    for (const range of ranges) {
+      if (range.index > at) out.push({ text: str.slice(at, range.index), hit: false });
+      out.push({ text: str.slice(range.index, range.index + range.length), hit: true });
+      at = range.index + range.length;
+    }
+    if (at < str.length) out.push({ text: str.slice(at), hit: false });
+    return out;
+  },
 
-    // Capped deliberately: every sense and example is stored per word, and
-    // chrome.storage.local is ~10MB. Three senses with one example each keeps
-    // an entry near 1KB, so the quota still holds roughly 10,000 words.
-    const senses = [...root.querySelectorAll('.def-block.ddef_block')]
-      .slice(0, VT.MAX_SENSES)
-      .map((block) => ({
-        level: text(block, '.epp-xref'),
-        def: text(block, '.def.ddef_d'),
-        example: text(block, '.examp.dexamp')
-      }))
-      .filter((sense) => sense.def);
-
-    // The headword, so it can be filtered out of its own synonym list —
-    // Cambridge's thesaurus block lists the word itself first.
-    const headword = text(root, '.hw.dhw')?.toLowerCase() ?? null;
-
-    const collect = (sel) => [...root.querySelectorAll(sel)]
-      .map((el) => el.textContent.trim())
-      .filter(Boolean);
-
-    const clean = (items) => [...new Set(items)]
-      .filter((item) => item.toLowerCase() !== headword)
-      .slice(0, VT.MAX_XREF);
-
-    // Two sources, because either alone is thin. `.xref.synonym` is a curated
-    // cross-reference that most entries lack; the `.daccord` thesaurus block
-    // is richer but absent on others. Measured over eight words: xref alone
-    // covered three, the thesaurus block six, the two together seven.
-    const synonyms = clean([
-      ...collect('.xref.synonym .x-h'),
-      ...collect('.daccord li.had.t-i > a')
-    ]);
-
-    return {
-      pos: text(root, '.pos.dpos'),
-      gram: text(root, '.gram.dgram'),
-      ipa: text(uk, '.ipa') ?? text(root, '.ipa'),
-      ipaUs: text(us, '.ipa'),
-      audio: audioIn(uk) ?? audioIn(root),
-      audioUs: audioIn(us),
-      level: senses[0]?.level ?? text(root, '.epp-xref'),
-      def: senses[0]?.def ?? text(root, '.def.ddef_d'),
-      senses,
-      synonyms,
-      related: clean(collect('.xref.related_word .x-h')),
-      opposites: clean(collect('.xref.opposite .x-h'))
-    };
+  // Every occurrence replaced by one mark. Built on pieces, so it cannot
+  // disagree with what the highlighter found.
+  blank(text, ranges, mark = '\u2026') {
+    return VT.pieces(text, ranges).map((piece) => (piece.hit ? mark : piece.text)).join('');
   },
 
   // The sentence in the page that the looked-up word appeared in, so a saved
   // word keeps the context that made it worth saving. Pure: the content
   // script hands in the surrounding block's text.
-  sentenceAround(blockText, word) {
+  sentenceAround(blockText, word, lang) {
     const text = String(blockText ?? '').replace(/\s+/g, ' ').trim();
     if (!text) return null;
-    const re = VT.wordRegex(word);
     // Split after . ! ? followed by a space — deliberately naive. It can cut
     // an abbreviation ("Dr. Smith") in two; a wrong sentence boundary costs a
     // slightly odd quote, which is not worth a parser to avoid.
     const sentences = text.split(/(?<=[.!?])\s+/);
     for (const sentence of sentences) {
-      re.lastIndex = 0;
-      if (re.test(sentence)) {
+      if (VT.has(word, sentence, lang)) {
         const trimmed = sentence.trim();
         return trimmed.length > VT.MAX_CONTEXT
           ? trimmed.slice(0, VT.MAX_CONTEXT).trimEnd() + '…'
@@ -627,7 +586,7 @@ const VT = {
   // the more likely some markup inside it (a link, an emphasis span) makes the
   // match fail. Roughly four words either side is distinctive enough to land
   // on the right occurrence without being brittle.
-  sourceLink(url, context, word) {
+  sourceLink(url, context, word, lang) {
     if (!url) return null;
     // Only a web page can be navigated back to. A word captured from Kindle or
     // Preview records the app it came from, which is not a link — rendering it
@@ -642,16 +601,14 @@ const VT = {
     if (!context) return url;
     // A truncated context ends in an ellipsis that is not on the page.
     const clean = context.replace(/…$/, '').trim();
-    const re = VT.wordRegex(word);
-    re.lastIndex = 0;
-    const match = re.exec(clean);
-    if (!match) return url;
+    const [hit] = VT.find(word, clean, lang);
+    if (!hit) return url;
 
-    const before = clean.slice(0, match.index).split(' ').filter(Boolean);
-    const after = clean.slice(match.index + match[0].length).split(' ').filter(Boolean);
+    const before = clean.slice(0, hit.index).split(' ').filter(Boolean);
+    const after = clean.slice(hit.index + hit.length).split(' ').filter(Boolean);
     const snippet = [
       ...before.slice(-VT.FRAGMENT_WORDS),
-      match[0],
+      clean.slice(hit.index, hit.index + hit.length),
       ...after.slice(0, VT.FRAGMENT_WORDS)
     ].join(' ').trim();
     if (!snippet) return url;
@@ -661,10 +618,16 @@ const VT = {
     return `${base}#:~:text=${encodeURIComponent(snippet)}`;
   },
 
-  // Median CEFR level across entries that have one. Reported instead of a
+  // Median level across entries that have one. Reported instead of a
   // "mastered" count, which nothing in the data defines.
-  medianLevel(entries) {
-    const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  //
+  // The scale comes from the language, not from here: CEFR A1-C2 for English,
+  // 초급/중급/고급 for Korean. `levels` is taken from the first entry's pack
+  // when not given, which for a single-language list is the right one and for
+  // a mixed list is the only sensible guess — the dashboard filters by
+  // language before calling this, so it never sees a mixed list in practice.
+  medianLevel(entries, levels) {
+    const order = levels ?? LANG.of(entries[0] ?? {}).levels;
     const ranks = entries
       .map((e) => order.indexOf(e.level))
       .filter((i) => i >= 0)
@@ -673,9 +636,13 @@ const VT = {
     return order[ranks[Math.floor(ranks.length / 2)]];
   },
 
-  newEntry(word, parsed, vi, url) {
+  // `lang` is the pack the word belongs to. Detected from the script when not
+  // given, so a caller that predates languages — tools/ielts-parse.html, the
+  // tests — keeps producing exactly what it did before.
+  newEntry(word, parsed, vi, url, lang) {
     return {
       word,
+      lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
       folders: [VT.READING],
       level: parsed.level,
       ipa: parsed.ipa,

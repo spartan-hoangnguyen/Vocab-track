@@ -82,17 +82,15 @@ function renderContext(entry) {
   if (!entry.context) return;
   // The word is marked inside its own sentence, built with text nodes so the
   // page's sentence can never be parsed as markup.
-  const re = VT.wordRegex(entry.word);
-  let last = 0;
-  let match;
-  while ((match = re.exec(entry.context))) {
-    quote.append(entry.context.slice(last, match.index));
+  for (const piece of VT.pieces(entry.context, VT.find(entry.word, entry.context, entry.lang))) {
+    if (!piece.hit) {
+      quote.append(piece.text);
+      continue;
+    }
     const mark = document.createElement('mark');
-    mark.textContent = match[0];
+    mark.textContent = piece.text;
     quote.append(mark);
-    last = match.index + match[0].length;
   }
-  quote.append(entry.context.slice(last));
 }
 
 function renderLinks(entry) {
@@ -102,7 +100,7 @@ function renderLinks(entry) {
   const source = entry.sources?.[entry.sources.length - 1];
   // A text fragment, so the link lands on the sentence rather than the top of
   // a long article. Falls back to the plain URL when there is no context.
-  const deep = VT.sourceLink(source, entry.context, entry.word);
+  const deep = VT.sourceLink(source, entry.context, entry.word, entry.lang);
   if (deep) {
     let host = source;
     try { host = new URL(source).hostname.replace(/^www\./, ''); } catch { /* keep raw */ }
@@ -115,13 +113,17 @@ function renderLinks(entry) {
     box.appendChild(back);
   }
 
-  const cam = document.createElement('a');
-  cam.href = `${VT.CAMBRIDGE}/dictionary/english/${encodeURIComponent(entry.word)}`;
-  cam.target = '_blank';
-  cam.rel = 'noreferrer';
-  cam.textContent = 'Cambridge ↗';
-  cam.title = 'Full entry on Cambridge Dictionary';
-  box.appendChild(cam);
+  // The dictionary is the language's, so its name and URL come from the pack.
+  const dict = LANG.dict(LANG.of(entry).id);
+  if (dict) {
+    const cam = document.createElement('a');
+    cam.href = dict.href(entry.word);
+    cam.target = '_blank';
+    cam.rel = 'noreferrer';
+    cam.textContent = `${dict.name} ↗`;
+    cam.title = `Full entry on ${dict.name}`;
+    box.appendChild(cam);
+  }
 }
 
 function renderSenses(entry) {

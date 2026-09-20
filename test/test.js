@@ -29,16 +29,43 @@ check('rejects digits', !VT.isLookupCandidate('covid19'));
 check('rejects punctuation', !VT.isLookupCandidate('resilient.'));
 check('rejects over 40 chars', !VT.isLookupCandidate('a'.repeat(41)));
 
-// --- wordRegex
-const re = () => VT.wordRegex('cat');
-check('matches the bare word', re().test('a cat sat'));
-check('matches capitalised at sentence start', re().test('Cat sat'));
-check('matches before punctuation', re().test('the cat.'));
-check('matches possessive stem', re().test("the cat's bowl"));
-check('does not match inside category', !re().test('category'));
-check('does not match inside concatenate', !re().test('concatenate'));
-check('does not match inside bobcat', !re().test('bobcat'));
-eq('is global', VT.wordRegex('cat').global, true);
+// --- VT.find / VT.has  (what wordRegex became)
+const hit = (text) => VT.has('cat', text);
+check('matches the bare word', hit('a cat sat'));
+check('matches capitalised at sentence start', hit('Cat sat'));
+check('matches before punctuation', hit('the cat.'));
+check('matches possessive stem', hit("the cat's bowl"));
+check('does not match inside category', !hit('category'));
+check('does not match inside concatenate', !hit('concatenate'));
+check('does not match inside bobcat', !hit('bobcat'));
+eq('finds every occurrence', VT.find('cat', 'cat, Cat and CAT').length, 3);
+eq('a range points at the word',
+   VT.find('cat', 'a cat sat')[0].index, 2);
+eq('a range carries its length', VT.find('cat', 'a cat sat')[0].length, 3);
+// The hazard the old /g regex had: a reused object kept lastIndex, so the
+// second call silently started mid-string. A range list carries no cursor.
+eq('two calls agree', VT.find('cat', 'a cat sat').length, VT.find('cat', 'a cat sat').length);
+
+// --- VT.pieces / VT.blank
+const pieces = VT.pieces('a Cat sat', VT.find('cat', 'a Cat sat'));
+eq('pieces round-trip the text', pieces.map((x) => x.text).join(''), 'a Cat sat');
+eq('the hit keeps the text spelling',
+   pieces.filter((x) => x.hit).map((x) => x.text).join(), 'Cat');
+eq('blank replaces every occurrence',
+   VT.blank('a cat and a Cat', VT.find('cat', 'a cat and a Cat')), 'a \u2026 and a \u2026');
+eq('blank leaves a text with no hit alone',
+   VT.blank('a dog', VT.find('cat', 'a dog')), 'a dog');
+
+// --- the language registry
+eq('English is detected from Latin script', LANG.detect('resilient')?.id, 'en');
+eq('an unknown script detects as nothing', LANG.detect('\u4e2d\u6587'), null);
+eq('a word with no lang falls back to English', LANG.of({ word: 'cat' }).id, 'en');
+eq('an explicit lang wins', LANG.pick('en', '\uCC45').id, 'en');
+eq('normalise folds NFD to NFC',
+   VT.normaliseWord('\uCC45'.normalize('NFD')), '\uCC45');
+check('the English pack self-tests clean',
+      LANG.get('en').selfTest().every((row) => row[1]),
+      LANG.get('en').selfTest().filter((row) => !row[1]).map((row) => row[0]).join());
 
 // --- isLearnable
 check('a plain entry is learnable', VT.isLearnable({ word: 'cat' }));
@@ -108,7 +135,7 @@ async function fixture(name) {
 }
 
 async function parserTests() {
-  const resilient = VT.parseCambridge(await fixture('resilient'));
+  const resilient = LANG.dict('en').parse(await fixture('resilient'));
   eq('resilient level', resilient.level, 'C2');
   eq('resilient ipa', resilient.ipa, 'rɪˈzɪl.i.ənt');
   eq('resilient def', resilient.def,
@@ -116,7 +143,7 @@ async function parserTests() {
   eq('resilient audio', resilient.audio,
      'https://dictionary.cambridge.org/media/english/uk_pron/u/ukr/ukres/ukresid009.mp3');
 
-  const happy = VT.parseCambridge(await fixture('happy'));
+  const happy = LANG.dict('en').parse(await fixture('happy'));
   eq('happy level', happy.level, 'A1');
   eq('happy ipa', happy.ipa, 'ˈhæp.i');
   eq('happy def', happy.def, 'feeling, showing, or causing pleasure or satisfaction:');
@@ -124,7 +151,7 @@ async function parserTests() {
   // The important case: a real entry with no CEFR level. "ubiquitous" is
   // outside the English Profile word list. A null level must not stop the
   // other three fields from parsing.
-  const ubi = VT.parseCambridge(await fixture('ubiquitous'));
+  const ubi = LANG.dict('en').parse(await fixture('ubiquitous'));
   eq('ubiquitous level is null', ubi.level, null);
   eq('ubiquitous ipa still parses', ubi.ipa, 'juːˈbɪk.wɪ.təs');
   eq('ubiquitous def still parses', ubi.def, 'seeming to be everywhere:');
@@ -136,14 +163,14 @@ async function parserTests() {
   // `.entry-body__el`, but does carry a Word-of-the-Day promo block with its
   // own `.ipa` and `source[src$=".mp3"]`. All four fields must come back
   // null, proving the entry-scoped parse does not pick up that promo block.
-  const notfound = VT.parseCambridge(await fixture('notfound'));
+  const notfound = LANG.dict('en').parse(await fixture('notfound'));
   eq('not-found level is null', notfound.level, null);
   eq('not-found ipa is null', notfound.ipa, null);
   eq('not-found def is null', notfound.def, null);
   eq('not-found audio is null', notfound.audio, null);
 
   // Garbage in, four nulls out. Never throws.
-  const empty = VT.parseCambridge('<html><body>nothing here</body></html>');
+  const empty = LANG.dict('en').parse('<html><body>nothing here</body></html>');
   eq('empty level', empty.level, null);
   eq('empty ipa', empty.ipa, null);
   eq('empty def', empty.def, null);
@@ -334,10 +361,10 @@ async function parserTests() {
   eq('median of only-null levels is null', VT.medianLevel([{ level: null }]), null);
 
   // --- richer parse fields, read from the same three fixtures
-  const rich = VT.parseCambridge(await fixture('resilient'));
+  const rich = LANG.dict('en').parse(await fixture('resilient'));
   eq('resilient part of speech', rich.pos, 'adjective');
   eq('resilient US ipa', rich.ipaUs, 'rɪˈzɪl.jənt');
-  check('resilient US audio is a cambridge mp3', rich.audioUs?.startsWith(VT.CAMBRIDGE));
+  check('resilient US audio is a cambridge mp3', rich.audioUs?.startsWith(LANG.dict('en').base));
   check('resilient US audio differs from UK', rich.audioUs !== rich.audio);
   eq('resilient sense count', rich.senses.length, 2);
   eq('resilient first example', rich.senses[0].example,
@@ -351,12 +378,12 @@ async function parserTests() {
   check('a word is never its own synonym',
         !rich.synonyms.some((w) => w.toLowerCase() === 'resilient'));
 
-  const happyRich = VT.parseCambridge(await fixture('happy'));
+  const happyRich = LANG.dict('en').parse(await fixture('happy'));
   eq('happy grammar label', happyRich.gram, '[ before noun ]');
   eq('happy sense count', happyRich.senses.length, 3);
   check('every parsed sense has a definition', happyRich.senses.every((s) => s.def));
 
-  const ubiRich = VT.parseCambridge(await fixture('ubiquitous'));
+  const ubiRich = LANG.dict('en').parse(await fixture('ubiquitous'));
   eq('ubiquitous synonym', ubiRich.synonyms.join(), 'omnipresent');
   eq('happy synonyms', happyRich.synonyms.join(), 'cheerful,in a good mood,pleased,glad');
   check('synonyms are capped', rich.synonyms.length <= VT.MAX_XREF);
@@ -368,7 +395,7 @@ async function parserTests() {
   check('senses are capped', VT.MAX_SENSES <= 5 && rich.senses.length <= VT.MAX_SENSES);
 
   // A page with no entry yields nulls and empty lists, never a throw.
-  const none = VT.parseCambridge('<html><body>nothing</body></html>');
+  const none = LANG.dict('en').parse('<html><body>nothing</body></html>');
   eq('no-entry page has null pos', none.pos ?? null, null);
   eq('no-entry page has no senses', (none.senses ?? []).length, 0);
   eq('no-entry page has no synonyms', (none.synonyms ?? []).length, 0);
@@ -573,9 +600,12 @@ async function parserTests() {
   // pinning where a test run will catch it. Comments are stripped first: the
   // comment justifying the option also contains the string, and matching that
   // made an earlier version of this check pass with the option deleted.
-  const lookupSrc = await (await fetch('../lookup.js?t=' + Date.now())).text();
-  const cambridgeFn = lookupSrc.slice(lookupSrc.indexOf('async function fetchCambridge'),
-                                      lookupSrc.indexOf('async function fetchVietnamese'));
+  //
+  // It moved with the rest of the Cambridge pipeline into the English pack,
+  // so that is the file read here.
+  const dictSrc = await (await fetch('../lang/en/dictionary.js?t=' + Date.now())).text();
+  const cambridgeFn = dictSrc.slice(dictSrc.indexOf('async function lookup'),
+                                    dictSrc.indexOf('LANG.dictionary('));
   const cambridgeCode = cambridgeFn.replace(/^\s*\/\/.*$/gm, '');
   check('cambridge fetch omits credentials', /credentials:\s*'omit'/.test(cambridgeCode),
         'Cambridge 403s when Chrome attaches cookies to this cross-origin fetch');

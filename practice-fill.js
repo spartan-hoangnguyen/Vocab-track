@@ -12,7 +12,7 @@
   // The saved sentence first: it is the one you met the word in.
   function sentenceOf(entry) {
     return [entry.context, ...(entry.senses ?? []).map((s) => s.example)]
-      .find((text) => text && VT.wordRegex(entry.word).test(text)) ?? '';
+      .find((text) => text && VT.has(entry.word, text, entry.lang)) ?? '';
   }
 
   // Up to three other words. Same level first, like the quiz, so register does
@@ -26,8 +26,7 @@
       const key = other?.word?.toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      // A fresh regex each time: wordRegex is /g, and a reused one keeps lastIndex.
-      if (VT.wordRegex(other.word).test(sentence)) continue;
+      if (VT.has(other.word, sentence, other.lang)) continue;
       (other.level && other.level === entry.level ? near : far).push(other.word);
     }
     const picked = [...VT.shuffled(near), ...VT.shuffled(far)].slice(0, 3);
@@ -36,24 +35,26 @@
 
   // The sentence as text with a span per match, so each blank can later be
   // filled in place with the word exactly as the sentence spelled it.
-  function blanked(sentence, word, node) {
+  function blanked(sentence, word, node, lang) {
     const p = node('p', 'prsentence');
-    let at = 0;
-    for (const m of sentence.matchAll(VT.wordRegex(word))) {
-      p.append(sentence.slice(at, m.index));
+    for (const piece of VT.pieces(sentence, VT.find(word, sentence, lang))) {
+      if (!piece.hit) {
+        p.append(piece.text);
+        continue;
+      }
       const gap = node('span', 'prgap', BLANK);
-      gap.dataset.word = m[0];
+      // The word as the SENTENCE spelled it, so filling the blank back in
+      // keeps the original capitalisation.
+      gap.dataset.word = piece.text;
       p.appendChild(gap);
-      at = m.index + m[0].length;
     }
-    p.append(sentence.slice(at));
     return p;
   }
 
   function ask(entry, host, ctx) {
     const sentence = sentenceOf(entry);
     const root = ctx.node('div', 'pr-fill');
-    const line = blanked(sentence, entry.word, ctx.node);
+    const line = blanked(sentence, entry.word, ctx.node, entry.lang);
     root.appendChild(line);
     const gloss = VT.glossOf(entry);
     if (gloss) root.appendChild(ctx.node('p', 'prhint', gloss));
@@ -151,12 +152,12 @@
 
     const a = await drive('key');
     const list = a.offered.join(', ');
-    out.push(['blanked sentence no longer holds the word', !VT.wordRegex(entry.word).test(a.text), a.text]);
+    out.push(['blanked sentence no longer holds the word', !VT.has(entry.word, a.text, entry.lang), a.text]);
     out.push(['every match is blanked', a.text.split(BLANK).length === 3, a.text]);
     out.push(['four options, the word exactly once',
       a.offered.length === 4 && a.offered.filter((x) => x === entry.word).length === 1, list]);
     out.push(['no option already in the sentence',
-      a.offered.every((x) => x === entry.word || !VT.wordRegex(x).test(entry.context)), list]);
+      a.offered.every((x) => x === entry.word || !VT.has(x, entry.context, entry.lang)), list]);
     out.push(['same-level words come first',
       a.offered.includes('leverage') && a.offered.includes('scarce'), list]);
     out.push(['the right key resolves true', a.ok === true]);
@@ -182,7 +183,7 @@
     min: 4,
     why: 'Needs four words with a saved sentence',
     eligible: (entry) => [entry.context, ...(entry.senses ?? []).map((s) => s.example)]
-      .some((text) => text && VT.wordRegex(entry.word).test(text)),
+      .some((text) => text && VT.has(entry.word, text, entry.lang)),
     ask,
     selfTest
   });

@@ -4,25 +4,44 @@
   "version": "0.1.0",
   "description": "Look up English words while reading, and review them as flashcards.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "sidePanel", "nativeMessaging"],
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "nativeMessaging"
+  ],
   "host_permissions": [
     "https://dictionary.cambridge.org/*",
     "https://translate.googleapis.com/*",
     "https://api.languagetool.org/*"
   ],
-  "background": { "service_worker": "service-worker.js" },
-  "side_panel": { "default_path": "sidepanel.html" },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "action": {},
   "commands": {
     "speed-read": {
-      "suggested_key": { "default": "Alt+Shift+R" },
+      "suggested_key": {
+        "default": "Alt+Shift+R"
+      },
       "description": "Speed-read this page"
     }
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["lib.js", "content-script.js", "reader.js", "writer.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "lib.js",
+        "lang/lang.js",
+        "lang/en/index.js",
+        "content-script.js",
+        "reader.js",
+        "writer.js"
+      ],
       "run_at": "document_idle"
     }
   ]
