@@ -170,6 +170,32 @@
     const tiny = { ...entry, context: 'A strategy.' };
     const c = await drive(null, tiny, [tiny, pool[1]]);
     out.push(['works with fewer than four options', c.offered.length === 2, c.offered.join(', ')]);
+
+    // A Korean entry, which nothing drove before. Everything here routes
+    // through the entry's own pack — blanked() via VT.find, optionsFor via
+    // VT.has — so the interesting part is the range: ko.match returns the
+    // whole 어절, so the gap swallows 책을 and the fill has to put back what
+    // the sentence said, particle and all. An English-shaped blank would
+    // leave 을 stranded beside the gap and give the answer away.
+    const k = (word, vi, context) => ({ word, lang: 'ko', level: '초급', vi, context, senses: [] });
+    const koEntry = k('책', 'sách', '나는 책을 읽었다');
+    // 나 is the distractor that matters: it IS in the sentence, as 나는, and
+    // only the Korean matcher can see it there — \b never fires between
+    // Hangul syllables, so an English-shaped check would offer it as a wrong
+    // answer that is sitting in plain view two words away.
+    const koPool = [koEntry, k('신문', 'báo', 'x'), k('학교', 'trường', 'x'),
+      k('친구', 'bạn', 'x'), k('나', 'tôi', 'x')];
+    const d = await drive('key', koEntry, koPool);
+    out.push(['a Korean blank takes the whole 어절',
+      d.marks.join('|') === '책을', d.marks.join('|')]);
+    out.push(['and the blanked sentence no longer holds the word',
+      !VT.has(koEntry.word, d.text, koEntry.lang), d.text]);
+    out.push(['four Korean options, the word exactly once',
+      d.offered.length === 4 && d.offered.filter((x) => x === koEntry.word).length === 1,
+      d.offered.join(', ')]);
+    out.push(['and the right key still resolves true on a Korean card', d.ok === true]);
+    out.push(['no Korean option is already in the sentence behind a particle',
+      !d.offered.includes('나'), d.offered.join(', ')]);
     return out;
   }
 

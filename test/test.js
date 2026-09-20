@@ -43,8 +43,29 @@ eq('a range points at the word',
    VT.find('cat', 'a cat sat')[0].index, 2);
 eq('a range carries its length', VT.find('cat', 'a cat sat')[0].length, 3);
 // The hazard the old /g regex had: a reused object kept lastIndex, so the
-// second call silently started mid-string. A range list carries no cursor.
-eq('two calls agree', VT.find('cat', 'a cat sat').length, VT.find('cat', 'a cat sat').length);
+// second call silently started mid-string. A range list carries no cursor —
+// but "call it twice, get the same count" cannot prove that, because a /g
+// regex run to exhaustion resets lastIndex to 0 on the exec that returns
+// null. It passes whether or not the object is shared, which is no test.
+//
+// What a stale cursor would actually corrupt is the ranges themselves, and
+// pieces() is where that shows: it slices the text on them in order, so a
+// range that is off by even one drops or duplicates a character. Asserting
+// the round-trip is exact catches the whole class, cursor or arithmetic.
+const many = 'cat, Cat and CAT';
+const spans = VT.find('cat', many);
+eq('ranges come back in ascending order and do not overlap',
+   spans.every((r, i) => i === 0 || r.index >= spans[i - 1].index + spans[i - 1].length),
+   true);
+eq('pieces reassembles the text exactly, so no range is off by one',
+   VT.pieces(many, spans).map((p) => p.text).join(''), many);
+eq('and every hit piece is the word as the text spelled it',
+   VT.pieces(many, spans).filter((p) => p.hit).map((p) => p.text).join('|'),
+   'cat|Cat|CAT');
+// Interleaved with a different search, which is what a shared cursor would
+// break: the second call must not start where the first one left off.
+eq('a search in between does not move the next one',
+   (VT.find('sat', 'a cat sat'), VT.find('cat', many).length), 3);
 
 // --- VT.pieces / VT.blank
 const pieces = VT.pieces('a Cat sat', VT.find('cat', 'a Cat sat'));

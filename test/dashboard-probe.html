@@ -965,6 +965,48 @@ ready.then(() => setTimeout(async () => {
   STORE.words = savedWords;
   delete STORE.lang;
 
+  /* ---- a stored language whose pack is gone ------------------------------
+     getLang() resolves through LANG.get rather than trusting the key, so an
+     id left behind by a pack that was removed falls back once, here, instead
+     of throwing on every render. Nothing reached this branch before. */
+  STORE.lang = 'zz';
+  // getLang() directly, and deliberately NOT through refresh(): without the
+  // guard, renderOverview's LANG.get(activeLang).levels throws, and this probe
+  // drops every row it has collected when it throws — so the suite would go
+  // red saying only "TypeError: reading 'levels'". Testing the function that
+  // owns the branch keeps the failure named.
+  check('an unknown language id falls back to English rather than throwing',
+        (await getLang()) === LANG.FALLBACK, await getLang());
+  check('and the key is left alone, which is not this function’s to fix',
+        STORE.lang === 'zz', String(STORE.lang));
+  delete STORE.lang;
+  await refresh();
+
+  /* ---- looking a word up follows it into its own language -----------------
+     The words view's CTA dispatches on the SCRIPT of what you typed, so 책
+     typed in an English session offers a Korean lookup — and the word would
+     then save into a list this page is filtering out, which reads as the
+     lookup having done nothing. lookupNew writes the key; refresh() re-reads
+     it. resolveWord is stubbed the way pronounce is above: the branch under
+     test is the follow, not the network. */
+  const realResolve = window.resolveWord;
+  window.resolveWord = async (word) => ({
+    entry: { ...mk(word, { lang: 'ko', level: '초급', vi: 'sách' }), word }
+  });
+  const cta = document.createElement('button');
+  await lookupNew('책', cta);
+  check('looking up a Korean word from an English session switches the language',
+        activeLang === 'ko', activeLang);
+  check('and the key is written, so another tab follows too', STORE.lang === 'ko', String(STORE.lang));
+  await setLang('en');
+  window.resolveWord = async (word) => ({ entry: { ...mk(word), word } });
+  await lookupNew('resilient', cta);
+  check('a word in the language you are already in moves nothing',
+        activeLang === 'en' && STORE.lang === 'en', `${activeLang}/${STORE.lang}`);
+  window.resolveWord = realResolve;
+  delete STORE.lang;
+  await refresh();
+
   /* ---- the folder GRID is language-scoped, not just the counts on it ------
      The reported bug: a Korean session showed IELTS C1, IELTS C2, Phrasal A1
      and Phrasal A2 as empty cards, because render() filtered `words` by the

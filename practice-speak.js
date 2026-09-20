@@ -239,6 +239,24 @@ PRACTICE.register('speak', {
     const missing = SPEAK.grade('The car went much faster then', 'accelerate');
     out.push(['sentence without the word fails', !missing.ok && missing.reason === 'Use the word itself']);
 
+    // A non-English pack, which nothing reached until now: findWord takes one
+    // explicitly and also defaults it off the word's own script, and both
+    // routes have to land on the Korean pack. ko.match returns the whole
+    // 어절, so the hit text is 책을 rather than 책 — the same rule English
+    // follows, that the mark keeps the spelling that was actually said.
+    const koHit = SPEAK.findWord('나는 책을 읽었다', '책', LANG.get('ko'));
+    out.push(['a Korean word is found behind its particle',
+      koHit?.index === 3 && koHit?.text === '책을', JSON.stringify(koHit)]);
+    out.push(['and the pack defaults off the script when none is passed',
+      SPEAK.findWord('나는 책을 읽었다', '책')?.text === '책을']);
+    out.push(['a Korean sentence that omits the word still fails',
+      !SPEAK.grade('나는 신문을 읽었다', '책').ok]);
+    // ponytail's ceiling, pinned rather than described: MIN_WORDS counts
+    // whitespace, so five 어절 is a longer sentence than five English words.
+    const koShort = SPEAK.grade('나는 책을 읽었다', '책');
+    out.push(['and five 어절 is the bar, counted the same way as words',
+      !koShort.ok && /5 words/.test(koShort.reason), koShort.reason]);
+
     // Drives ask() in a detached host with a hand-made ctx whose next()
     // records what it was given and resolves at once. Rec replaces the
     // browser's recognizer for the run: undefined is "no speech API".
