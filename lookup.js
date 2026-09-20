@@ -38,8 +38,9 @@ async function fetchVietnamese(word, lang = 'en') {
   }
 }
 
-// The whole save path for one word, with no UI in it: known words short-
-// circuit without a network call, new words are fetched, saved and returned.
+// The whole save path for one word, with no UI in it: a known word answers
+// from storage — the one exception being a gloss that never landed, which is
+// asked for again — and a new word is fetched, saved and returned.
 // Returns { entry } or { notFound: true }.
 async function resolveWord(rawWord, url, folderIds, context, langId) {
   // The pack decides what the saved key is. For English that is the word as
@@ -66,6 +67,24 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
       const merged = [...new Set([...VT.foldersOf(known), ...folderIds])];
       known.folders = merged;
       patch.folders = merged;
+    }
+    // A gloss that failed the first time is retried, for the same reason a
+    // missing context is filled in above: this endpoint is unofficial and
+    // rate-limits, and the known path returns before any network call, so
+    // without this a word saved during one bad minute has no meaning for
+    // good — clicking it again cannot help, because clicking it again lands
+    // here. Only a null is retried; a gloss that exists is never overwritten.
+    //
+    // ponytail: a word the endpoint genuinely has no translation for re-asks
+    // on every click. One small request, and the alternative is storing a
+    // "we tried" flag that then has to expire — the retry IS the repair, so
+    // it cannot be a one-off. Store the attempt if the traffic ever shows up.
+    if (!known.vi) {
+      const vi = await fetchVietnamese(word, pack.id);
+      if (vi) {
+        known.vi = vi;
+        patch.vi = vi;
+      }
     }
     if (Object.keys(patch).length) await putWord(word, patch);
     return { entry: known };
@@ -113,6 +132,42 @@ function pronounce(entry, accent = 'uk') {
 // pronounce() is the only caller and always passes `entry.lang` — but the field
 // postdates most of the store, so an older entry passes `undefined`, and the
 // script of the word itself answers for those (LANG.pick, lang/lang.js).
+// macOS ships eight novelty Korean voices — Eddy, Flo, Grandma, Grandpa,
+// Reed, Rocko, Sandy, Shelley — beside Yuna, the only real one, and Chrome
+// picks among all nine when an utterance names a language and no voice. It
+// picks badly. English never showed this because pronounce() plays Cambridge's
+// mp3 and only falls through to synthesis when there is none; a Korean word
+// has no mp3 at all, so synthesis IS the feature there.
+//
+// ponytail: a name list, and macOS's. It goes stale when Apple renames one,
+// and it says nothing about Windows or Linux — where the filters below still
+// do the useful half. The upgrade path is a real voice picker in the review
+// preferences, listing what the machine actually has; this is the version
+// that needs no UI and no stored preference.
+const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred|Good News|Grandma|Grandpa|Jester|Junior|Kathy|Organ|Reed|Rocko|Sandy|Shelley|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
+
+// Pure, so the probe can drive it with a hand-made list: headless Chrome has
+// no voices at all and getVoices() there is always [].
+//
+// Primary subtag only, because a pack says 'ko-KR' and a voice can say 'ko'.
+// Order: a premium recording beats the system default, which beats anything
+// local, which beats whatever is left. An empty list returns null and the
+// utterance keeps the language alone — exactly the old behaviour, which is
+// the right answer while getVoices() is still filling in.
+function bestVoice(tag, voices) {
+  const want = String(tag ?? '').toLowerCase().split(/[-_]/)[0];
+  if (!want) return null;
+  const matching = (voices ?? [])
+    .filter((v) => String(v.lang ?? '').toLowerCase().split(/[-_]/)[0] === want);
+  const serious = matching.filter((v) => !NOVELTY.test(v.name ?? ''));
+  const pool = serious.length ? serious : matching;
+  return pool.find((v) => /premium|enhanced|siri/i.test(v.name ?? ''))
+    ?? pool.find((v) => v.default)
+    ?? pool.find((v) => v.localService)
+    ?? pool[0]
+    ?? null;
+}
+
 function speak(word, accent = 'uk', lang) {
   const voices = LANG.pick(lang, word).voices;
   // reviewPrefs.accent is ONE string across every language, so a profile that
@@ -122,6 +177,9 @@ function speak(word, accent = 'uk', lang) {
   const voice = voices.find((v) => v.id === accent) ?? voices[0];
   const utterance = new SpeechSynthesisUtterance(word);
   utterance.lang = voice.bcp47;
+  // Named explicitly rather than left to Chrome — see bestVoice above. Null
+  // is a legal value and means "you choose", which is where this started.
+  utterance.voice = bestVoice(voice.bcp47, speechSynthesis.getVoices());
   // ponytail: says nothing at all when the OS has no voice for this tag —
   // Chrome neither throws nor fires an error, it just stays silent, and a Mac
   // ships no Korean voice until one is downloaded. getVoices() is the check,

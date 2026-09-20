@@ -482,6 +482,20 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     hand still files it there — that is the deliberate way to make one folder
     hold both, and once it does, it shows in both sessions.
 
+87. **A word whose gloss never arrived repairs itself.** Find a Korean word
+    saved with **—** where the Vietnamese gloss should be (the translation
+    endpoint rate-limits, so one will turn up). Click it again on a page, or
+    look it up from the dashboard. The gloss fills in, and DevTools → Network
+    shows exactly one `translate_a/single` request. Click a word that already
+    has a gloss: no request at all, and the gloss does not change.
+
+88. **The Korean voice is the good one.** Press ▶ on a Korean card. It must
+    not be a novelty voice — Eddy, Rocko and Grandma are cartoon voices macOS
+    ships beside Yuna, and Chrome used to pick among all nine. Download
+    **Yuna (Enhanced)** (System Settings → Accessibility → Spoken Content →
+    System Voice → Manage Voices → Korean) and press ▶ again: it should switch
+    to the enhanced recording without any setting being touched.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

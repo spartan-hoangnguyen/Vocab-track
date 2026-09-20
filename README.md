@@ -101,6 +101,16 @@ and nothing else** — no pronunciation, no definition, no senses, no audio file
 The **krdict ↗** link on the card opens the real entry in a tab; that is the
 substitute until a key exists.
 
+**The Korean voice is worth ten minutes of setup.** A Korean word has no
+recording behind it — there is no krdict key — so ▶ is speech synthesis, and
+macOS ships *eight* novelty voices (Eddy, Rocko, Grandma…) beside Yuna, the
+only real one. The extension now names the voice it wants instead of letting
+Chrome pick among the nine, but it can only pick from what is installed:
+**System Settings → Accessibility → Spoken Content → System Voice → Manage
+Voices → Korean → Yuna (Enhanced)** is the download that makes the difference.
+An enhanced recording is preferred over the system default automatically once
+it is there.
+
 **Folders belong to a language too.** The toggle filters the folder grid, not
 just the words in it, so *IELTS C1* is not sitting empty in your Korean
 overview. A folder made before folders had a language is placed by the words
@@ -425,6 +435,20 @@ manual checklist for it.
   the `\p{L}` pivot classes both hold on Hangul, but the focal-letter formula is
   calibrated to Latin letter widths and the long-word beat never fires on an
   어절, which is rarely over four characters.
+- **The voice is chosen by name, and the name list is macOS's.** Chrome picks
+  a voice for you when an utterance names only a language, and it picks badly
+  where a language has novelty voices installed. The pick is now explicit —
+  an enhanced recording, then the system default, then anything local — with
+  the known macOS novelty names filtered out. That list goes stale when Apple
+  renames one, and it says nothing about Windows or Linux, where the rest of
+  the ordering still applies. A real voice picker in the review preferences is
+  the upgrade path.
+- **A gloss that never arrived is re-asked on every click.** The translation
+  endpoint rate-limits, so a word saved during a bad minute keeps no meaning —
+  clicking it again now retries rather than answering from storage. The cost
+  is that a word the endpoint genuinely cannot translate asks again every
+  time; it is one small request, and the alternative is storing a "we tried"
+  flag that would then have to expire.
 - **Nothing tells you the OS has no voice for a language.** Chrome neither
   throws nor reports it — it simply stays silent, and a Mac ships no Korean
   voice until one is downloaded. Listening checks and hides the word rather

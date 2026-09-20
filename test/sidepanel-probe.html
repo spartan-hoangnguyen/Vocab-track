@@ -260,6 +260,68 @@ ready.then(() => setTimeout(async () => {
           === 'Pronounce 책 (한국어)',
         $$('entry-prons').querySelector('button')?.getAttribute('aria-label'));
 
+  /* ---- which system voice a word is actually spoken with ----------------
+     speak() used to set only utterance.lang and let Chrome choose. macOS
+     ships eight novelty Korean voices beside the one real one, so "choose"
+     meant Rocko about as often as Yuna. Driven with a hand-made list because
+     headless Chrome has no voices at all — getVoices() there is always []. */
+  const V = (name, lang, extra = {}) =>
+    ({ name, lang, localService: true, default: false, ...extra });
+  const mac = [V('Eddy', 'ko-KR'), V('Flo', 'ko-KR'), V('Grandma', 'ko-KR'),
+    V('Rocko', 'ko-KR'), V('Yuna', 'ko-KR', { default: true }),
+    V('Alex', 'en-US', { default: true })];
+  check('the real Korean voice wins over the novelty ones shipped beside it',
+        bestVoice('ko-KR', mac)?.name === 'Yuna', bestVoice('ko-KR', mac)?.name);
+  // The case that actually exercises the name filter. Chrome commonly marks
+  // only ONE voice `default` for the whole machine — the system language's —
+  // so for a second language nothing carries the flag, and without the filter
+  // the pick is simply whoever the OS lists first. That is Eddy here, and on
+  // the machine this was reported from it was Rocko.
+  const nodefault = mac.filter((v) => v.lang === 'ko-KR').map((v) => ({ ...v, default: false }));
+  check('and wins again when no Korean voice is flagged default at all',
+        bestVoice('ko-KR', nodefault)?.name === 'Yuna',
+        `${bestVoice('ko-KR', nodefault)?.name} of ${nodefault.map((v) => v.name).join(',')}`);
+  check('an enhanced recording wins over the system default',
+        bestVoice('ko-KR', [...mac, V('Yuna (Enhanced)', 'ko-KR')])?.name === 'Yuna (Enhanced)',
+        bestVoice('ko-KR', [...mac, V('Yuna (Enhanced)', 'ko-KR')])?.name);
+  check('a pack tag carrying a region matches a voice without one',
+        bestVoice('ko-KR', [V('Nari', 'ko')])?.name === 'Nari');
+  check('it never crosses into another language',
+        bestVoice('ko-KR', [V('Alex', 'en-US', { default: true })]) === null);
+  check('with nothing but novelty voices it still speaks rather than going silent',
+        bestVoice('ko-KR', [V('Rocko', 'ko-KR')])?.name === 'Rocko');
+  check('and an empty list leaves the choice to the browser, as before',
+        bestVoice('ko-KR', []) === null);
+  check('the English side is unmoved: Cambridge accents still resolve',
+        bestVoice('en-US', mac)?.name === 'Alex', bestVoice('en-US', mac)?.name);
+
+  /* ---- a gloss that never landed is asked for again ----------------------
+     The endpoint is unofficial and rate-limits, and resolveWord's known path
+     returns before any network call — so a word saved during one bad minute
+     had no meaning for good, and clicking it again could not help, because
+     clicking it again landed there too. 동해상 was the one that showed it. */
+  const realVi = window.fetchVietnamese;
+  let asked = 0;
+  window.fetchVietnamese = async () => { asked++; return 'Biển Đông'; };
+  const thin = {
+    word: '동해상', lang: 'ko', vi: null, level: null, ipa: null, def: null, audio: null,
+    senses: [], synonyms: [], related: [], folders: ['reading'], context: null,
+    sources: [], added: 1, ease: 2.5, interval: 0, reps: 0, due: 1
+  };
+  STORE.words = { '동해상': thin };
+  const retried = await resolveWord('동해상', null, null, null);
+  check('a word saved with no gloss asks for one again', asked === 1, String(asked));
+  check('and keeps what comes back', retried.entry.vi === 'Biển Đông', String(retried.entry.vi));
+  check('written through to storage, not just the copy in hand',
+        STORE.words['동해상'].vi === 'Biển Đông', String(STORE.words['동해상'].vi));
+  asked = 0;
+  const settled = await resolveWord('동해상', null, null, null);
+  check('a word that already has one does not ask again', asked === 0, String(asked));
+  check('and the gloss it has is never overwritten',
+        settled.entry.vi === 'Biển Đông', String(settled.entry.vi));
+  window.fetchVietnamese = realVi;
+  STORE.words = WORDS;
+
   /* ---- the not-found sentence, in both dictionaries ----
      The dictionary's name is interpolated now, so the sentence has to survive
      every name a pack can carry. "is not in Cambridge" read as unfinished, and
