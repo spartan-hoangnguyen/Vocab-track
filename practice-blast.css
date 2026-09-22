@@ -1,26 +1,49 @@
 /* blast mode only, under .pr-blast. Colours come from tokens (var(--…)) and never literals,
-   so the night theme restyles this file without touching it. */
-.pr-blast{width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;
-          /* a card's box: practice-blast.js places cards in the room left over */
-          --blw:160px;--blh:56px}
-.pr-blast .blhud{width:100%;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
+   so the night theme restyles this file without touching it — which is also why there is no
+   :root[data-theme="night"] block at the foot of this file the way practice.css has one:
+   there is no literal here for such a block to correct. */
+.pr-blast{width:100%;flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:12px;
+          /* a card's box: practice-blast.js places cards in the room left over.
+             64px is three lines of gloss plus the padding — the arithmetic is under .bltext. */
+          --blw:160px;--blh:64px}
+.pr-blast .blhud{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+                 font-variant-numeric:tabular-nums}
 .pr-blast .bllives{color:var(--bad);font-size:18px;letter-spacing:.12em}
 .pr-blast .blscore{color:var(--ink2);font-weight:600}
-.pr-blast .blarena{position:relative;width:100%;height:380px;overflow:hidden;border-radius:14px;
+.pr-blast .blhold{padding:4px 10px;font-size:12.5px}
+/* flex:1, not the height:380px that was measured against a 640px dialog nobody can open any
+   more: .prbody is flex:1 inside a panel that stretches to .rvbody (practice.css:74,
+   dashboard.css:258), so the arena takes exactly the height the shell has and grows when the
+   panel goes fullscreen. A vh clamp was the alternative, and it is the trap phase 1 already
+   had to retune twice — a number tuned against the height of the review head, which moves. */
+.pr-blast .blarena{position:relative;width:100%;flex:1;min-height:240px;overflow:hidden;border-radius:14px;
                    background:var(--panel);border:1px solid var(--rule);
                    /* the floor: where a missed card lands */
                    border-bottom:3px solid var(--bad)}
 .pr-blast .blcard,.pr-blast .blflash{position:absolute;top:0;width:var(--blw);box-sizing:border-box}
 .pr-blast .blcard{height:var(--blh);display:grid;place-items:center;padding:6px 10px;border-radius:10px;
-                  background:var(--blue);color:var(--blue-ink);font-size:13.5px;line-height:1.25;
-                  overflow:hidden;text-align:center}
+                  background:var(--blue);color:var(--blue-ink)}
+/* The gloss, clamped instead of cut off mid-word with nothing to say so. The card stays a
+   fixed box because the fall is computed against --blw and --blh, so sizing it to its own
+   text — the other way out — would mean every card falling a different distance. Three lines
+   of 13px at 1.2 is 46.8px inside the 52px the padding leaves, and a fourth becomes an
+   ellipsis. */
+.pr-blast .bltext{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;
+                  overflow:hidden;font-size:13px;line-height:1.2;text-align:center}
 .pr-blast .blcard.boom{animation:blboom .3s ease-out forwards}
 @keyframes blboom{to{transform:scale(1.6);opacity:0;background:var(--good)}}
-.pr-blast .blflash{bottom:6px;top:auto;text-align:center;font:600 16px Fraunces,Georgia,serif;
+/* var(--serif), not the Fraunces literal it used to name: night swaps that token for a
+   rounded sans, and this was the one line in the mode reading the paper theme's face there. */
+.pr-blast .blflash{bottom:6px;top:auto;text-align:center;font:600 16px var(--serif);
                    color:var(--bad);animation:blfade 1.4s ease-in forwards}
 @keyframes blfade{70%{opacity:1}to{opacity:0}}
-.pr-blast .blover{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-                  justify-content:center;gap:10px;background:var(--panel)}
+/* Opaque, over the whole arena: a pause you can read the falling cards through is unlimited
+   time to answer. --panel is the arena's own background, so the cards simply go away. */
+.pr-blast .blcurtain{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+                     justify-content:center;gap:6px;background:var(--panel)}
 @media (prefers-reduced-motion:reduce){
+  /* Only the decoration. The fall itself is slowed in practice-blast.js (CALM), which is the
+     motion a reader of this query is actually asking about and the one thing CSS here cannot
+     reach: the cards are moved by script, a frame at a time. */
   .pr-blast .blcard.boom,.pr-blast .blflash{animation:none}
 }
