@@ -6,3 +6,32 @@
 /* Letter-spaced so the blank reads as a gap, not as underscores in the text. */
 .pr-fill .prgap{color:var(--ink2);letter-spacing:.08em;white-space:nowrap}
 .pr-fill mark{background:var(--red);color:var(--red-ink);border-radius:4px;padding:0 3px;font-weight:600}
+/* The two variants, a segmented control the way the language toggle and the
+   length row are: aria-pressed already carries the state and is already
+   dressed at dashboard.css:439, so this adds only the row. The focus ring is
+   its own rule for the reason dashboard.css:458 gives — the .rvopt focus rule
+   there is a DESCENDANT selector and never reaches a .rvopt that is itself the
+   button, which this one is, and which the keyboard arrives at first. */
+.pr-fill .prfvariant{display:flex;gap:6px}
+.pr-fill .prfvariant .rvopt:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+/* The box sits where the options would. The form is only the centring: the
+   width is .prinput's, shared with Listening, so the two modes type into the
+   same box. */
+.pr-fill .prfform{display:flex;justify-content:center;width:100%}
+/* Only ever drawn once the answer is given — practice-fill.js:playButton says
+   why the word cannot be spoken before that. A pill rather than the quiz's
+   round glyph: this one has to carry a label, because it arrives beside a
+   sentence that has just filled itself in and nothing else explains it. */
+.pr-fill .prf-play{padding:6px 12px;border:1px solid var(--rule);border-radius:999px;
+                   background:var(--panel);color:var(--red-ink);font:500 13px Inter;cursor:pointer}
+.pr-fill .prf-play:hover{background:var(--red)}
+.pr-fill .prf-play:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+
+/* ---- night ----
+   The pairs invert through the tokens, so the rules above read in both themes
+   without being restated. The one thing a token cannot say is that --panel and
+   --card are two points apart in night (dashboard.css:515, :521): the pill
+   keeps its ink and its border and loses its surface. A white wash gives it
+   one, the same way .prbadge gets one at practice.css:142. */
+:root[data-theme="night"] .pr-fill .prf-play{background:#ffffff14}
+:root[data-theme="night"] .pr-fill .prf-play:hover{background:var(--red)}
