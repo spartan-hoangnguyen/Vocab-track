@@ -2,7 +2,7 @@
    so the night theme restyles this file without touching it — which is also why there is no
    :root[data-theme="night"] block at the foot of this file the way practice.css has one:
    there is no literal here for such a block to correct. */
-.pr-blast{width:100%;flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:12px;
+.pr-blast{width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;
           /* a card's box: practice-blast.js places cards in the room left over.
              64px is three lines of gloss plus the padding — the arithmetic is under .bltext. */
           --blw:160px;--blh:64px}
@@ -11,12 +11,17 @@
 .pr-blast .bllives{color:var(--bad);font-size:18px;letter-spacing:.12em}
 .pr-blast .blscore{color:var(--ink2);font-weight:600}
 .pr-blast .blhold{padding:4px 10px;font-size:12.5px}
-/* flex:1, not the height:380px that was measured against a 640px dialog nobody can open any
-   more: .prbody is flex:1 inside a panel that stretches to .rvbody (practice.css:74,
-   dashboard.css:258), so the arena takes exactly the height the shell has and grows when the
-   panel goes fullscreen. A vh clamp was the alternative, and it is the trap phase 1 already
-   had to retune twice — a number tuned against the height of the review head, which moves. */
-.pr-blast .blarena{position:relative;width:100%;flex:1;min-height:240px;overflow:hidden;border-radius:14px;
+/* A share of the window, in place of the height:380px that was measured against a 640px
+   dialog nobody can open any more — 380 left the panel taller than the cell it is given on
+   a 900px screen, so the word box sat under the fold on the one mode you have to type into.
+   flex:1 down the chain (.prbody is flex:1, practice.css:74) was the first try and it lost
+   when it was measured: the panel does not stretch to the cell .rvbody gives it — 519px of
+   a 563px cell, and still 519px of a 924px one — so there was no free height for flex:1 to
+   take and the arena sat on its floor at every window size. A proportion of the
+   viewport is not the trap phase 1 retuned twice either — that was a number subtracted from
+   100vh to match the height of the review head. Nothing here knows how tall the head is; a
+   head that grows costs a little scroll, not a wrong arena. */
+.pr-blast .blarena{position:relative;width:100%;height:clamp(240px,30vh,380px);overflow:hidden;border-radius:14px;
                    background:var(--panel);border:1px solid var(--rule);
                    /* the floor: where a missed card lands */
                    border-bottom:3px solid var(--bad)}

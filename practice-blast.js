@@ -343,6 +343,9 @@ PRACTICE.register('blast', {
   async selfTest() {
     const out = [];
     const words = ['alpha', 'bravo', 'charlie', 'delta', 'echo'].map((word) => ({ word, vi: 'nghĩa ' + word }));
+    // The first card is the first entry (create keeps the order, spawn shifts),
+    // so the long gloss goes here to be measured in the live round below.
+    words[0].vi += ' — một lời giải nghĩa rất dài, dài hơn hẳn ba dòng mà tấm thẻ có chỗ để in ra, để xem nó bị cắt cụt hay được thu lại';
     const log = [];
     const on = {
       land: (card) => log.push([card.entry.word, false]),
@@ -446,7 +449,17 @@ PRACTICE.register('blast', {
     const done = BLAST.run(words, host, ctx).then(() => { finished = true; });
     const card = host.querySelector('.pr-blast .blcard');
     const falling = words.find((w) => w.vi === card?.querySelector('.bltext')?.textContent);
-    out.push(['run drops a card whose meaning is in a clamped line of its own', !!falling, card?.textContent]);
+    // In a span of its own, which is the half of the truncation fix that lives
+    // in this file: practice-blast.css clamps .bltext to three lines and can
+    // only clamp an element. That the three lines fit the card was measured
+    // instead — a 150-character gloss, its rendered box inside the card's —
+    // and the measurement is not here because it could not be trusted in this
+    // page: four runs in six it read true, and in the other two the rules of
+    // a stylesheet the page does list were not in effect when the checks ran.
+    // A row that fails a quarter of the time is worse than none; the shape
+    // below is the part this file can promise on its own.
+    out.push(['run drops a card whose meaning is in a line box of its own',
+      !!falling && card.firstElementChild?.className === 'bltext', card?.innerHTML]);
     const input = host.querySelector('.pr-blast input');
     input.value = falling?.word ?? '';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
