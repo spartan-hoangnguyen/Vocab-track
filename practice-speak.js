@@ -255,7 +255,10 @@ const SPEAK = (() => {
         timer = setInterval(() => {
           left -= 1;
           count.textContent = left > 0 ? `${left}s` : '';
-          if (left <= 0) rec?.stop();
+          // Cleared before stop(), not by it: a real recogniser answers stop()
+          // with onend a few hundred ms later, and a tick in between would ask
+          // it to stop a second time.
+          if (left <= 0) { clearInterval(timer); rec?.stop(); }
         }, 1000);
       };
 
