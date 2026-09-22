@@ -1,7 +1,10 @@
-/* quiz mode only, under .pr-quiz. Colours come from tokens (var(--…)) and never literals,
-   so the night theme restyles this file without touching it. The options,
-   the word and the verdict are the shared practice classes; this is only the
-   play button beside the word and the IPA under it. */
+/* Quiz only. Colours come from tokens (var(--…)) and never literals, so the
+   night theme restyles this file without touching it: practice.css:128
+   redefines the pairs once and every rule below follows — which is why there
+   is no :root[data-theme="night"] block here, as in the other five mode
+   sheets. The word, the options and the verdict are the shared practice
+   classes; this is the play button beside the word, the numbered rows, and the
+   entry a miss is taught with. */
 .pr-quiz{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%}
 .pr-quiz .prq-head{display:flex;align-items:center;gap:12px}
 .pr-quiz .prq-ipa{margin-top:-8px}
@@ -9,3 +12,30 @@
                    background:var(--panel);color:var(--amber-ink);font-size:12px;cursor:pointer}
 .pr-quiz .prq-play:hover{background:var(--amber)}
 .pr-quiz .prq-play:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+
+/* One option to a row, as the reference draws them. The shared grid
+   (practice.css:90) is two columns, which at panel width wraps a gloss onto a
+   second line in one cell and not in the one beside it — and a digit you are
+   asked to press is easier to find down a column than around a grid. */
+.pr-quiz .propts{grid-template-columns:1fr;gap:8px}
+.pr-quiz .propts button{display:flex;align-items:center;gap:12px}
+/* The digit in a pill. Its colours are the shared .propts button kbd rule
+   (practice.css:94); only the shape and the fixed box are quiz's, so a
+   two-line option keeps its number on the same left edge as a one-line one —
+   and the margin that rule uses for spacing gives way to the flex gap. */
+.pr-quiz .propts button kbd{margin-right:0;flex:none;min-width:22px;height:22px;
+                            border-radius:999px;display:inline-flex;align-items:center;justify-content:center}
+.pr-quiz .prq-text{flex:1;text-align:left}
+/* The ✓ and ✕ practice.css:100 already draws, pushed to the end of the row: in
+   a grid cell the glyph sat against the last word of the option, where it
+   reads as part of what the option says. */
+.pr-quiz .propts button.right::after,
+.pr-quiz .propts button.wrong::after{margin-left:auto}
+
+/* The whole entry under a wrong answer. Outside .pr-quiz on purpose: the shell
+   appends it to the verdict bar (practice.js:220), which is a sibling of the
+   question rather than part of it. */
+.prq-full{display:flex;flex-direction:column;gap:3px;text-align:left}
+.prq-full b{font:600 16px var(--serif)}
+.prq-full i{font-style:normal;font-size:13px;color:var(--ink2)}
+.prq-full q{font-size:13px;color:var(--ink2)}
