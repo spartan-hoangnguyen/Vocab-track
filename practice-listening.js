@@ -476,7 +476,7 @@
      signature for one mode's two buttons would leave its three other callers
      passing defaults for something only Listening has an opinion about. So
      they are made here, from the same pack voice and the same bestVoice()
-     ranking pronounce() already picks with (lookup.js:196), rather than a
+     ranking pronounce() already picks with (lookup.js:198), rather than a
      second opinion about which of nine Korean voices to use.
 
      Below the mode rather than above it: what the top of this file has to say
