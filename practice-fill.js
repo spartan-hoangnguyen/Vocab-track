@@ -23,14 +23,14 @@
   //
   // A filter where eligible() once short-circuited on the context, which costs
   // one array of at most senses+1 strings per word per render. Nothing like the
-  // scar practice.js:66 carries: that one built a whole quiz question per word.
+  // scar practice.js:152 carries: that one built a whole quiz question per word.
   function sentencesOf(entry) {
     return [entry.context, ...(entry.senses ?? []).map((s) => s.example)]
       .filter((text) => text && VT.has(entry.word, text, entry.lang));
   }
 
   // `rand` is a parameter only so the test can pin the draw, the same seam
-  // VT.quizOptions leaves open for the same reason (lib.js:306).
+  // VT.quizOptions leaves open for the same reason (lib.js:307).
   function sentenceOf(entry, rand = Math.random) {
     return VT.shuffled(sentencesOf(entry), rand)[0] ?? '';
   }
@@ -74,7 +74,7 @@
   // The blanks of the question on screen, for hint(): the shell hands it the
   // entry and the ctx, and neither of those knows which sentence was drawn or
   // where its gaps fell. One variable says it because one question is live at a
-  // time — the shell asks them strictly in sequence (practice.js:373).
+  // time — the shell asks them strictly in sequence (practice.js:372).
   let gaps = [];
 
   // Typing the word is producing it and picking it from four is not, which is
@@ -285,7 +285,7 @@
 
     // The variant is kept with the review settings, and the probe page loads
     // dashboard.js — so the real hook would write "type it" into storage and
-    // hand the live fill session at test/practice-probe.html:397 a variant
+    // hand the live fill session at test/practice-probe.html:399 a variant
     // nobody asked for. Borrowed for the run and put back after, the way
     // practice-listening's checks borrow getVoices.
     const realSettings = PRACTICE.hooks.settings;

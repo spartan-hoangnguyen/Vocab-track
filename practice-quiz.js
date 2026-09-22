@@ -34,7 +34,7 @@
 
   PRACTICE.register('quiz', {
     title: 'Quiz',
-    blurb: 'Pick the meaning',
+    blurb: 'Pick the meaning, or the word',
     icon: '✓',
     color: 'amber',
     why: 'Needs four words with a meaning',
@@ -74,6 +74,7 @@
     // that is on screen now, not the one that was there when it was bound.
     let options = [];
     let buttons = [];
+    let root = null;
     let reverse = false;
     let answered = false;
     // Whether this question has spoken yet. The shell replays whatever a mode
@@ -87,8 +88,7 @@
 
       // Rebuilt, not patched, when the direction changes: a toggle that only
       // takes effect on the NEXT question reads as a control that did nothing,
-      // and the question is four buttons and a heading. A hint already taken
-      // goes with it — it answers the other question.
+      // and the question is four buttons and a heading.
       const draw = () => {
         reverse = ctx.direction === 'm2w';
         // eligible() promises four distinct glosses, which is four words that
@@ -102,22 +102,22 @@
         }
         if (!options) throw new Error(`No other meanings left to set “${entry.word}” against`);
 
-        const root = ctx.node('div', 'pr-quiz');
+        const next = ctx.node('div', 'pr-quiz');
         const head = ctx.node('div', 'prq-head');
         // The prompt is whichever side is not being chosen from.
         head.appendChild(ctx.node('p', 'prask', reverse ? gloss : entry.word));
         // No ear in reverse, and no IPA either: the round is asking which word
         // this means, and the word said out loud is the answer to it.
         if (!reverse) head.appendChild(playButton(entry, ctx, say, done.signal));
-        root.appendChild(head);
-        if (!reverse && entry.ipa) root.appendChild(ctx.node('p', 'prhint prq-ipa', `/${entry.ipa}/`));
+        next.appendChild(head);
+        if (!reverse && entry.ipa) next.appendChild(ctx.node('p', 'prhint prq-ipa', `/${entry.ipa}/`));
 
         const grid = ctx.node('div', 'propts');
         buttons = options.map((option, i) => {
           const b = ctx.node('button');
           b.type = 'button';
           // The digit alone in the <kbd> and the option alone beside it:
-          // test/practice-probe.html:265 reads an option back as
+          // test/practice-probe.html:267 reads an option back as
           // textContent.slice(1) to find the right one, so a third piece of
           // text in here would make the probe answer its own questions wrong.
           b.append(ctx.node('kbd', null, String(i + 1)), ctx.node('span', 'prq-text', option.text));
@@ -125,8 +125,19 @@
           grid.appendChild(b);
           return b;
         });
-        root.appendChild(grid);
-        host.replaceChildren(root);
+        next.appendChild(grid);
+        // Only this mode's own root is replaced, never the host: Mix writes
+        // the name of the mode it drew into the host BEFORE delegating
+        // (practice-mix.js:65), and a clean sweep here took that label off
+        // every quiz question Mix ever drew. A hint already taken goes,
+        // though — it is the other direction's first letter now.
+        if (root) {
+          root.replaceWith(next);
+          host.querySelectorAll(':scope > .prhint').forEach((n) => n.remove());
+        } else {
+          host.appendChild(next);
+        }
+        root = next;
       };
 
       // Guarded, not just disabled: a key and a click in the same tick would
@@ -156,7 +167,7 @@
       document.addEventListener('keydown', (e) => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         // Every letter and digit belongs to the box while there is one, exactly
-        // as the shell's own map has it (practice.js:614).
+        // as the shell's own map has it (practice.js:617).
         if (e.target.closest?.('input, textarea, select')) return;
         if (e.key === ' ') {
           // A focused button owns its Space — that is how the verdict's
