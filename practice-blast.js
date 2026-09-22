@@ -117,7 +117,7 @@ const BLAST = (() => {
     return new Promise((resolve) => {
       const { node } = ctx;
       // One controller for the round's listeners and loop, cut by the round
-      // ending or by the dialog closing — whichever comes first.
+      // ending or by the tab changing — whichever comes first.
       const round = new AbortController();
       const end = () => { round.abort(); resolve(); };
       if (ctx.signal.aborted) return end();
@@ -241,6 +241,11 @@ PRACTICE.register('blast', {
   color: 'blue',
   min: 5,
   why: 'Needs five words with a meaning',
+  // A game, and the only mode that never moves a schedule: a card lost to a
+  // falling arcade round says nothing about whether you know the word, and
+  // three lives running out would otherwise lapse whatever was still in the
+  // sky.
+  schedules: false,
   eligible: (entry) => !!VT.glossOf(entry),
   run: BLAST.run,
   async selfTest() {
@@ -290,14 +295,12 @@ PRACTICE.register('blast', {
     }
     out.push(['clearing every card ends the round', s.over && s.score === 3 && s.lives === BLAST.LIVES]);
 
-    // The real thing, in a detached host: Enter blasts, and closing stops it.
-    // Inside the open dialog, as in use: the Enter bubbles to the document,
-    // and review only stands aside while the dialog is open.
-    const dlg = document.getElementById('practice-dlg');
-    const opened = !dlg.open;
-    if (opened) dlg.showModal();
+    // The real thing, in a host of its own: Enter blasts, and closing stops it.
+    // Inside a claimed host, as in use: the Enter bubbles to the document, and
+    // review only stands aside while practice owns the keys.
+    const claim = PRACTICE.testHost();
     const host = document.createElement('div');
-    document.getElementById('pr-body').appendChild(host);
+    claim.host.appendChild(host);
     const ac = new AbortController();
     const recorded = [];
     const ctx = {
@@ -324,12 +327,12 @@ PRACTICE.register('blast', {
       recorded.length === 1 && recorded[0][1] === true && input.value === '', JSON.stringify(recorded)]);
     ac.abort();
     await Promise.race([done, new Promise((r) => setTimeout(r, 200))]);
-    out.push(['closing the dialog ends the run', finished]);
+    out.push(['leaving the tab ends the run', finished]);
     input.value = words.find((w) => w !== falling).word;
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     out.push(['and its keys stop listening', recorded.length === 1, JSON.stringify(recorded)]);
     host.remove();
-    if (opened) dlg.close();
+    claim.done();
     return out;
   }
 });

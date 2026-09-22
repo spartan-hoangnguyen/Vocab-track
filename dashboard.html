@@ -97,6 +97,13 @@
         <div class="rvcount" id="rv-sub"></div>
       </div>
       <div class="rvprog"><span id="rv-prog-fill"></span></div>
+      <!-- Practice is a tab beside the flashcard, not a grid below it and a
+           dialog on top: the card area is the one place a question belongs, so
+           moving between "ask me the card" and "ask me a quiz" should not move
+           the page under you. Empty — renderTabs fills it, so a seventh mode
+           needs no markup here. In the head rather than the body because the
+           strip has to stay put while the thing below it is replaced. -->
+      <div class="prtabs" id="pr-tabs" role="tablist" aria-label="Review and practice"></div>
       <!-- How the session runs, not what it asks. Saved as one reviewPrefs
            key, so they are still set the next time you open a review. -->
       <div class="rvctl">
@@ -183,6 +190,13 @@
       <svg class="rvmoon" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="#eef1fb"/><circle cx="32" cy="38" r="7" fill="#d6dcf1"/><circle cx="84" cy="88" r="5" fill="#d6dcf1"/><ellipse cx="46" cy="56" rx="4.5" ry="6" fill="#1d2958"/><ellipse cx="74" cy="56" rx="4.5" ry="6" fill="#1d2958"/><path d="M47 72q13 11 26 0" fill="none" stroke="#1d2958" stroke-width="5" stroke-linecap="round"/></svg>
     </div>
 
+    <!-- The practice tabs' half of the card area. Hidden until a mode runs;
+         the shell owns this, #rv-card.hidden and #rv-empty.hidden together, so
+         the three can never be on screen at once (dashboard.js:renderCard early
+         returns while a tab is active). Empty — practice.js builds the header
+         and the body per session. -->
+    <div class="prpanel" id="pr-panel" role="tabpanel" hidden></div>
+
     <!-- Scoped like the card: the folder under review, or every learnable
          word. A div, not an <aside>: the page's sidebar owns that selector. -->
     <div class="rvside" id="rv-side">
@@ -219,13 +233,6 @@
 
     <p class="rvexit" id="rv-exit" hidden><kbd>esc</kbd> to finish for now</p>
 
-    <!-- Below the card, not instead of it: the card still owns the first
-         screen, and this is what you scroll to when the reviews run out.
-         Scoped to the same folder as the review above it. -->
-    <section class="prmodes">
-      <h2>Practice modes</h2>
-      <div class="prgrid" id="pr-grid"></div>
-    </section>
   </section>
 
   <!-- Statistics -->
@@ -341,16 +348,6 @@
   </form>
 </dialog>
 
-<!-- One host for every practice mode. Modal, so the review behind it is inert
-     and its keys cannot fire while you type an answer here. -->
-<dialog id="practice-dlg" class="prdlg">
-  <div class="prhead">
-    <h3 id="pr-title"></h3>
-    <span class="prstatus" id="pr-status"></span>
-    <button class="rowdel" id="pr-close" aria-label="Close practice">✕</button>
-  </div>
-  <div class="prbody" id="pr-body"></div>
-</dialog>
 
 <script src="lib.js"></script>
 <script src="lang/lang.js"></script>

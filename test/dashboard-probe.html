@@ -761,15 +761,30 @@ ready.then(() => setTimeout(async () => {
   check('night: headings switch to the rounded sans',
         /^Nunito/.test(cs(document.getElementById('rv-title')).fontFamily),
         cs(document.getElementById('rv-title')).fontFamily);
-  const quizCard = document.querySelector('.prmode.amber');
-  check('night: practice cards are saturated dark, not pastel',
-        !!quizCard && lum(cs(quizCard).backgroundColor) < 0.1, quizCard && cs(quizCard).backgroundColor);
+  // The six colour pairs survived the practice grid becoming a tab strip, and
+  // night still has to redefine them saturated rather than leave the pastels
+  // on a dark page. Measured off a tab drawn the way the strip draws a running
+  // one, because only the selected tab takes its mode's pair.
+  const swatch = document.createElement('span');
+  swatch.className = 'rvopt prtab amber';
+  swatch.setAttribute('aria-selected', 'true');
+  document.getElementById('pr-tabs').appendChild(swatch);
+  check('night: the practice colours are saturated dark, not pastel',
+        lum(cs(swatch).backgroundColor) < 0.1, cs(swatch).backgroundColor);
+  swatch.remove();
 
   // Space on the focused button presses it; it must not also reveal the card.
   renderCard();
   themeBtn.focus();
   themeBtn.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
   check('Space on the theme button does not reveal the card', !revealed);
+  // Same trap, one control along: keydown runs before the click a focused tab
+  // turns into, so Enter on the Quiz tab used to reveal the card — and with
+  // autoplay on, say the answer out loud — a frame before the tab hid it.
+  const quizTabKeys = document.querySelector('#pr-tabs [data-mode="quiz"]');
+  quizTabKeys.focus();
+  quizTabKeys.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  check('Enter on a practice tab does not reveal the card behind it', !revealed);
 
   // Another dashboard tab switching back: this tab follows.
   for (const f of listeners) f({ theme: { newValue: 'light', oldValue: 'night' } }, 'local');

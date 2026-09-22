@@ -1,7 +1,7 @@
 // Quiz: the English word, four meanings, pick one.
 //
 // The same four-option question the side panel's quiz asks, grown to fit the
-// dialog: VT.quizOptions picks the distractors, so a C1 word is set against
+// panel: VT.quizOptions picks the distractors, so a C1 word is set against
 // other C1 glosses here too. See practice.js for the contract.
 PRACTICE.register('quiz', {
   title: 'Quiz',
@@ -9,6 +9,9 @@ PRACTICE.register('quiz', {
   icon: '✓',
   color: 'amber',
   why: 'Needs four words with a meaning',
+  // Picking one of four is recognition, so a right answer is worth Hard and
+  // never Easy — practice.js:gradeFor carries the reasoning.
+  produces: false,
   eligible: (entry, pool) => !!VT.glossOf(entry) && distinctGlosses(pool) >= 4,
   ask(entry, host, ctx) {
     const { node } = ctx;
@@ -40,7 +43,7 @@ PRACTICE.register('quiz', {
 
     return new Promise((resolve) => {
       // This question's listeners only: dropped on the first answer, and on
-      // abort, so a closed dialog leaves nothing listening for 1-4.
+      // abort, so a question left behind leaves nothing listening for 1-4.
       const done = new AbortController();
       ctx.signal.addEventListener('abort', () => done.abort(), { once: true, signal: done.signal });
 
@@ -75,16 +78,15 @@ PRACTICE.register('quiz', {
     const pool = Object.values(await getWords());
     const entry = pool.find((e) => VT.quizOptions(e, pool));
     const press = (key) => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
-    // The digits are review's grade keys too. Review stands down only while
-    // the practice dialog is open, so it is open for every press below —
-    // otherwise each one would grade whatever card review has showing.
-    const dlg = document.getElementById('practice-dlg');
-    const opened = !dlg.open;
-    if (opened) dlg.showModal();
+    // The digits are review's grade keys too. Review stands down while a
+    // practice tab owns the keyboard, and a testHost is how a selfTest claims
+    // that with no tab running — otherwise each press below would grade
+    // whatever card review has showing.
+    const claim = PRACTICE.testHost();
     try {
       return await checks();
     } finally {
-      if (opened) dlg.close();
+      claim.done();
     }
 
     async function checks() {
@@ -93,7 +95,7 @@ PRACTICE.register('quiz', {
     // of drawing them.
     function run() {
       const host = document.createElement('div');
-      document.body.appendChild(host);
+      claim.host.appendChild(host);
       const abort = new AbortController();
       const verdicts = [];
       const ctx = {
@@ -147,7 +149,7 @@ PRACTICE.register('quiz', {
     q.abort.abort();
     press('2');
     await Promise.resolve();
-    out.push(['no key listener after the dialog closes',
+    out.push(['no key listener after the session is abandoned',
       q.verdicts.length === 0 && q.buttons.every((b) => !b.disabled), `${q.verdicts.length} verdicts`]);
     q.close();
     return out;

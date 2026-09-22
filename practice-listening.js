@@ -54,6 +54,10 @@
     blurb: 'Hear it, type it',
     icon: '♪',
     color: 'green',
+    // You type the word from the sound alone, with nothing on screen to
+    // recognise it from — the same production the review card asks for, so a
+    // right answer here is worth Good, and a quick one Easy.
+    produces: true,
     // Two ways to have nothing to ask now, so the default ("Not enough words
     // for this yet") would lie to the one that matters: fifty Korean words and
     // no Korean voice installed is not a shortage of words. One string honest
@@ -99,7 +103,7 @@
       // the card plays silence and the only way out is a wrong answer.
       const mute = !speakable(pack);
       const root = node('div', 'pr-listening');
-      // Ends with the question, and with the dialog: the replay shortcut must
+      // Ends with the question, and with the session: the replay shortcut must
       // not outlive either.
       const done = new AbortController();
       ctx.signal.addEventListener('abort', () => done.abort(), { once: true, signal: done.signal });
@@ -261,7 +265,7 @@
       const ko = { word: '책', lang: 'ko', vi: 'sách' };
       const en = [{ lang: 'en-GB' }, { lang: 'en-US' }];
 
-      // ask() takes focus, as it should in the dialog. Handed back after, so
+      // ask() takes focus, as it should in the panel. Handed back after, so
       // whatever the page had focused (the review box) is left as it was found.
       const had = document.activeElement;
       const exact = await attempt('  strATEGY ');

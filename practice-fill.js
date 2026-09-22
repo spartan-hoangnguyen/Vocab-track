@@ -72,7 +72,7 @@
     host.appendChild(root);
 
     return new Promise((resolve) => {
-      // Listeners end with the question or with the dialog, whichever is first.
+      // Listeners end with the question or with the session, whichever is first.
       const done = new AbortController();
       ctx.signal?.addEventListener('abort', () => done.abort(), { once: true, signal: done.signal });
 
@@ -131,13 +131,12 @@
       const offered = buttons.map((b) => b.dataset.word);
       const text = host.querySelector('.prsentence').textContent;
       if (how === 'key') {
-        // With the dialog open, as in use: a bare "1" on the document is also
-        // a review grade, and the review only stands aside while it is open.
-        const dlg = document.getElementById('practice-dlg');
-        const opened = dlg && !dlg.open;
-        if (opened) dlg.showModal();
+        // With the keyboard claimed, as in use: a bare "1" on the document is
+        // also a review grade, and review only stands aside while practice
+        // owns the keys.
+        const claim = PRACTICE.testHost();
         document.dispatchEvent(new KeyboardEvent('keydown', { key: String(offered.indexOf(subject.word) + 1) }));
-        if (opened) dlg.close();
+        claim.done();
       } else if (how === 'click') {
         buttons.find((b) => b.dataset.word !== subject.word).click();
       }
@@ -205,8 +204,11 @@
     icon: 'T',
     color: 'red',
     // Four, for four options to pick from. A count, so it lives in min and the
-    // card says so, rather than in eligible where it read as "no sentences".
+    // tab says so, rather than in eligible where it read as "no sentences".
     min: 4,
+    // The sentence is the question and the choice is which word fits it — you
+    // recognise the word, you do not produce it.
+    produces: false,
     why: 'Needs four words with a saved sentence',
     eligible: (entry) => [entry.context, ...(entry.senses ?? []).map((s) => s.example)]
       .some((text) => text && VT.has(entry.word, text, entry.lang)),

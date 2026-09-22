@@ -179,8 +179,12 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 /* ---- review ---- */
 /* Review fills the space the top bar leaves and centres its card in it. The
    card used to sit under the heading with two thirds of the viewport empty
-   below it, which read as an unfinished page rather than a focus mode. */
-#view-review:not([hidden]){display:flex;flex-direction:column;min-height:calc(100vh - 108px)}
+   below it, which read as an unfinished page rather than a focus mode.
+   The number is tuned against the card's centre, not derived: the head grew by
+   about 44px when it took the practice tab strip, so the column's floor drops
+   by the same 44 to leave the card where dashboard-probe.html measures it.
+   Change the head's height and this follows it. */
+#view-review:not([hidden]){display:flex;flex-direction:column;min-height:calc(100vh - 152px)}
 .rvhead{margin-bottom:0;flex:none}
 .rvhead-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
 .rvhead h1{font-size:24px}
@@ -243,14 +247,22 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 @media (prefers-reduced-motion:reduce){.rvcard.fresh{animation:none}}
 /* The wrapper is what centres the card; the section itself has the header
    pinned at its top. */
-/* A floor of one screen, so the practice grid below starts under the fold and
-   the card is still centred in the viewport rather than in whatever is left. */
+/* A floor of one screen, so a short card is still centred in the viewport
+   rather than in whatever is left of it. It used to be phrased as headroom for
+   the practice grid underneath; practice is a tab in this same cell now, and
+   the floor is what stops the card jumping when a mode's body is taller.
+   The subtrahend is the review head's own height and has to track it: the tab
+   strip added roughly 44px to the head, and leaving the old 280 here pushed the
+   body's bottom that far below the fold, which dashboard-probe.html measures as
+   a card sitting high in its own space. */
 .rvbody{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:24px;
         align-items:center;align-content:center;padding:22px 0;
-        min-height:calc(100vh - 280px)}
-/* One column for whichever of the two is showing (the other is display:none),
-   and the card centred in it by its own auto margins. */
-.rvbody > .rvempty,.rvbody > .rvcard{grid-column:1;grid-row:1}
+        min-height:calc(100vh - 324px)}
+/* One column for whichever of the three is showing (the other two are
+   display:none), and the card centred in it by its own auto margins. The
+   practice panel is listed here rather than given a cell of its own so that
+   swapping a tab swaps what fills this one cell and .rvside never moves. */
+.rvbody > .rvempty,.rvbody > .rvcard,.rvbody > .prpanel{grid-column:1;grid-row:1}
 .rvside{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:16px}
 /* Below the card once the column would squeeze it: the card is the session,
    the side cards are commentary on it. */

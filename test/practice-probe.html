@@ -73,8 +73,10 @@
 
 
 <script>
-// Twelve words, every one with a gloss and a saved sentence that uses it, so
-// every mode is open and the quiz has distractors at the same level.
+// Fourteen words, every one with a gloss and a saved sentence that uses it, so
+// every mode is open and the quiz has distractors at the same level. Twelve of
+// them are overdue; the last two are the schedule rule's two negative cases and
+// are re-dated below.
 const WORDS = {};
 const seed = [
   ['strategy','B2','chiến lược','The company announced a new long-term strategy for Europe.'],
@@ -88,14 +90,38 @@ const seed = [
   ['pragmatic','C1','thực dụng','She took a pragmatic view of the budget.'],
   ['candid','C1','thẳng thắn','He gave a candid account of his mistakes.'],
   ['scarce','B2','khan hiếm','Water is scarce in the dry season.'],
-  ['accelerate','B2','tăng tốc','The government wants to accelerate the move to clean energy.']
+  ['accelerate','B2','tăng tốc','The government wants to accelerate the move to clean energy.'],
+  ['scaffold','C1','giàn giáo','Workers put up scaffold around the tower.'],
+  ['kindle','B2','nhóm lửa','A single spark can kindle a whole forest.']
 ];
+const DAY = 24 * 60 * 60 * 1000;
+// The two words practice must not touch, and the reason the seed could not be
+// twelve overdue rows: with every word due, the "not due, count it and stop"
+// branch — the single most important clause in this change — never ran once.
+const LATER = 'scaffold';   // introduced, but not due for a week
+const FRESH = 'kindle';     // never introduced: an imported card held back
 for (const [word, level, vi, context] of seed) {
   WORDS[word] = { word, level, vi, def: 'a definition of ' + word, ipa: 'x', context,
     folders: ['reading'], senses: [{ level, def: 'a definition of ' + word, example: null }],
     synonyms: [], related: [], sources: ['https://example.com/a'], added: Date.now() - 86400000,
     ease: 2.5, interval: 3, reps: 2, due: Date.now() - 1000 };
 }
+// Re-dates every word to the state the schedule checks start from. Called
+// between graded sessions, because a session that works leaves nothing due.
+function reseed() {
+  for (const entry of Object.values(WORDS)) {
+    delete entry.stability;
+    delete entry.difficulty;
+    delete entry.lastReview;
+    entry.ease = 2.5;
+    entry.reps = 2;
+    entry.interval = 3;
+    entry.due = Date.now() - 1000;
+    if (entry.word === LATER) entry.due = Date.now() + 7 * DAY;
+    if (entry.word === FRESH) { entry.reps = 0; entry.interval = 0; entry.due = Date.now() + 3 * DAY; }
+  }
+}
+reseed();
 const STORE = { words: WORDS };
 window.chrome = {
   storage: { local: {
@@ -128,47 +154,67 @@ const check = (name, cond, detail) => {
   if (cond) log.push('PASS  ' + name);
   else { failures++; log.push('FAIL  ' + name + (detail ? '  -> ' + detail : '')); }
 };
-const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
+// stability and due, never `ease`: FSRS-6 writes stability, difficulty and
+// lastReview (lib.js:160) and has not touched `ease` since the migration, so a
+// snapshot of that field could not see a practice grade at all — which is the
+// one thing these rows exist to watch.
 const schedule = () => JSON.stringify(Object.values(STORE.words)
-  .map((e) => [e.word, e.ease, e.interval, e.reps, e.due]));
+  .map((e) => [e.word, e.stability, e.interval, e.reps, e.due]));
+const stamp = (word) => JSON.stringify([STORE.words[word].stability, STORE.words[word].due,
+  STORE.words[word].reps, STORE.words[word].interval]);
+const today = () => STORE['history:' + VT.dayKey(Date.now())] ?? [];
+const tabs = () => [...document.querySelectorAll('#pr-tabs .prtab')];
+const tabOf = (id) => document.querySelector(`#pr-tabs [data-mode="${id}"]`);
+const panel = () => document.getElementById('pr-panel');
+// The two words practice must leave alone, sampled after each reseed — reseed
+// re-dates every row, so a stamp taken before one cannot be compared with a
+// stamp taken after it.
+const holdout = () => ({ [LATER]: stamp(LATER), [FRESH]: stamp(FRESH) });
 
 ready.then(() => setTimeout(async () => {
   await refresh();
   startReview(null);
   showView('review');
   render();
-  const before = schedule();
 
-  /* ---- the grid ---- */
-  const cards = [...document.querySelectorAll('#pr-grid .prmode')];
-  check('the grid shows all six modes, in the design order',
-        cards.map((c) => c.dataset.mode).join() === 'quiz,listening,fill,speak,blast,mix',
-        cards.map((c) => c.dataset.mode).join());
-  check('with twelve glossed words in context, every mode is open',
-        cards.every((c) => !c.disabled), cards.filter((c) => c.disabled).map((c) => c.dataset.mode).join());
-  // It sits under the card, and the card keeps the first screen.
-  const card = document.getElementById('rv-card').getBoundingClientRect();
-  check('the grid starts below the review card',
-        document.getElementById('pr-grid').getBoundingClientRect().top > card.bottom);
+  /* ---- the tab strip ---- */
+  check('the strip shows the flashcard and all six modes, in the design order',
+        tabs().map((t) => t.dataset.mode).join() === 'flashcard,quiz,listening,fill,speak,blast,mix',
+        tabs().map((t) => t.dataset.mode).join());
+  check('with fourteen glossed words in context, every mode is open',
+        tabs().every((t) => t.getAttribute('aria-disabled') === 'false'),
+        tabs().filter((t) => t.getAttribute('aria-disabled') === 'true').map((t) => t.dataset.mode).join());
+  check('the flashcard is the tab you start on',
+        tabOf('flashcard').getAttribute('aria-selected') === 'true');
+  // It is in the review head, above what it swaps — the strip must not move
+  // when the thing below it is replaced.
+  check('the strip sits above the card, in the head',
+        document.getElementById('pr-tabs').getBoundingClientRect().bottom
+          <= document.getElementById('rv-card').getBoundingClientRect().top);
 
-  /* ---- drawing the grid never builds a question ----
+  /* ---- drawing the strip never builds a question ----
      Eligibility runs for every word on every render, and Mix repeats it.
-     Calling quizOptions there (a full pool shuffle per word) made the grid
-     O(n²): ten seconds a render at 3,000 words, felt as lag everywhere. */
+     Calling quizOptions there (a full pool shuffle per word) made this O(n²):
+     ten seconds a render at 3,000 words, felt as lag everywhere. */
   const realOptions = VT.quizOptions;
   let built = 0;
   VT.quizOptions = (...a) => { built++; return realOptions(...a); };
-  PRACTICE.renderGrid(document.createElement('div'), practicePool(Object.values(words)), {});
+  PRACTICE.renderTabs(document.createElement('div'), practicePool(Object.values(words)), {});
   VT.quizOptions = realOptions;
-  check('rendering the grid builds no quiz question', built === 0, `${built} calls`);
+  check('rendering the strip builds no quiz question', built === 0, `${built} calls`);
 
-  /* ---- a scope with too few words greys the card with the reason ---- */
+  /* ---- a scope with too few words greys the tab, with the reason reachable ---- */
   const tiny = Object.values(STORE.words).slice(0, 2);
   const host = document.createElement('div');
-  PRACTICE.renderGrid(host, tiny, {});
-  const quizCard = host.querySelector('[data-mode="quiz"]');
-  check('a mode that cannot run is disabled, not a dead end',
-        quizCard.disabled && /four words/i.test(quizCard.textContent), quizCard.textContent);
+  PRACTICE.renderTabs(host, tiny, {});
+  const quizTab = host.querySelector('[data-mode="quiz"]');
+  check('a mode that cannot run is aria-disabled, not disabled',
+        quizTab.getAttribute('aria-disabled') === 'true' && !quizTab.disabled,
+        quizTab.outerHTML.slice(0, 120));
+  // disabled would drop it out of the tab order and take the reason with it.
+  check('and its reason is on the label, not only in a hover title',
+        /four words/i.test(quizTab.getAttribute('aria-label')), quizTab.getAttribute('aria-label'));
 
   /* ---- eligibility asks the word's own pack ---- */
   const listening = PRACTICE.list().find((m) => m.id === 'listening');
@@ -194,35 +240,196 @@ ready.then(() => setTimeout(async () => {
   check('speak finds the inflected form, keeping the spelling that was said',
         hit?.index === 8 && hit?.text === 'accelerates', JSON.stringify(hit));
 
-  /* ---- every ask-mode opens, owns the keyboard, and leaves the schedule alone ---- */
+  /* ---- a whole session, answered right, and what it does to the schedule ----
+     Every question, not ten of them: with twelve words overdue a ten-question
+     round never reaches the two that are not, and those two ARE the rule. */
+  await setReviewPrefs({ practiceSession: 0 });
+
+  // Listening hides the word — that is the mode — so the only way to answer it
+  // is the same way you do: by hearing it. The speak hook is where the entry
+  // passes through.
+  const heard = [];
+  const realSpeak = PRACTICE.hooks.speak;
+  PRACTICE.hooks.speak = (entry) => { heard.push(entry); return realSpeak(entry); };
+
+  // Plays one session to its summary, answering every question correctly.
+  async function playThrough() {
+    for (let step = 0; step < 300; step++) {
+      const body = panel();
+      if (body.querySelector('.prsummary')) return true;
+      const go = body.querySelector('.prverdict .btn');
+      if (go) { go.click(); await tick(); continue; }
+      const options = [...body.querySelectorAll('.propts button')];
+      if (options.length && !options[0].disabled) {
+        const asked = body.querySelector('.prask')?.textContent;
+        const gloss = VT.glossOf(STORE.words[asked]);
+        // The <kbd> digit is the first character; the rest is the gloss.
+        (options.find((b) => b.textContent.slice(1) === gloss) ?? options[0]).click();
+        await tick();
+        continue;
+      }
+      const box = body.querySelector('form .prinput');
+      if (box && !box.disabled) {
+        box.value = heard[heard.length - 1]?.word ?? '';
+        box.form.requestSubmit();
+        await tick();
+        continue;
+      }
+      await tick();
+    }
+    return false;
+  }
+
+  // Listening produces the word, so a right answer is Good — and Easy when it
+  // is fast. `fast` is a mode field rather than one shell constant precisely so
+  // a mode can be driven at either end of it.
+  const listenMode = PRACTICE.modes.get('listening');
+  const realFast = listenMode.fast;
+  listenMode.fast = 0;
+  reseed();
+  await refresh();
+  let untouched = holdout();
+  PRACTICE.start('listening', practicePool(Object.values(words)));
+  await tick(20);
+  const finishedListening = await playThrough();
+  check('a listening session runs to its summary', finishedListening);
+  check('a word that is due moves: stability and due are written',
+        STORE.words.strategy.stability > 0 && STORE.words.strategy.due > Date.now(),
+        stamp('strategy'));
+  check('and it is logged as a review, graded Good — producing the word is what the card asks for',
+        today().some(([w, q]) => w === 'strategy' && q === 4),
+        JSON.stringify(today().filter(([w]) => w === 'strategy')));
+  check('a word that is not due for a week is left exactly where it was',
+        stamp(LATER) === untouched[LATER], `${stamp(LATER)} was ${untouched[LATER]}`);
+  check('and a word never introduced is never begun by practice',
+        stamp(FRESH) === untouched[FRESH], `${stamp(FRESH)} was ${untouched[FRESH]}`);
+  check('neither of them is logged as a review',
+        !today().some(([w]) => w === LATER || w === FRESH),
+        JSON.stringify(today().filter(([w]) => w === LATER || w === FRESH)));
+  PRACTICE.stop();
+
+  // The same mode, answered just as fast, with the fast window back: producing
+  // the word quickly is Easy.
+  listenMode.fast = realFast;
+  reseed();
+  await refresh();
+  PRACTICE.start('listening', practicePool(Object.values(words)));
+  await tick(20);
+  await playThrough();
+  check('the same answer inside the fast window is Easy',
+        today().some(([w, q]) => w === 'resilient' && q === 5),
+        JSON.stringify(today().filter(([w]) => w === 'resilient')));
+  PRACTICE.stop();
+  PRACTICE.hooks.speak = realSpeak;
+
+  // Quiz is recognition: four options, so a right answer caps at Hard.
+  reseed();
+  await refresh();
+  untouched = holdout();
+  // Only the rows this session writes: the two listening rounds above graded
+  // the same words today, and "never Good" has to mean never from HERE.
+  const beforeQuiz = today().length;
+  PRACTICE.start('quiz', practicePool(Object.values(words)));
+  await tick(20);
+  const finishedQuiz = await playThrough();
+  const fromQuiz = today().slice(beforeQuiz);
+  check('a quiz session runs to its summary', finishedQuiz);
+  check('picking the right meaning is graded Hard, never Good or Easy',
+        fromQuiz.length > 0 && fromQuiz.every(([, q]) => q === 3),
+        JSON.stringify(fromQuiz.slice(0, 4)));
+  check('a quiz round still leaves the not-yet-due words alone',
+        stamp(LATER) === untouched[LATER] && stamp(FRESH) === untouched[FRESH],
+        stamp(LATER) + ' / ' + stamp(FRESH));
+  PRACTICE.stop();
+
+  // A game never moves anything, however it goes.
+  reseed();
+  await refresh();
+  const beforeBlast = schedule();
+  PRACTICE.start('blast', practicePool(Object.values(words)));
+  await tick(40);
+  PRACTICE.stop();
+  await tick();
+  check('a game never moves the schedule at all', schedule() === beforeBlast);
+
+  reseed();
+  await refresh();
+  await setReviewPrefs({ practiceSession: 10 });
+
+  /* ---- every mode opens in the panel, and owns the keyboard ---- */
   const queued = queue.length;
   for (const mode of PRACTICE.list()) {
     PRACTICE.start(mode.id, practicePool(Object.values(words)));
-    await tick();
-    const dlg = document.getElementById('practice-dlg');
-    check(`${mode.id}: opens in the practice dialog`, dlg.open && document.getElementById('pr-body').children.length > 0);
+    await tick(30);
+    check(`${mode.id}: opens in the practice panel`,
+          !panel().hidden && panel().querySelector('.prbody').children.length > 0);
+    check(`${mode.id}: its tab is the selected one`,
+          tabOf(mode.id).getAttribute('aria-selected') === 'true');
     for (const key of ['1', '2', '3', '4', 'r', 't', ' ']) {
       document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
     }
-    await tick();
-    check(`${mode.id}: review keys do nothing while it is open`,
-          queue.length === queued && schedule() === before);
-    dlg.close();
+    await tick(30);
+    // The review's own handler stands down: those digits are its grade keys,
+    // and grade() is the only thing that shortens this queue.
+    check(`${mode.id}: review keys do not grade the card behind it`,
+          queue.length === queued, `${queue.length} vs ${queued}`);
     PRACTICE.stop();
-    await tick();
+    await tick(30);
   }
+  check('stopping puts the panel away', panel().hidden);
 
-  /* ---- answers are counted per mode per day, never as reviews ---- */
+  /* ---- Space replays what the question said, and only that ---- */
+  const replayed = [];
+  const beforeReplay = PRACTICE.hooks.speak;
+  PRACTICE.hooks.speak = (entry) => { replayed.push(entry.word); return beforeReplay(entry); };
+  PRACTICE.start('listening', practicePool(Object.values(words)));
+  await tick(20);
+  const saidOnShow = replayed.length;
+  // Out of the box first: inside it, every key including Space is the box's.
+  panel().querySelector('.prinput').blur();
+  panel().querySelector('.prbody').dispatchEvent(
+    new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  await tick();
+  check('Space says the word again', replayed.length === saidOnShow + 1
+        && replayed[replayed.length - 1] === replayed[saidOnShow - 1],
+        JSON.stringify(replayed));
+  PRACTICE.stop();
+  // Fill never speaks before the answer, so there is nothing to replay and
+  // Space must not invent something to say.
+  PRACTICE.start('fill', practicePool(Object.values(words)));
+  await tick(20);
+  const quiet = replayed.length;
+  panel().querySelector('.prbody').dispatchEvent(
+    new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  await tick();
+  check('and says nothing in a mode that never spoke', replayed.length === quiet);
+  PRACTICE.stop();
+  PRACTICE.hooks.speak = beforeReplay;
+
+  /* ---- answers are counted per mode per day ---- */
   await recordPractice('quiz', 'strategy', false);
   await recordPractice('quiz', 'nuance', true);
   const p = await getPractice();
   check('practice counts today per mode', p.counts.quiz?.total >= 2 && p.counts.quiz?.right >= 1,
         JSON.stringify(p.counts.quiz));
   check('and remembers the words you missed', p.misses.strategy >= 1);
-  check('and never touches ease, interval, reps or due', schedule() === before);
   await PRACTICE.hooks.changed();
-  check('the badge counts it', /\/10 today|today/.test(document.querySelector('#pr-grid [data-mode="quiz"] .prbadge')?.textContent ?? ''),
-        document.querySelector('#pr-grid [data-mode="quiz"] .prbadge')?.textContent);
+  const badge = tabOf('quiz').querySelector('.prbadge');
+  check('the badge counts it', !badge.hidden && /\d/.test(badge.textContent), badge.textContent);
+
+  /* ---- the miss tally bands the queue rather than only reporting it ----
+     Due is worth two bands and each miss one, capped at three, so a word you
+     have got wrong three times outranks a due word you have never missed —
+     which is the point: VT.shuffled treated those two exactly alike. */
+  const banded = PRACTICE.weighted(
+    [{ word: 'clean', due: Date.now() + DAY },
+     { word: 'missed', due: Date.now() + DAY },
+     { word: 'due', due: Date.now() - 1 },
+     { word: 'both', due: Date.now() - 1 }],
+    { missed: 3, both: 2 });
+  check('the queue is banded by due date and by how often you have missed it',
+        banded.map((e) => e.word).join() === 'both,missed,due,clean',
+        banded.map((e) => e.word).join());
 
   /* ---- Starred: a built-in folder like From reading ---- */
   const folderList = await getFolders();
@@ -231,6 +438,9 @@ ready.then(() => setTimeout(async () => {
   check('and cannot be deleted', !!(await getFolders())[VT.STARRED]);
 
   /* ---- each mode's own checks ---- */
+  reseed();
+  await refresh();
+  const beforeSelfTests = schedule();
   for (const mode of PRACTICE.list()) {
     try {
       const results = (await mode.selfTest?.()) ?? [];
@@ -238,10 +448,12 @@ ready.then(() => setTimeout(async () => {
     } catch (err) {
       check(`${mode.id}: selfTest runs`, false, err?.stack ?? String(err));
     }
-    document.getElementById('practice-dlg').open && document.getElementById('practice-dlg').close();
     PRACTICE.stop();
   }
-  check('no mode touched the review schedule', schedule() === before);
+  // A selfTest drives questions through a host of its own with a ctx of its
+  // own, so none of them reaches the shell's recorder — and none may reach the
+  // schedule by another route either.
+  check('no selfTest touched the review schedule', schedule() === beforeSelfTests);
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

@@ -82,7 +82,7 @@ const SPEAK = (() => {
     // and which language the recogniser listens in.
     const pack = LANG.of(entry);
     // Everything this question hangs listeners on dies with it — or with the
-    // dialog, whichever is first.
+    // session, whichever is first.
     const done = new AbortController();
     const signal = AbortSignal.any([done.signal, ctx.signal]);
 
@@ -191,7 +191,7 @@ const SPEAK = (() => {
         e.preventDefault();
         submit(box.value);
       }, { signal });
-      // Closing the dialog mid-sentence must not leave the mic open.
+      // Leaving the tab mid-sentence must not leave the mic open.
       ctx.signal.addEventListener('abort', stopListening, { once: true, signal: done.signal });
 
       if (!recognizer()) fallback(UNAVAILABLE);
@@ -225,6 +225,8 @@ PRACTICE.register('speak', {
   blurb: 'Make a sentence, say it',
   icon: '🎙',
   color: 'purple',
+  // A sentence of your own is production at its hardest.
+  produces: true,
   eligible: (entry) => !!entry.word,
   ask: SPEAK.ask,
   async selfTest() {
@@ -265,14 +267,13 @@ PRACTICE.register('speak', {
       const saved = [window.SpeechRecognition, window.webkitSpeechRecognition];
       window.SpeechRecognition = Rec;
       window.webkitSpeechRecognition = Rec;
-      // Inside the open dialog, as every real question is: its Enter bubbles
-      // to the document, and review only stands aside while the dialog is
-      // open. Inside it, not beside it, or the modal makes the box unfocusable.
-      const dlg = document.getElementById('practice-dlg');
-      const opened = !dlg.open;
-      if (opened) dlg.showModal();
+      // Inside a claimed host, as every real question is: its Enter bubbles to
+      // the document, and review only stands aside while practice owns the
+      // keys. Inside the panel, not beside it — focus() does nothing under a
+      // display:none ancestor and every check below turns on the box taking it.
+      const claim = PRACTICE.testHost();
       const host = document.createElement('div');
-      document.getElementById('pr-body').appendChild(host);
+      claim.host.appendChild(host);
       const ctl = new AbortController();
       const got = {};
       const ctx = {
@@ -292,7 +293,7 @@ PRACTICE.register('speak', {
       } finally {
         ctl.abort();
         host.remove();
-        if (opened) dlg.close();
+        claim.done();
         [window.SpeechRecognition, window.webkitSpeechRecognition] = saved;
       }
     };

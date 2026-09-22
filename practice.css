@@ -1,7 +1,7 @@
-/* Practice modes: the grid under the review card, and the dialog every mode
-   runs in. The classes below .prbody are shared by every mode, so the six
-   read as one feature; a mode adds its own rules only for what is unique to
-   it, under a .pr-<id> root. */
+/* Practice modes: the tab strip in the review head, the panel that fills the
+   card's cell, and the vocabulary every mode draws its question with. The
+   classes below .prpanel are shared by all six, so they read as one feature; a
+   mode adds rules only for what is unique to it, under a .pr-<id> root. */
 :root{
   --amber:#f3e2c6; --amber-ink:#7a4f12;
   --green:#dcebe2; --green-ink:#28553d;
@@ -12,39 +12,74 @@
   --good:#3f7d54; --bad:#a8453a;
   --good-bg:#e7f1ea; --bad-bg:#f6e4e1;
   /* The icon tile stays white in both themes, as in the design. */
-  --tile:#fff; --tile-shade:#0000000f; --prbadge:#ffffffa6;
+  --tile:#fff; --tile-shade:#0000000f;
 }
 
-.prmodes{margin-top:34px;flex:none}
-.prmodes h2{margin-bottom:14px}
-.prgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+/* ---- the tab strip ---- */
+/* Two .rvopt buttons already ARE a segmented control — aria-pressed is styled
+   for it at dashboard.css:423 and the language toggle at :443 is the same
+   shape. A tab wants aria-selected rather than aria-pressed, so the selected
+   look is restated here; everything else (the border, the padding, the hover)
+   comes from .rvopt and is not repeated. */
+.prtabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.prtab{position:relative;gap:7px}
+.prtab[aria-selected="true"]{color:var(--ink);border-color:var(--ink);
+       box-shadow:inset 0 0 0 1px var(--ink)}
+/* aria-disabled, never the disabled attribute: a disabled <button> leaves the
+   tab order, which put its `why` ("Needs four words with a meaning") in a
+   title nobody reaching the page by keyboard could ever get to. Focusable and
+   announced, just inert on press. */
+.prtab[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+/* The mode's own pair, on the tab that is running. Only the selected one takes
+   it: seven filled pills is a paint chart, and the colour has a job here —
+   saying which mode the panel below is showing. */
+.prtab[aria-selected="true"].amber{background:var(--amber);color:var(--amber-ink);border-color:var(--amber-ink)}
+.prtab[aria-selected="true"].green{background:var(--green);color:var(--green-ink);border-color:var(--green-ink)}
+.prtab[aria-selected="true"].red{background:var(--red);color:var(--red-ink);border-color:var(--red-ink)}
+.prtab[aria-selected="true"].purple{background:var(--purple);color:var(--purple-ink);border-color:var(--purple-ink)}
+.prtab[aria-selected="true"].blue{background:var(--blue);color:var(--blue-ink);border-color:var(--blue-ink)}
+.prtab[aria-selected="true"].magenta{background:var(--magenta);color:var(--magenta-ink);border-color:var(--magenta-ink)}
+.prtab:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
+.prtabglyph{font-size:14px;line-height:1}
+.prbadge{font:600 10px Inter;letter-spacing:.06em;text-transform:uppercase;
+         padding:2px 7px;border-radius:999px;background:var(--panel);color:var(--ink2)}
+.prbadge[hidden]{display:none}
 
-.prmode{position:relative;display:flex;flex-direction:column;align-items:flex-start;
-        gap:6px;min-height:150px;padding:18px;border:0;border-radius:16px;
-        text-align:left;cursor:pointer;font:inherit;overflow:hidden;
-        transition:transform .12s ease}
-.prmode:hover:not(:disabled){transform:translateY(-2px)}
-.prmode:disabled{cursor:not-allowed;opacity:.55}
-.prmode h3{font:600 17px var(--serif);margin:10px 0 0}
-.prmode p{margin:0;font-size:12.5px;opacity:.85}
+/* ---- the panel ---- */
+/* :not([hidden]) on purpose: the UA sheet's [hidden]{display:none} loses to any
+   author display rule, and dashboard-probe.html sweeps the page for exactly
+   that leak. Same reason .pricon needs the rule below. */
+.prpanel:not([hidden]){display:flex;flex-direction:column;gap:14px;
+       border:1px solid var(--rule);border-radius:18px;background:var(--card);
+       padding:20px 22px 18px;min-height:360px}
+.prphead{display:flex;align-items:center;gap:13px}
 .pricon{width:40px;height:40px;border-radius:11px;background:var(--tile);display:grid;
         place-items:center;font-size:19px;box-shadow:0 2px 0 var(--tile-shade)}
-.prbadge{position:absolute;top:12px;right:12px;font:600 10.5px Inter;letter-spacing:.06em;
-         text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--prbadge)}
-.prmode.amber{background:var(--amber);color:var(--amber-ink)}
-.prmode.green{background:var(--green);color:var(--green-ink)}
-.prmode.red{background:var(--red);color:var(--red-ink)}
-.prmode.purple{background:var(--purple);color:var(--purple-ink)}
-.prmode.blue{background:var(--blue);color:var(--blue-ink)}
-.prmode.magenta{background:var(--magenta);color:var(--magenta-ink)}
-
-/* ---- the dialog ---- */
-dialog.prdlg{width:min(640px,94vw);padding:0}
-.prhead{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--rule)}
-.prhead h3{margin:0;flex:1}
-.prstatus{color:var(--ink2);font-size:13px;font-variant-numeric:tabular-nums}
-.prbody{outline:none;padding:26px 24px 24px;min-height:300px;display:flex;flex-direction:column;
-        align-items:center;gap:16px;text-align:center}
+/* display:grid above beats [hidden]{display:none}, so a tile the shell hides
+   would keep its 40px box and push the title across. */
+.pricon[hidden]{display:none}
+.pricon.amber{color:var(--amber-ink)}
+.pricon.green{color:var(--green-ink)}
+.pricon.red{color:var(--red-ink)}
+.pricon.purple{color:var(--purple-ink)}
+.pricon.blue{color:var(--blue-ink)}
+.pricon.magenta{color:var(--magenta-ink)}
+.prptitle{flex:1;min-width:0}
+.prptitle h2{margin:0;font:600 19px var(--serif)}
+.prptitle p{margin:1px 0 0;font-size:13px;color:var(--ink2)}
+.prphead .rvcount{white-space:nowrap}
+.prpbtn{padding:5px 10px;font-size:12.5px}
+.prstatus{color:var(--ink2);font-size:13px;font-variant-numeric:tabular-nums;
+          margin:0;min-height:18px;text-align:center}
+.prbody{outline:none;flex:1;display:flex;flex-direction:column;align-items:center;
+        gap:16px;text-align:center;padding:6px 0}
+/* Both give-up routes in one row under the question, so a mode never has to
+   grow its own. Pushed to the bottom, so it does not walk up the panel as a
+   short question replaces a tall one. */
+.prfoot:not([hidden]){display:flex;justify-content:center;gap:8px;padding-top:6px;
+        border-top:1px solid var(--rule)}
+.prlen{font:500 13px Inter;color:var(--ink3);align-self:center}
+.prerror{color:var(--bad);max-width:52ch}
 
 /* ---- shared by every mode ---- */
 .prmodename{font:600 11px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);margin:0}
@@ -59,6 +94,11 @@ dialog.prdlg{width:min(640px,94vw);padding:0}
 .propts button kbd{margin-right:8px;border-color:var(--rule);color:var(--ink2);background:var(--panel)}
 .propts button.right{border-color:var(--good);background:var(--good-bg)}
 .propts button.wrong{border-color:var(--bad);background:var(--bad-bg)}
+/* A glyph, not only the green and the red: about one man in twelve cannot tell
+   these two borders apart, and the marked option is the whole answer. Drawn
+   from CSS so no mode has to append it. */
+.propts button.right::after{content:" \2713";color:var(--good);font-weight:700}
+.propts button.wrong::after{content:" \2715";color:var(--bad);font-weight:700}
 .prinput{width:100%;max-width:380px;padding:12px 14px;border:1px solid var(--rule);border-radius:12px;
          background:var(--card);font:400 18px Inter;color:var(--ink);text-align:center}
 .prinput:focus{outline:2px solid var(--bar);outline-offset:-1px}
@@ -71,12 +111,20 @@ dialog.prdlg{width:min(640px,94vw);padding:0}
 .prsummary{margin:auto 0;display:flex;flex-direction:column;align-items:center;gap:6px}
 .prscore{font:600 44px var(--serif);margin:0}
 .prsummary p{margin:0}
+/* The words you got wrong, which is the only part of a score worth reading. */
+.prmisses{margin:10px 0 0;padding:0;list-style:none;text-align:left;max-width:46ch;
+          display:flex;flex-direction:column;gap:7px}
+.prmiss{display:flex;gap:8px;align-items:baseline;font-size:14px;
+        border-bottom:1px solid var(--rule);padding-bottom:6px}
+.prmiss b{font:600 15px var(--serif)}
+.prmiss span{color:var(--ink2);flex:1}
+.prmiss i{color:var(--bad);font-style:normal;font-size:12.5px}
 
 /* ---- night ----
-   Saturated dark cards like the design, each with its white icon tile and a
-   translucent ringed planet in the bottom-right corner. Redefining the tokens
-   restyles every practice-<mode>.css too: a mode's mark or card in the dialog
-   is drawn with the same pairs, dark fill under light ink. */
+   Redefining the tokens restyles every practice-<mode>.css too: a mode's mark
+   or card is drawn with the same pairs, dark fill under light ink. The grid's
+   planet decoration went with the grid — a 40px pill has no corner to put one
+   in. */
 :root[data-theme="night"]{
   --amber:#6d4722;  --amber-ink:#fbe7cb;
   --green:#1f4a3b;  --green-ink:#d4efe2;
@@ -86,24 +134,17 @@ dialog.prdlg{width:min(640px,94vw);padding:0}
   --magenta:#652b57; --magenta-ink:#f8dcee;
   --good:#93d3a5; --bad:#f39e90;
   --good-bg:#1f3a2a; --bad-bg:#45241f;
-  --tile-shade:#00000033; --prbadge:#00000059;
+  --tile-shade:#00000033;
 }
-:root[data-theme="night"] .prmode{z-index:0;isolation:isolate;
-  box-shadow:inset 0 0 0 1px #ffffff14}
-/* The planet, then its ring across it. Under the text (z-index -1 inside the
-   card's own stacking context), and clipped by the card's overflow:hidden. */
-:root[data-theme="night"] .prmode::before{content:"";position:absolute;z-index:-1;
-  width:130px;height:130px;right:-34px;bottom:-52px;border-radius:50%;
-  background:#ffffff1c;pointer-events:none}
-:root[data-theme="night"] .prmode::after{content:"";position:absolute;z-index:-1;
-  width:210px;height:54px;right:-62px;bottom:-4px;border-radius:50%;
-  border:2px solid #ffffff21;transform:rotate(-18deg);pointer-events:none}
-:root[data-theme="night"] .prmode h3{font-weight:700}
-/* The glyph takes the card's own colour on the white tile, as in the design. */
-:root[data-theme="night"] .prmode.amber .pricon{color:var(--amber)}
-:root[data-theme="night"] .prmode.green .pricon{color:var(--green)}
-:root[data-theme="night"] .prmode.red .pricon{color:var(--red)}
-:root[data-theme="night"] .prmode.purple .pricon{color:var(--purple)}
-:root[data-theme="night"] .prmode.blue .pricon{color:var(--blue)}
-:root[data-theme="night"] .prmode.magenta .pricon{color:var(--magenta)}
-:root[data-theme="night"] .prbadge{color:#fff}
+/* The pairs invert in night — dark fill, light ink — so the selected tab's own
+   ink is the readable border and the page ink would vanish into the fill. */
+:root[data-theme="night"] .prtab[aria-selected="true"]{box-shadow:none}
+:root[data-theme="night"] .prbadge{background:#ffffff14;color:var(--ink)}
+/* The glyph takes the mode's colour on the white tile, as in the design. */
+:root[data-theme="night"] .pricon.amber{color:var(--amber)}
+:root[data-theme="night"] .pricon.green{color:var(--green)}
+:root[data-theme="night"] .pricon.red{color:var(--red)}
+:root[data-theme="night"] .pricon.purple{color:var(--purple)}
+:root[data-theme="night"] .pricon.blue{color:var(--blue)}
+:root[data-theme="night"] .pricon.magenta{color:var(--magenta)}
+:root[data-theme="night"] .prpanel:not([hidden]){box-shadow:inset 0 0 0 1px #ffffff14}

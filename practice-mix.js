@@ -6,12 +6,21 @@ PRACTICE.register('mix', {
   blurb: 'A bit of every mode',
   icon: '✦',
   color: 'magenta',
+  // Never read: every question Mix draws is recorded under the mode that
+  // actually asked it, so the grade comes from that mode's own `produces`.
+  produces: false,
   eligible: (entry, pool) => askers(entry, pool).length > 0,
-  ask(entry, host, ctx) {
+  async ask(entry, host, ctx) {
     const choices = askers(entry, ctx.pool);
     const mode = choices[Math.floor(Math.random() * choices.length)];
     host.appendChild(ctx.node('p', 'prmodename', mode.title));
-    return mode.ask(entry, host, ctx);
+    const ok = await mode.ask(entry, host, ctx);
+    // Recorded here, with the mode that drew it, rather than left to the
+    // shell: the shell only knows the tab you are on, so a quiz question
+    // asked inside Mix counted as Mix — and would now also be graded with
+    // Mix's `produces` rather than the quiz's.
+    await ctx.record(entry, !!ok, mode.id);
+    return ok;
   },
   selfTest() {
     const others = PRACTICE.list().filter((m) => m.id !== 'mix');

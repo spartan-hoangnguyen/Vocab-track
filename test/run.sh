@@ -57,8 +57,10 @@ PANEL=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
         --window-size=400,900 --dump-dom "http://localhost:$PORT/test/sidepanel-probe.html" 2>/dev/null \
         | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
-# Every practice mode's own checks, plus the rules they all share: the grid,
-# the dialog owning the keyboard, and the review schedule left alone.
+# Every practice mode's own checks, plus the rules they all share: the tab
+# strip in the review head, a running tab standing review's keyboard down, and
+# the schedule rule — a due word is moved by a practice answer, a word that is
+# not due or has never been introduced is left exactly where it was.
 PRACTICE=$("$CHROME" --headless --disable-gpu --virtual-time-budget=8000 \
            --window-size=1400,900 --dump-dom "http://localhost:$PORT/test/practice-probe.html" 2>/dev/null \
            | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')

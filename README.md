@@ -343,7 +343,7 @@ every assertion passes:
 | `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, and that the review card never shows the word before you commit. It loads the real `dashboard.html`, so it cannot drift from what ships. |
 | `writer-probe.html` | The textarea mirror over a content-box and a border-box field, the contenteditable offset index, and that a tag typed into a field stays text. |
 | `sidepanel-probe.html` | The panel at the 400px Chrome actually gives it: three tabs sharing one row, and the quiz view's rules — one right answer, the answer revealed after a wrong pick, the review schedule left alone. |
-| `practice-probe.html` | Every practice mode's own checks, plus the rules they share: the grid, the dialog owning the keyboard, and the review schedule left alone. |
+| `practice-probe.html` | Every practice mode's own checks, plus the rules they share: the tab strip in the review head, a running tab standing review's keyboard down, and the schedule rule — a due word is moved by a practice answer, a word that is not due or was never introduced is left where it was. |
 
 The last six exist because these are failures no unit test can see: they are
 about what the browser actually renders.

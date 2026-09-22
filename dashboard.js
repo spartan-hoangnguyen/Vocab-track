@@ -22,10 +22,14 @@ let practice = { counts: {}, misses: {} };
 let pins = [];
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
-const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk' };
+const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
 let prefs = { ...REVIEW_DEFAULTS };
 
 function showView(name) {
+  // A Card Blast round hangs off its own signal and would keep ticking behind
+  // whichever view you walked to; nothing else stops it, because the panel
+  // going display:none is not an event.
+  if (name !== 'review' && typeof PRACTICE !== 'undefined' && PRACTICE.active()) PRACTICE.stop();
   for (const view of VIEWS) $(`view-${view}`).hidden = view !== name;
   // Redundant once you are in the review, and it competes with Show answer
   // for the same attention and roughly the same click.
@@ -1014,6 +1018,12 @@ function renderCard() {
   $('rv-title').textContent = scopeName ? `Review · ${scopeName}` : 'Review';
 
   renderSide();
+  // A practice tab owns this cell while it is running, and render() runs on
+  // every storage change — including the one practice itself makes after each
+  // answer. Without this, un-hiding the flashcard below would put it on top of
+  // a live quiz. The shell hides #rv-card and #rv-empty when a tab starts and
+  // leaves them to this function once it stops.
+  if (PRACTICE.active()) return;
   if (!queue.length) {
     $('rv-card').hidden = true;
     $('rv-empty').hidden = false;
@@ -1189,6 +1199,22 @@ function submitAnswer() {
   if (prefs.autoplay) speakWord(queue[0]);
 }
 
+// The one function in the extension that WRITES a schedule. Review calls it
+// through grade() below, practice through PRACTICE.hooks.scheduled — one seam,
+// so a card cannot be moved two different ways. The scheduler is run in two
+// other places, VT.forecast (lib.js:423) and the next-to-master preview in
+// renderSide (:1529), and both are pure simulation: they read the answer and
+// store nothing. Grepping the scheduler by name is how that invariant is
+// checked, so those three call sites are the only ones there should ever be.
+async function applyGrade(entry, quality) {
+  const patch = VT.schedule(entry, quality);
+  Object.assign(entry, patch);
+  await putWord(entry.word, patch);
+  recordReview(entry.word, quality, patch.lastReview);
+  words[entry.word] = entry;
+  return patch;
+}
+
 async function grade(quality) {
   // Re-entry guard: putWord awaits a storage round-trip during which the
   // buttons stay live, and a second press would shift a card the user never saw.
@@ -1196,10 +1222,7 @@ async function grade(quality) {
   grading = true;
   try {
     const entry = queue.shift();
-    const patch = VT.schedule(entry, quality);
-    Object.assign(entry, patch);
-    await putWord(entry.word, patch);
-    recordReview(entry.word, quality, patch.lastReview);
+    await applyGrade(entry, quality);
     // A lapse returns to the back of this session's queue, so it is seen again
     // today; sessionTotal grows with it so the counter stays honest.
     if (quality < 3) {
@@ -1209,7 +1232,6 @@ async function grade(quality) {
     revealed = false;
     typed = '';
     $('rv-input').value = '';
-    words[entry.word] = entry;
     renderCard();
   } finally {
     grading = false;
@@ -1328,8 +1350,12 @@ $('rv-back').addEventListener('click', () => { showView('overview'); render(); }
 document.addEventListener('keydown', (event) => {
   if ($('view-review').hidden || document.activeElement === $('q')) return;
   // Same for a practice session: a Listening answer or a Card Blast word is
-  // typed, and its digits and letters must not grade the card behind it.
-  if ($('practice-dlg').open) return;
+  // typed, and its digits and letters must not grade the card behind it. It
+  // used to be the dialog's own open state; with practice in this view, "3" on
+  // a quiz question would otherwise both answer it and grade the card behind
+  // it. owns() is wider than a running tab on purpose — a selfTest presses the
+  // same digits with no DOM of its own to hide behind.
+  if (PRACTICE.owns()) return;
   // The picker owns the keyboard while it is open: typing a tag name must not
   // grade the card, and Esc closes the picker rather than the session.
   if ($('tag-dlg').open) return;
@@ -1339,10 +1365,13 @@ document.addEventListener('keydown', (event) => {
     render();
     return;
   }
-  // The session controls, the star and the theme button own their own keys:
-  // Space flips the switch, Enter presses the button, a letter picks a voice.
-  // Only the bare card gets the shortcuts.
-  if (event.target.closest?.('.rvctl, #rv-star, #theme-btn')) return;
+  // The session controls, the practice tabs, the star and the theme button own
+  // their own keys: Space flips the switch, Enter presses the button, a letter
+  // picks a voice. Only the bare card gets the shortcuts. The tab strip is in
+  // this list because keydown runs before the click it becomes — tabbing to
+  // Quiz and pressing Enter would otherwise reveal the card behind it, and
+  // autoplay would read the answer out, a moment before the tab covered it up.
+  if (event.target.closest?.('.rvctl, .prtabs, #rv-star, #theme-btn')) return;
   // While the box has focus every other key belongs to it — a digit is a digit
   // and `r` is a letter. Enter is the exception, and the form handles that.
   if (document.activeElement === $('rv-input')) return;
@@ -1530,7 +1559,9 @@ function speakWord(entry) {
 // everything otherwise. Skipped words are out, as they are out of review.
 // Filtered here rather than at the callers, because PRACTICE.hooks.changed
 // re-renders from the whole store after every answer — patching only render()'s
-// call would put the other language back into the pool mid-round.
+// call would put the other language back into the pool mid-round. It is the
+// same set inScope() queues the review from, which is what lets a practice
+// answer grade a card the flashcard tab is holding.
 function practicePool(all) {
   return all.filter((e) => VT.isLearnable(e)
     && LANG.of(e).id === activeLang
@@ -1538,24 +1569,33 @@ function practicePool(all) {
 }
 
 function renderPractice(all) {
-  PRACTICE.renderGrid($('pr-grid'), practicePool(all), practice.counts);
+  PRACTICE.renderTabs($('pr-tabs'), practicePool(all), practice.counts);
 }
 
 PRACTICE.hooks.speak = (entry) => speakWord(entry);
-// After each answer, so the badge behind the dialog is already right when it
-// closes. Not through storage.onChanged: that re-renders the whole page on
-// every answer of a ten-question round.
+// After each answer, so the badge is right the moment the round ends. Not
+// through storage.onChanged: that re-renders the whole page on every answer of
+// a ten-question round. renderSide() is here because practice now grades —
+// without it the mastery ring beside the quiz keeps yesterday's number.
 PRACTICE.hooks.changed = async () => {
   practice = await getPractice();
   renderPractice(Object.values(words));
+  renderSide();
 };
-
-// stop() here as well as on close: the close event is what Esc gives us, but
-// the ✕ should not depend on it to halt a running game.
-$('pr-close').addEventListener('click', () => { $('practice-dlg').close(); PRACTICE.stop(); });
-// Only if it is still shut: a close queued by the last session's dlg.close()
-// can land after a new start() has reopened it, and must not abort that one.
-$('practice-dlg').addEventListener('close', () => { if (!$('practice-dlg').open) PRACTICE.stop(); });
+// The one seam through which a practice answer reaches the schedule.
+PRACTICE.hooks.scheduled = (entry, quality) => applyGrade(entry, quality);
+// The miss tally, which bands practice's queue. Handed over rather than read
+// from store.js inside practice.js, which owns no storage of its own.
+PRACTICE.hooks.misses = () => practice.misses ?? {};
+PRACTICE.hooks.settings = () => prefs;
+PRACTICE.hooks.saveSettings = (patch) => setReviewPrefs(patch);
+// Back to the flashcard. The queue is stale the moment practice grades a word
+// sitting in it — that card is no longer due — so the session is rebuilt
+// rather than resumed.
+PRACTICE.hooks.flashcard = () => {
+  startReview(reviewScope);
+  renderCard();
+};
 
 /* ---------- statistics ---------- */
 

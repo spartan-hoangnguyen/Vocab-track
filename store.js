@@ -169,9 +169,13 @@ function recordReview(word, quality, at = Date.now()) {
   return writeQueue;
 }
 
-// Practice keeps its own books and never touches the schedule: counts per mode
-// for today (the grid's "4/10 today"), and misses per word for good. The day
-// rolls over on the first read of a new one; misses carry across.
+// Practice's own books, kept beside the schedule rather than instead of it:
+// counts per mode for today (the tab's "4/10" badge), and misses per word for
+// good. The schedule itself moves through applyGrade in dashboard.js when a
+// practice answer lands on a card that was already due — these two numbers are
+// what practice alone remembers. The day rolls over on the first read of a new
+// one; misses carry across, and now also band practice's question queue
+// (practice.js:weighted).
 async function getPractice() {
   const { practice } = await chrome.storage.local.get('practice');
   const today = new Date().toDateString();
