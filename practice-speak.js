@@ -9,7 +9,10 @@
 // Grading is deliberately shallow: at least five words, and the word itself or
 // a plain inflection of it. Whether the sentence is GOOD is for you to judge
 // when you hear it read back — a checker that pretended to know would be wrong
-// often enough to teach you to ignore it.
+// often enough to teach you to ignore it. Both of those rules are on screen as
+// a checklist while you write, for the same reason they are shallow: a rule you
+// can watch yourself satisfy is one you can trust, while the same rule sprung
+// on you at the verdict reads as an opinion about your sentence.
 const SPEAK = (() => {
   // Long enough for a sentence said slowly; short enough that a mic left open
   // by a distracted click does not sit there listening.
@@ -60,16 +63,25 @@ const SPEAK = (() => {
     return String(sentence ?? '').trim().split(/\s+/).filter(Boolean).length;
   }
 
+  // Both rules answered at once, which is the one thing grade() cannot say: it
+  // stops at the first failure so that it can name a single reason. The
+  // checklist needs the other rule's state too, and a sentence that is short
+  // AND missing the word must not tick "long enough" on the strength of
+  // grade() having never reached it.
+  function coverage(sentence, word, pack) {
+    const hit = findWord(sentence, word, pack);
+    const words = wordCount(sentence);
+    return { hit, used: !!hit, words, long: words >= MIN_WORDS };
+  }
+
   // Pure, so selfTest can pin the rules without a DOM. The word is checked
   // first: a two-word answer that also misses the word needs the word more.
   // `pack` is optional here for the same reason it is in findWord, which is
   // where an omitted one gets filled in.
   function grade(sentence, word, pack) {
-    const hit = findWord(sentence, word, pack);
-    if (!hit) return { ok: false, hit, reason: 'Use the word itself' };
-    if (wordCount(sentence) < MIN_WORDS) {
-      return { ok: false, hit, reason: `Make it a full sentence — at least ${MIN_WORDS} words` };
-    }
+    const { hit, used, long } = coverage(sentence, word, pack);
+    if (!used) return { ok: false, hit, reason: 'Use the word itself' };
+    if (!long) return { ok: false, hit, reason: `Make it a full sentence — at least ${MIN_WORDS} words` };
     return { ok: true, hit, reason: null };
   }
 
@@ -96,6 +108,14 @@ const SPEAK = (() => {
     const mic = node('button', 'pr-speak-mic', '🎙');
     mic.type = 'button';
     mic.setAttribute('aria-label', 'Speak your sentence');
+    // The seconds left of the listening window. Before this the mic simply went
+    // quiet at LISTEN_MS, in the middle of a sentence, and read as the mic
+    // having broken. Visual only (aria-hidden): the ring already announces the
+    // open mic, and a digit read out every second would talk over the sentence
+    // you are in the middle of saying. An animated ring lost to digits because
+    // "it will stop soon" is not the news you need — "two seconds" is.
+    const count = node('span', 'pr-speak-count');
+    count.setAttribute('aria-hidden', 'true');
     const live = node('p', 'pr-speak-live');
     const reason = node('p', 'pr-speak-reason');
     reason.setAttribute('role', 'status');
@@ -103,12 +123,33 @@ const SPEAK = (() => {
     box.rows = 2;
     box.placeholder = '…or type your sentence';
     box.setAttribute('aria-label', 'Your sentence');
-    root.append(mic, live, reason, box);
+    // The whole of the grading, in the order grade() applies it. Not a live
+    // region: it changes on every keystroke, and a screen reader that read each
+    // change aloud would drown the sentence — the verdict's reason says the
+    // same thing once, at the end, where it is news.
+    const checks = node('ul', 'pr-speak-checks');
+    const usedRow = node('li', 'pr-speak-check', `Uses “${entry.word}”`);
+    const longRow = node('li', 'pr-speak-check');
+    checks.append(usedRow, longRow);
+    const send = node('button', 'btn pr-speak-send', 'Check it ');
+    send.type = 'button';
+    send.appendChild(node('kbd', null, 'enter'));
+    root.append(mic, count, live, reason, box, checks, send);
     host.appendChild(root);
 
     const fallback = (text) => {
       reason.textContent = text;
       box.focus();
+    };
+
+    // Reads the box and never the interim transcript: the box holds the text
+    // that will actually be graded, and ticking on words the recogniser is
+    // still revising would un-tick itself a word later.
+    const paint = () => {
+      const seen = coverage(box.value, entry.word, pack);
+      usedRow.classList.toggle('on', seen.used);
+      longRow.classList.toggle('on', seen.long);
+      longRow.textContent = seen.long ? `${seen.words} words` : `${seen.words} of ${MIN_WORDS} words`;
     };
 
     return new Promise((resolve) => {
@@ -117,7 +158,8 @@ const SPEAK = (() => {
       let finished = false;
 
       const stopListening = () => {
-        clearTimeout(timer);
+        clearInterval(timer);
+        count.textContent = '';
         mic.classList.remove('on');
         // abort, not stop: stop would still deliver a result after we have
         // moved on. Cleared first, so its own onend/onerror see it is stale.
@@ -126,17 +168,47 @@ const SPEAK = (() => {
         r?.abort();
       };
 
+      // The controls after this question has been answered for you — by the
+      // grade below, or by the shell's give-up, which aborts ctx.signal and
+      // paints its verdict over the top. Without this the mic under that
+      // verdict was still live, and clicking it opened a recogniser for a
+      // question that no longer existed.
+      const freeze = () => { mic.disabled = true; box.disabled = true; send.disabled = true; };
+
       const submit = (sentence) => {
         const text = String(sentence ?? '').trim();
-        if (finished || !text) return;
+        if (finished) return;
+        if (!text) {
+          // An empty send used to be a silent no-op, which left the question
+          // with exactly one exit: closing practice. The exit is the shell's
+          // give-up button (practice.js:488) and this is where it gets named,
+          // because the footer is not where you are looking.
+          fallback('Say or type a sentence — or press "I don\'t know" below to skip it.');
+          return;
+        }
         finished = true;
         stopListening();
         done.abort();
-        mic.disabled = true;
-        box.disabled = true;
+        freeze();
         const result = grade(text, entry.word, pack);
         root.appendChild(said(text, result.hit, node, ctx.speak));
         resolve(ctx.next(result.ok, result.reason));
+      };
+
+      // What was heard goes into the box — to read, to fix, or to say again
+      // over the top with another click of the mic. Grading the recogniser's
+      // final result where it arrived was the old behaviour and it was
+      // one-shot: a transcript that mangled the word was graded wrong before
+      // you had seen it, for a sentence you had said correctly.
+      const land = (r) => {
+        if (rec !== r) return;
+        stopListening();
+        if (live.textContent) box.value = live.textContent;
+        // Cleared, or the take shows twice: once here and once in the box.
+        live.textContent = '';
+        mic.setAttribute('aria-label', 'Say it again');
+        box.focus();
+        paint();
       };
 
       const listen = () => {
@@ -157,21 +229,16 @@ const SPEAK = (() => {
           if (rec !== r) return;
           const text = Array.from(e.results, (res) => res[0].transcript).join('');
           live.textContent = text;
-          if (e.results[e.results.length - 1].isFinal) submit(text);
+          if (e.results[e.results.length - 1].isFinal) land(r);
         };
         r.onerror = (e) => {
           if (rec !== r || e.error === 'aborted') return;
           stopListening();
           fallback(REASONS[e.error] ?? `Speech recognition failed (${e.error}) — type your sentence instead.`);
         };
-        // Ended without a final result (silence, the timeout): what was heard
-        // goes into the box to fix up and send, rather than being lost.
-        r.onend = () => {
-          if (rec !== r) return;
-          stopListening();
-          if (live.textContent) box.value = live.textContent;
-          box.focus();
-        };
+        // Silence, or the window running out: both end the same way as a
+        // sentence heard in full, in the box.
+        r.onend = () => land(r);
         try {
           r.start();
         } catch (err) {
@@ -181,19 +248,32 @@ const SPEAK = (() => {
         }
         rec = r;
         mic.classList.add('on');
-        timer = setTimeout(() => rec?.stop(), LISTEN_MS);
+        // One interval does both jobs the lone setTimeout did not: it shows the
+        // window shrinking and it closes the mic at the end of it.
+        let left = Math.round(LISTEN_MS / 1000);
+        count.textContent = `${left}s`;
+        timer = setInterval(() => {
+          left -= 1;
+          count.textContent = left > 0 ? `${left}s` : '';
+          if (left <= 0) rec?.stop();
+        }, 1000);
       };
 
       mic.addEventListener('click', listen, { signal });
+      send.addEventListener('click', () => submit(box.value), { signal });
+      box.addEventListener('input', paint, { signal });
       box.addEventListener('keydown', (e) => {
         // Enter sends; Shift+Enter is the newline, as in every chat box.
         if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
         e.preventDefault();
         submit(box.value);
       }, { signal });
-      // Leaving the tab mid-sentence must not leave the mic open.
-      ctx.signal.addEventListener('abort', stopListening, { once: true, signal: done.signal });
+      // Leaving the tab mid-sentence must not leave the mic open, and giving up
+      // aborts this same signal — so both also close the controls down.
+      ctx.signal.addEventListener('abort', () => { stopListening(); freeze(); },
+        { once: true, signal: done.signal });
 
+      paint();
       if (!recognizer()) fallback(UNAVAILABLE);
       else box.focus();
     });
@@ -217,7 +297,7 @@ const SPEAK = (() => {
     return row;
   }
 
-  return { findWord, grade, ask };
+  return { findWord, coverage, grade, ask };
 })();
 
 PRACTICE.register('speak', {
@@ -227,6 +307,12 @@ PRACTICE.register('speak', {
   color: 'purple',
   // A sentence of your own is production at its hardest.
   produces: true,
+  // No right answer here is fast. Composing a sentence and saying it aloud
+  // takes fifteen seconds when it goes well, so the shell's six-second default
+  // (practice.js:30) would have meant Speak never granting Easy — true, but
+  // true by accident, and reading as a bug the first time someone timed it.
+  // Zero says it on purpose: this mode tops out at Good.
+  fast: 0,
   eligible: (entry) => !!entry.word,
   ask: SPEAK.ask,
   async selfTest() {
@@ -240,6 +326,14 @@ PRACTICE.register('speak', {
     out.push(['under 5 words fails', !short.ok && /5 words/.test(short.reason), short.reason]);
     const missing = SPEAK.grade('The car went much faster then', 'accelerate');
     out.push(['sentence without the word fails', !missing.ok && missing.reason === 'Use the word itself']);
+    // What the checklist needs and grade() cannot give: the rule grade()
+    // returned on, AND the one it stopped short of.
+    const both = SPEAK.coverage('Prices accelerated fast', 'accelerate');
+    out.push(['coverage answers the rule grade stopped short of',
+      both.used === true && both.long === false && both.words === 3, JSON.stringify(both)]);
+    const neither = SPEAK.coverage('It went fast', 'accelerate');
+    out.push(['and a short sentence missing the word fails both',
+      neither.used === false && neither.long === false, JSON.stringify(neither)]);
 
     // A non-English pack, which nothing reached until now: findWord takes one
     // explicitly and also defaults it off the word's own script, and both
@@ -287,7 +381,9 @@ PRACTICE.register('speak', {
         next(ok, answer) { got.answer = answer; return Promise.resolve(ok); }
       };
       try {
-        got.result = await drive(host, SPEAK.ask(entry, host, ctx));
+        // ctl is passed on: give-up and a closed tab both reach a mode as this
+        // signal aborting, and one case below has to fire it mid-question.
+        got.result = await drive(host, SPEAK.ask(entry, host, ctx), ctl);
         got.mark = host.querySelector('mark')?.textContent;
         return got;
       } finally {
@@ -297,13 +393,16 @@ PRACTICE.register('speak', {
         [window.SpeechRecognition, window.webkitSpeechRecognition] = saved;
       }
     };
+    // Typing, as typing happens: an input event per change and then Enter.
     const type = (host, text) => {
       const box = host.querySelector('textarea');
       box.value = text;
+      box.dispatchEvent(new Event('input', { bubbles: true }));
       box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     };
     const reasonOf = (host) => host.querySelector('.pr-speak-reason').textContent;
     const boxFocused = (host) => document.activeElement === host.querySelector('textarea');
+    const ticks = (host) => [...host.querySelectorAll('.pr-speak-check')].map((li) => li.classList.contains('on'));
 
     const none = await run(undefined, async (host, asked) => {
       const r = { reason: reasonOf(host), focused: boxFocused(host) };
@@ -340,22 +439,109 @@ PRACTICE.register('speak', {
     out.push(['typed short sentence is wrong with its reason',
       tooShort.result === false && /at least 5 words/.test(tooShort.answer), JSON.stringify(tooShort)]);
 
-    // A recognizer that hears one final sentence as soon as it starts.
+    // The checklist, watched through one sentence being written: neither rule,
+    // then each alone, then both — and the send button as the way out, since
+    // the mic path now leaves a sentence sitting in the box waiting for it.
+    const list = await run(undefined, async (host, asked) => {
+      const box = host.querySelector('textarea');
+      const seen = [];
+      const write = (text) => {
+        box.value = text;
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        seen.push(ticks(host));
+      };
+      write('');
+      write('The car went much faster than before');
+      write('Costs accelerate');
+      write('Costs accelerate when nobody watches');
+      const words = host.querySelectorAll('.pr-speak-check')[1].textContent;
+      host.querySelector('.pr-speak-send').click();
+      return { seen, words, ok: await asked };
+    });
+    out.push(['the checklist ticks each rule on its own as you write',
+      JSON.stringify(list.result.seen) === JSON.stringify([[false, false], [false, true], [true, false], [true, true]]),
+      JSON.stringify(list.result.seen)]);
+    out.push(['and counts the words you have against the five you need',
+      list.result.words === '5 words', list.result.words]);
+    out.push(['the send button grades the sentence', list.result.ok === true && list.mark === 'accelerate',
+      JSON.stringify(list)]);
+
+    // Sending nothing used to do nothing at all. It now says where the exit is.
+    const empty = await run(undefined, async (host, asked) => {
+      type(host, '');
+      const r = { reason: reasonOf(host), shut: host.querySelector('textarea').disabled };
+      type(host, 'Costs accelerate when nobody is watching.');
+      r.ok = await asked;
+      return r;
+    });
+    out.push(['an empty send names the way out rather than doing nothing',
+      /I don't know/.test(empty.result.reason) && !empty.result.shut && empty.result.ok === true,
+      JSON.stringify(empty.result)]);
+
+    // A recognizer that hears one final sentence as soon as it starts, whose
+    // stop() ends it the way a real one does, and which says how many times it
+    // has been opened.
     class Heard {
+      static starts = 0;
+      static text = 'The car accelerates up the steep hill';
       start() {
+        Heard.starts++;
         setTimeout(() => this.onresult?.({
-          results: [Object.assign([{ transcript: 'The car accelerates up the steep hill' }], { isFinal: true })]
+          results: [Object.assign([{ transcript: Heard.text }], { isFinal: true })]
         }));
       }
-      stop() {}
+      stop() { this.onend?.(); }
       abort() {}
     }
     const heard = await run(Heard, async (host, asked) => {
-      host.querySelector('.pr-speak-mic').click();
-      return asked;
+      const mic = host.querySelector('.pr-speak-mic');
+      const box = host.querySelector('textarea');
+      mic.click();
+      // Read before the result lands: start() defers it, as a mic does.
+      const ticking = host.querySelector('.pr-speak-count').textContent;
+      await new Promise((r) => setTimeout(r, 10));
+      const first = { text: box.value, count: host.querySelector('.pr-speak-count').textContent,
+                      over: box.disabled, live: host.querySelector('.pr-speak-live').textContent,
+                      ticked: ticks(host) };
+      Heard.text = 'The car accelerated up the steep hill instead';
+      mic.click();
+      await new Promise((r) => setTimeout(r, 10));
+      const second = box.value;
+      host.querySelector('.pr-speak-send').click();
+      return { ticking, first, second, ok: await asked };
     });
-    out.push(['a final speech result is graded', heard.result === true && heard.mark === 'accelerates',
-      JSON.stringify(heard)]);
+    out.push(['the listening window counts down and clears when it closes',
+      heard.result.ticking === '8s' && heard.result.first.count === '',
+      JSON.stringify([heard.result.ticking, heard.result.first.count])]);
+    out.push(['a heard sentence lands in the box instead of being graded there',
+      /steep hill/.test(heard.result.first.text) && heard.result.first.over === false
+        && heard.result.first.live === '' && JSON.stringify(heard.result.first.ticked) === '[true,true]',
+      JSON.stringify(heard.result.first)]);
+    out.push(['and the mic says it again over the top', /accelerated .* instead/.test(heard.result.second),
+      heard.result.second]);
+    out.push(['then the send button grades what is in the box',
+      heard.result.ok === true && heard.mark === 'accelerated' && Heard.starts === 2,
+      JSON.stringify([heard.mark, Heard.starts])]);
+
+    // Give-up and a closed tab reach a mode the same way: ctx.signal aborts.
+    // Neither may leave the mic open or the controls live under the verdict
+    // the shell paints on top.
+    const gone = await run(Heard, async (host, asked, ctl) => {
+      const mic = host.querySelector('.pr-speak-mic');
+      const opened = Heard.starts;
+      mic.click();
+      ctl.abort();
+      const r = { open: mic.classList.contains('on'), count: host.querySelector('.pr-speak-count').textContent,
+                  shut: mic.disabled && host.querySelector('textarea').disabled };
+      // A disabled button dispatches no click, which is the point of freezing
+      // them: there is nothing left here to start a recogniser with.
+      mic.click();
+      r.reopened = Heard.starts - opened - 1;
+      return r;
+    });
+    out.push(['giving up closes the mic and the controls with it',
+      gone.result.open === false && gone.result.count === '' && gone.result.shut && gone.result.reopened === 0,
+      JSON.stringify(gone.result)]);
 
     // One that is refused, the way an extension page may well be.
     class Blocked {

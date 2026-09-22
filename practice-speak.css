@@ -13,3 +13,17 @@
 .pr-speak-box{max-width:460px;font-size:15px;text-align:left;resize:vertical;line-height:1.5}
 .pr-speak-said{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
 .pr-speak-said mark{background:var(--purple);color:var(--purple-ink);border-radius:4px;padding:0 3px}
+/* Seconds left of the listening window, under the mic. Tabular figures so the
+   line does not twitch sideways as the digit changes. */
+.pr-speak-count{font:600 13px Inter;color:var(--ink2);font-variant-numeric:tabular-nums}
+.pr-speak-count:empty{display:none}
+/* The two rules grading applies, ticked as the sentence satisfies them. The
+   glyph carries the state and the colour only agrees with it: --good against
+   --ink2 is a distinction you can see only if you see colour. */
+.pr-speak-checks{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;
+                 gap:6px 18px;font:500 13px Inter;color:var(--ink2)}
+.pr-speak-check::before{content:"\25CB  "}
+.pr-speak-check.on{color:var(--good)}
+.pr-speak-check.on::before{content:"\2713  "}
+.pr-speak-send kbd{margin-left:6px}
+.pr-speak-send:disabled{cursor:default;opacity:.5}
