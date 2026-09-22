@@ -56,6 +56,14 @@ Built for one person. No accounts, no sync, no server.
   it, so Enter also takes the grade that fits — exact goes to Good, one or two
   letters out to Hard, anything else to Blank — and `1`-`4` override it.
   FSRS-6 spaced repetition underneath, in the dashboard or the panel.
+- **Practise beside the card, on the same schedule.** Six modes — Quiz,
+  Listening, Fill the gap, Speak it, Card Blast and Mix — sit as tabs next to
+  the flashcard in the review, in the card's own place rather than in a dialog
+  over it. An answer on a word that is **already due** is a real review and
+  moves FSRS: picking one of four meanings grades Hard, producing the word
+  grades Good (Easy if it was quick), and taking the hint caps it at Hard. A
+  word that is not due yet, one you have never been shown, and anything played
+  in Card Blast are all left exactly where they were.
 - **Learn a band, not just what you met.** `data/ielts-c1-c2.json` is an
   importable C1/C2 word list — the vocabulary IELTS band 7+ is made of — with
   Cambridge definitions, pronunciation and an example sentence on every card.
@@ -340,10 +348,10 @@ every assertion passes:
 | `test.js` | Pure logic. The Cambridge parser runs against four real saved pages, including one with no CEFR level and one that is not a dictionary entry at all. It also runs every registered pack's own `selfTest()` by loop, so a new `lang/<id>/` is covered the moment it is loaded, with no edit here. |
 | `yt-probe.html` | That a caret still reads caption text through YouTube's `user-select:none`. |
 | `reader-probe.html` | Article extraction against a page of nav, footer and comment junk, and that the RSVP focal letter does not move. |
-| `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, and that the review card never shows the word before you commit. It loads the real `dashboard.html`, so it cannot drift from what ships. |
+| `dashboard-probe.html` | The dashboard's layout, measured against a stubbed `chrome` API — view switching, control sizing, that a running practice mode fills the review card's own grid cell instead of pushing the side column around, and that the review card never shows the word before you commit. It loads the real `dashboard.html`, so it cannot drift from what ships. |
 | `writer-probe.html` | The textarea mirror over a content-box and a border-box field, the contenteditable offset index, and that a tag typed into a field stays text. |
 | `sidepanel-probe.html` | The panel at the 400px Chrome actually gives it: three tabs sharing one row, and the quiz view's rules — one right answer, the answer revealed after a wrong pick, the review schedule left alone. |
-| `practice-probe.html` | Every practice mode's own checks, plus the rules they share: the tab strip in the review head, a running tab standing review's keyboard down, and the schedule rule — a due word is moved by a practice answer, a word that is not due or was never introduced is left where it was. |
+| `practice-probe.html` | Every practice mode's own checks, plus the rules they share: the tab strip in the review head rather than in a dialog, a mode with too few words greyed but still reachable by Tab and refused when clicked, drawing the strip building no question (it was O(n²) once), a running tab standing review's keyboard down, and the schedule rule — a due word moves, graded Hard from a mode that offers four meanings and Good from one that asks you to produce the word, capped at Hard by a hint; a word that is not due, a word never introduced, and a card blasted in a game are all left where they were. |
 
 The last six exist because these are failures no unit test can see: they are
 about what the browser actually renders.

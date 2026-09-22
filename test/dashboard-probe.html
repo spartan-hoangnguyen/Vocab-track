@@ -703,6 +703,30 @@ ready.then(() => setTimeout(async () => {
   check('the side cards sit to the right of the card at this width',
         sideBox.left >= cardSide.right, `${sideBox.left.toFixed(0)} vs ${cardSide.right.toFixed(0)}`);
 
+  // A practice mode fills the card's own cell, it does not open a third column.
+  // .rvbody stacks #rv-card, #rv-empty and #pr-panel in grid-column 1 / row 1
+  // (dashboard.css:265); a panel appended as an ordinary sibling would instead
+  // take a column of its own, push .rvside off the row, and shrink every card
+  // measured above — the failure this row exists to name, since on screen it
+  // reads only as "the review looks wrong today".
+  PRACTICE.start('quiz', practicePool(Object.values(words)));
+  await tick();
+  const panelBox = document.getElementById('pr-panel').getBoundingClientRect();
+  const sideAfter = document.getElementById('rv-side').getBoundingClientRect();
+  check('a running mode takes the card’s cell and leaves the side column where it was',
+        panelBox.width > 0 && panelBox.right <= sideAfter.left + 1
+        // Centres, not tops: .rvbody centres its items in the row, so two
+        // things in the same cell share a middle and not an edge.
+        && Math.abs((panelBox.top + panelBox.bottom) / 2 - (sideAfter.top + sideAfter.bottom) / 2) < 2
+        && sideAfter.left === sideBox.left && sideAfter.width === sideBox.width,
+        `panel ${panelBox.left.toFixed(0)}–${panelBox.right.toFixed(0)} centred `
+        + `${((panelBox.top + panelBox.bottom) / 2).toFixed(0)}, side ${sideAfter.left.toFixed(0)} centred `
+        + `${((sideAfter.top + sideAfter.bottom) / 2).toFixed(0)}, was at ${sideBox.left.toFixed(0)}`);
+  // Stopped here rather than at the end of the block: renderCard() early-returns
+  // while a tab is active (practice.js:active), so every check below that draws
+  // a card would measure the one this left behind.
+  PRACTICE.stop();
+
   /* ---- the night theme ----
      Paper stays the default and must not move a pixel, so the light values
      below are the ones recorded before the night theme existed. */

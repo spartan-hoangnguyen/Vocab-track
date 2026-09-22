@@ -192,17 +192,37 @@ ready.then(() => setTimeout(async () => {
   check('the strip sits above the card, in the head',
         document.getElementById('pr-tabs').getBoundingClientRect().bottom
           <= document.getElementById('rv-card').getBoundingClientRect().top);
+  // Both halves are inside the review section, and the <dialog id="practice-dlg">
+  // that used to carry them is gone from the markup rather than merely unused:
+  // a mode that opens over the card is a mode that moves the page under you,
+  // which is the whole reason this moved. Checked against the real
+  // dashboard.html this page fetches, so a dialog left behind would show here.
+  check('practice is part of the review, not a dialog over it',
+        !document.querySelector('dialog#practice-dlg, .prdlg, dialog .prtabs')
+        && !!document.getElementById('pr-tabs').closest('#view-review')
+        && !!document.getElementById('pr-panel').closest('.rvbody'),
+        document.querySelector('dialog#practice-dlg, .prdlg')?.outerHTML.slice(0, 80)
+          ?? 'the strip or the panel is outside the review body');
 
   /* ---- drawing the strip never builds a question ----
      Eligibility runs for every word on every render, and Mix repeats it.
      Calling quizOptions there (a full pool shuffle per word) made this O(n²):
      ten seconds a render at 3,000 words, felt as lag everywhere. */
   const realOptions = VT.quizOptions;
+  const realShuffled = VT.shuffled;
   let built = 0;
   VT.quizOptions = (...a) => { built++; return realOptions(...a); };
+  // The shuffle as well as the option builder, because quizOptions is no longer
+  // the only way a question gets made: quiz builds its reverse distractors with
+  // a wordOptions of its own (practice-quiz.js:269) and fill draws its sentence
+  // (practice-fill.js:35) — both through VT.shuffled, which no eligible() has
+  // any reason to touch. Watching the one primitive they share is what keeps
+  // this row honest as the modes grow.
+  VT.shuffled = (...a) => { built++; return realShuffled(...a); };
   PRACTICE.renderTabs(document.createElement('div'), practicePool(Object.values(words)), {});
   VT.quizOptions = realOptions;
-  check('rendering the strip builds no quiz question', built === 0, `${built} calls`);
+  VT.shuffled = realShuffled;
+  check('rendering the strip builds no question, in any mode', built === 0, `${built} calls`);
 
   /* ---- a scope with too few words greys the tab, with the reason reachable ---- */
   const tiny = Object.values(STORE.words).slice(0, 2);
@@ -213,8 +233,22 @@ ready.then(() => setTimeout(async () => {
         quizTab.getAttribute('aria-disabled') === 'true' && !quizTab.disabled,
         quizTab.outerHTML.slice(0, 120));
   // disabled would drop it out of the tab order and take the reason with it.
+  check('and it is still reachable by Tab, which is how the reason is read',
+        quizTab.tabIndex === 0, String(quizTab.tabIndex));
   check('and its reason is on the label, not only in a hover title',
         /four words/i.test(quizTab.getAttribute('aria-label')), quizTab.getAttribute('aria-label'));
+  // aria-disabled is a promise to a screen reader and nothing at all to the
+  // browser: a reachable tab still takes a click, so the refusal has to be in
+  // pick() (practice.js:206). Drawn on the LIVE strip, because that is the one
+  // pick() reads, and redrawn from the real pool afterwards so the tab clicks
+  // below are not left asking about two words.
+  const strip = document.getElementById('pr-tabs');
+  PRACTICE.renderTabs(strip, tiny, {});
+  PRACTICE.pick('quiz');
+  await tick(20);
+  check('and clicking it anyway starts nothing',
+        !PRACTICE.active() && panel().hidden, String(PRACTICE.active()));
+  PRACTICE.renderTabs(strip, practicePool(Object.values(words)), {});
 
   /* ---- eligibility asks the word's own pack ---- */
   const listening = PRACTICE.list().find((m) => m.id === 'listening');
@@ -320,6 +354,24 @@ ready.then(() => setTimeout(async () => {
         today().some(([w, q]) => w === 'resilient' && q === 5),
         JSON.stringify(today().filter(([w]) => w === 'resilient')));
   PRACTICE.stop();
+
+  // The same mode again, the same speed again, with the hint taken first. A
+  // hint is help, so the answer caps at Hard however well it was produced —
+  // which is only worth checking from the end that would otherwise be Easy:
+  // capping a mode that already grades 3 proves nothing. One word, handed to
+  // start() as its `only` queue, so the row this reads is unmistakably its own.
+  reseed();
+  await refresh();
+  const beforeHint = today().length;
+  PRACTICE.start('listening', practicePool(Object.values(words)), [STORE.words.candid]);
+  await tick(30);
+  panel().querySelector('.prhintbtn').click();
+  await playThrough();
+  const fromHint = today().slice(beforeHint);
+  check('a hint caps the grade at Hard, in the mode that would have earned Easy',
+        fromHint.length === 1 && fromHint[0][0] === 'candid' && fromHint[0][1] === 3,
+        JSON.stringify(fromHint));
+  PRACTICE.stop();
   PRACTICE.hooks.speak = realSpeak;
 
   // Quiz is recognition: four options, so a right answer caps at Hard.
@@ -342,15 +394,32 @@ ready.then(() => setTimeout(async () => {
         stamp(LATER) + ' / ' + stamp(FRESH));
   PRACTICE.stop();
 
-  // A game never moves anything, however it goes.
+  // A game never moves anything, however it goes — and that has to be read off
+  // a round that was actually played. A round left to idle records nothing at
+  // all, so it passed this row whether or not a blasted card grades; the card
+  // on screen is blasted here first, and the count is what proves the answer
+  // landed rather than being dropped on the floor.
   reseed();
   await refresh();
   const beforeBlast = schedule();
+  const blastRows = today().length;
+  const blastBefore = (await getPractice()).counts.blast?.total ?? 0;
   PRACTICE.start('blast', practicePool(Object.values(words)));
   await tick(40);
+  const falling = Object.values(STORE.words).find((e) =>
+    VT.glossOf(e) === panel().querySelector('.pr-blast .blcard .bltext')?.textContent);
+  const blastBox = panel().querySelector('.pr-blast input');
+  blastBox.value = falling?.word ?? '';
+  blastBox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await tick(20);
+  check('a card blasted out of the sky is counted as practice',
+        ((await getPractice()).counts.blast?.total ?? 0) === blastBefore + 1,
+        `${(await getPractice()).counts.blast?.total} was ${blastBefore}, card ${falling?.word}`);
+  check('and a game still never moves the schedule at all', schedule() === beforeBlast);
+  check('nor writes the answer down as a review',
+        today().length === blastRows, `${today().length} rows, was ${blastRows}`);
   PRACTICE.stop();
   await tick();
-  check('a game never moves the schedule at all', schedule() === beforeBlast);
 
   reseed();
   await refresh();

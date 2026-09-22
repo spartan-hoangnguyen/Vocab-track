@@ -1,8 +1,8 @@
 # Vocab-track — manual smoke test
 
-Everything here needs a real browser. Automated checks cover the pure logic
-(`bash test/run.sh`, 55 assertions), but no subagent can load an unpacked
-extension, so the Chrome-facing behaviour was never exercised before you run it.
+Everything here needs a real browser. Automated checks cover the pure logic and
+the layout (`bash test/run.sh`, seven pages in headless Chrome), but no subagent
+can load an unpacked extension, so the Chrome-facing behaviour was never exercised before you run it.
 
 Ranked by how likely it is to break, from the final whole-branch review.
 
@@ -218,6 +218,68 @@ Open it from **Open dashboard →** in the side panel.
 48. **A word with no meaning still works.** Import a word whose `vi` and `def`
     are both null. Its card shows the word with a Show answer button, as it did
     before this change.
+
+## Practice, and what it does to the schedule
+
+Practice used to be a dialog over the card that never wrote to the schedule.
+Both halves of that changed: the modes are tabs beside the flashcard, and an
+answer on a word that is **already due** is a real review.
+
+90. **The modes are tabs, not a dialog.** Start a review. Under the progress
+    bar is one row — **Flashcard**, Quiz, Listening, Fill the gap, Speak it,
+    Card Blast, Mix. Click **Quiz**: the question appears *where the card was*,
+    the heading and the row above it do not move, and the *Keep going* cards on
+    the right stay exactly where they were. Nothing opens on top of anything.
+    <kbd>esc</kbd> puts you back on **Flashcard** with the card as you left it,
+    and ⛶ **Fullscreen** fills the screen with the panel — with <kbd>t</kbd> on
+    the flashcard tab still opening a tag picker you can see.
+
+91. **A mode that cannot run says why, and still takes Tab.** Scope a review to
+    a folder holding three words (a folder card's own **Review** link). **Quiz**
+    is greyed. Tab to it anyway — it takes focus, and VoiceOver (⌘F5) reads
+    *Quiz — needs four words with meanings* rather than just "dimmed". Click it:
+    nothing starts, and the flashcard is still what is on screen.
+
+92. **The round is yours to size.** **Length** offers 10 / 25 / All. Change it
+    mid-round: the round restarts at the new length and the counter's
+    denominator agrees with it. Reopen the dashboard tomorrow — the length you
+    chose is still chosen. <kbd>h</kbd> takes the hint, <kbd>?</kbd> gives up.
+
+93. **The badge is the day's count.** Answer three Quiz questions, then go back
+    to **Flashcard**: the Quiz tab carries `3/10`. Ten answers turn it into
+    `✓ 10`. The badge is per mode, so Listening's is still empty.
+
+94. **The summary drills what you missed.** Get two questions wrong on purpose.
+    The end of the round lists both words with what the question told you, and
+    **Drill the misses** asks exactly those two again — no third word.
+
+95. **A due word is really reviewed.** Note a word that is due today: DevTools
+    → Application → Extension storage → local → `words`, and write down its
+    `stability`, `interval` and `due`. Answer it right in **Listening**. All
+    three must move — `due` at least a day out — and a `history:<today>` key
+    must now hold a `[word, quality, time]` row for it (`store.js:159`)
+    carrying the grade: **4** from Listening or Speak it, which ask you to
+    produce the word — **5** if Listening was answered inside its six seconds —
+    **3** from Quiz or Fill's pick variant, which offer you four to choose
+    between, and **3** again if you pressed <kbd>h</kbd> first, however fast
+    you then answered. Go back to
+    **Flashcard**: the word is gone from the queue, because it is no longer
+    due.
+
+96. **A word that is not due is not touched.** Put one word whose `due` is a
+    week out in a folder of its own, review that folder, and answer it right in
+    **Listening** ten times over — **Again** at the end of each round. Its
+    `stability`, `difficulty`, `interval`, `reps` and `due` must read exactly
+    as they did before, and `history:<today>` must hold no row for it. Scope
+    matters here: the queue asks due words first, so an unscoped round of ten
+    never reaches a word that is a week out. The same must hold for a card you
+    have never been shown — an imported word with `reps: 0` — which practice
+    may move but must never begin.
+
+97. **A game is still a game.** Play **Card Blast** on that same due word: blast
+    one card, let one fall. Nothing in `words` changes and no `history:` row
+    appears — only the tab's own badge and the best score, which is kept per
+    language, so an English best does not show in a Korean session.
 
 ## The toolbar icon
 
