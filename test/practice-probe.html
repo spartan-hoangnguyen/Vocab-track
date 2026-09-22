@@ -355,6 +355,32 @@ ready.then(() => setTimeout(async () => {
         JSON.stringify(today().filter(([w]) => w === 'resilient')));
   PRACTICE.stop();
 
+  // And the verdict bar is reading time, not thinking time. Every mode ends
+  // `return ctx.next(ok, …)`, and next() only resolves on Continue, so a clock
+  // read where ask() resolves would make "fast" mean "answered AND dismissed
+  // inside the window" — Easy would be all but unreachable in real use, while
+  // a test that clicks Continue instantly would never notice.
+  reseed();
+  await refresh();
+  listenMode.fast = 400;
+  const beforeSlow = today().length;
+  PRACTICE.start('listening', practicePool(Object.values(words)), [STORE.words.candid]);
+  await tick(30);
+  const quickBox = panel().querySelector('form .prinput');
+  quickBox.value = heard[heard.length - 1]?.word ?? '';
+  quickBox.form.requestSubmit();
+  await tick(30);
+  // Dawdle, well past the window the answer itself landed inside.
+  await tick(700);
+  panel().querySelector('.prverdict .btn')?.click();
+  await tick(30);
+  const slow = today().slice(beforeSlow);
+  check('reading the verdict slowly does not cost the Easy the answer earned',
+        slow.length === 1 && slow[0][0] === 'candid' && slow[0][1] === 5,
+        JSON.stringify(slow));
+  PRACTICE.stop();
+  listenMode.fast = realFast;
+
   // The same mode again, the same speed again, with the hint taken first. A
   // hint is help, so the answer caps at Hard however well it was produced —
   // which is only worth checking from the end that would otherwise be Easy:

@@ -317,6 +317,12 @@ const PRACTICE = (() => {
     // When the question went up. Zero for a run-mode: a game resolves its cards
     // on its own clock, so none of them can earn Easy.
     let asked = 0;
+    // And when it was answered, which is not when ask() resolves. Every mode
+    // ends `return ctx.next(ok, …)`, and next() resolves on Continue (:220),
+    // so reading the clock there would count the seconds spent reading the
+    // verdict as thinking time: "fast" would have meant "answered AND
+    // dismissed inside six seconds", and Easy would be all but unreachable.
+    let answered = 0;
     const missed = [];
 
     const paintCount = () => {
@@ -334,7 +340,8 @@ const PRACTICE = (() => {
       // would also grade it with Mix's own `produces`.
       const drawn = modes.get(modeId) ?? mode;
       await recordPractice(modeId, entry.word, correct);
-      const quality = gradeFor(drawn, correct, asked > 0 && Date.now() - asked <= drawn.fast, hinted);
+      const fast = asked > 0 && (answered || Date.now()) - asked <= drawn.fast;
+      const quality = gradeFor(drawn, correct, fast, hinted);
       if (quality !== null && movable(entry)) await hooks.scheduled(entry, quality);
       paintCount();
       hooks.changed();
@@ -344,7 +351,12 @@ const PRACTICE = (() => {
       pool,
       signal,
       speak: (entry) => { spoken = entry; return hooks.speak(entry); },
-      next: (correct, answer) => { shown = typeof answer === 'string' ? answer : shown; return next(ui.body, correct, answer); },
+      next: (correct, answer) => {
+        shown = typeof answer === 'string' ? answer : shown;
+        // The clock stops as the verdict paints, not when Continue is pressed.
+        answered = Date.now();
+        return next(ui.body, correct, answer);
+      },
       record,
       same,
       node,
@@ -382,6 +394,7 @@ const PRACTICE = (() => {
           recorded = false;
           shown = null;
           spoken = null;
+          answered = 0;
           ui.status.textContent = `Question ${i + 1} / ${picks.length}`;
           ui.body.replaceChildren();
           let give;
