@@ -226,23 +226,25 @@ Both halves of that changed: the modes are tabs beside the flashcard, and an
 answer on a word that is **already due** is a real review.
 
 90. **The modes are tabs, not a dialog.** Start a review. Under the progress
-    bar is one row — **Flashcard**, Quiz, Listening, Fill the gap, Speak it,
+    bar is one row — **Flashcard**, Quiz, Listening, Fill the gap, Speak,
     Card Blast, Mix. Click **Quiz**: the question appears *where the card was*,
     the heading and the row above it do not move, and the *Keep going* cards on
     the right stay exactly where they were. Nothing opens on top of anything.
-    <kbd>esc</kbd> puts you back on **Flashcard** with the card as you left it,
-    and ⛶ **Fullscreen** fills the screen with the panel — with <kbd>t</kbd> on
-    the flashcard tab still opening a tag picker you can see.
+    <kbd>esc</kbd> puts you back on **Flashcard** with the card as you left it.
+    ⛶ **Fullscreen** fills the screen with the panel; <kbd>esc</kbd> there
+    leaves both the fullscreen and the tab in one press, so **Exit** is the way
+    to the flashcard without losing the screen.
 
 91. **A mode that cannot run says why, and still takes Tab.** Scope a review to
     a folder holding three words (a folder card's own **Review** link). **Quiz**
     is greyed. Tab to it anyway — it takes focus, and VoiceOver (⌘F5) reads
-    *Quiz — needs four words with meanings* rather than just "dimmed". Click it:
-    nothing starts, and the flashcard is still what is on screen.
+    *Quiz — Needs four words with a meaning* rather than just "dimmed". Click
+    it: nothing starts, and the flashcard is still what is on screen.
 
 92. **The round is yours to size.** **Length** offers 10 / 25 / All. Change it
     mid-round: the round restarts at the new length and the counter's
-    denominator agrees with it. Reopen the dashboard tomorrow — the length you
+    denominator agrees with it — or with the number of words the mode can
+    actually ask, when the folder holds fewer than that. Reopen the dashboard tomorrow — the length you
     chose is still chosen. <kbd>h</kbd> takes the hint, <kbd>?</kbd> gives up.
 
 93. **The badge is the day's count.** Answer three Quiz questions, then go back
@@ -258,7 +260,7 @@ answer on a word that is **already due** is a real review.
     `stability`, `interval` and `due`. Answer it right in **Listening**. All
     three must move — `due` at least a day out — and a `history:<today>` key
     must now hold a `[word, quality, time]` row for it (`store.js:159`)
-    carrying the grade: **4** from Listening or Speak it, which ask you to
+    carrying the grade: **4** from Listening or Speak, which ask you to
     produce the word — **5** if Listening was answered inside its six seconds —
     **3** from Quiz or Fill's pick variant, which offer you four to choose
     between, and **3** again if you pressed <kbd>h</kbd> first, however fast
@@ -273,8 +275,8 @@ answer on a word that is **already due** is a real review.
     as they did before, and `history:<today>` must hold no row for it. Scope
     matters here: the queue asks due words first, so an unscoped round of ten
     never reaches a word that is a week out. The same must hold for a card you
-    have never been shown — an imported word with `reps: 0` — which practice
-    may move but must never begin.
+    have never been shown — an imported word with `reps: 0`: practice moves a
+    schedule, it never begins one.
 
 97. **A game is still a game.** Play **Card Blast** on that same due word: blast
     one card, let one fall. Nothing in `words` changes and no `history:` row

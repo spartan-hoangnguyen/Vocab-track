@@ -57,7 +57,7 @@ Built for one person. No accounts, no sync, no server.
   letters out to Hard, anything else to Blank — and `1`-`4` override it.
   FSRS-6 spaced repetition underneath, in the dashboard or the panel.
 - **Practise beside the card, on the same schedule.** Six modes — Quiz,
-  Listening, Fill the gap, Speak it, Card Blast and Mix — sit as tabs next to
+  Listening, Fill the gap, Speak, Card Blast and Mix — sit as tabs next to
   the flashcard in the review, in the card's own place rather than in a dialog
   over it. An answer on a word that is **already due** is a real review and
   moves FSRS: picking one of four meanings grades Hard, producing the word
