@@ -1,0 +1,121 @@
+Vocab-track — third-party notices
+=================================
+
+Vocab-track itself is MIT licensed; see LICENSE. The components below are
+other people's work, reused under their own terms.
+
+
+1. ts-fsrs — the review schedule
+--------------------------------
+`VT.schedule` and `VT.FSRS_W` in lib.js are a port of FSRS-6 from ts-fsrs
+(packages/fsrs/src/algorithm.ts and constant.ts).
+https://github.com/open-spaced-repetition/ts-fsrs
+
+MIT License
+
+Copyright (c) 2026 Open Spaced Repetition
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+2. fsrs-rs — the default FSRS-6 weights
+---------------------------------------
+The 21 numbers in `VT.FSRS_W` are the FSRS-6 defaults, fitted and published by
+the Open Spaced Repetition project.
+https://github.com/open-spaced-repetition/fsrs-rs
+
+BSD 3-Clause License
+
+Copyright (c) 2023, Open Spaced Repetition
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+3. Combined Korean Vocabulary List — data/ko/starter.json
+---------------------------------------------------------
+The Korean headwords and their 초급/중급/고급 grades come from
+julienshim/combined_korean_vocabulary_list, which merges 국립국어원's 한국어
+학습용 어휘 목록 (2003) with the public TOPIK 어휘 목록 (2015).
+https://github.com/julienshim/combined_korean_vocabulary_list
+
+MIT License
+
+Copyright (c) 2026 Julien Shim
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+4. Fraunces, Inter and Nunito — fonts/
+--------------------------------------
+Vendored web fonts, all three under the SIL Open Font License 1.1.
+The full licence and the three copyright lines are in fonts/OFL.txt.
+
+
+5. Octanove Vocabulary Profile C1/C2 — not redistributed
+--------------------------------------------------------
+tools/build-ielts-list.py fetches this CEFR-graded word list at build time; no
+part of it is committed here. It is published by Open Language Profiles under
+CC BY-SA 4.0, so a list you build from it carries that licence too.
+https://github.com/openlanguageprofiles/olp-en-cefrj
+
+
+Services used at runtime, not bundled
+-------------------------------------
+Cambridge Dictionary, Google Translate and LanguageTool are queried live from
+your own browser. Nothing from them is redistributed in this repository. See
+the Privacy section of README.md for what is sent where.

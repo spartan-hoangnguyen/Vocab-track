@@ -1,0 +1,24 @@
+Data files in this directory
+============================
+
+data/ko/starter.json
+--------------------
+Derived work, and the only data file this repository ships.
+
+  * Headwords and the 초급/중급/고급 grades come from
+    julienshim/combined_korean_vocabulary_list, MIT licensed. The full licence
+    text is in ../NOTICE, section 3.
+  * The Vietnamese gloss on each entry is machine translation, produced by
+    tools/build-korean-list.py. It is not edited by a person and carries no
+    claim of accuracy.
+
+Reuse it under the MIT terms in ../NOTICE.
+
+
+What is NOT here
+----------------
+data/ielts-c1-c2.json and data/phrasal-verbs.json are not committed. Their
+definitions, IPA, example sentences and audio links are Cambridge University
+Press content, which this project has no right to redistribute. Build them on
+your own machine with tools/build-ielts-list.py and tools/build-phrasal-list.py
+— see the "Word lists" section of ../README.md.
