@@ -200,8 +200,14 @@ is the whole change if you ever want nothing to leave the machine at all.
 
 ## Word lists
 
-`data/ielts-c1-c2.json` is the same format the **Export** button writes, so
-**Dashboard → Import** takes it. It lands as two folders, *IELTS C1* and
+**The two English lists are not committed here — you build them.** Their
+definitions, IPA, examples and audio links are Cambridge content, which this
+project has no right to redistribute. The builders below fetch them onto your
+own machine, one page at a time, which is the same request clicking a word
+already makes. `data/LICENSE` says which data files do ship.
+
+Once built, `data/ielts-c1-c2.json` is the same format the **Export** button
+writes, so **Dashboard → Import** takes it. It lands as two folders, *IELTS C1* and
 *IELTS C2*, and merges with what you already have: a word you saved yourself
 keeps its review schedule and just gains the folder.
 
@@ -248,7 +254,8 @@ one page at a time, for personal use, at about a page a second.
 
 ### Phrasal verbs
 
-`data/phrasal-verbs.json` imports the same way: **1,058 phrasal verbs**, one
+Built by you too, like the list above. `data/phrasal-verbs.json` imports
+the same way: **1,058 phrasal verbs**, one
 folder per Cambridge band — A1 3, A2 22, B1 88, B2 169, C1 52, C2 82 — and
 *Phrasal · no band* for the 642 Cambridge has an entry for but no CEFR tag.
 Twenty a day, easiest band first. Every card has a Cambridge definition and a
@@ -314,6 +321,33 @@ Sources: the word list is
 어휘 목록. The grades are 국립국어원's A/B/C — the list TOPIK preparation is
 built from, though the band mapping is unofficial, which is why the folders
 carry the 초급/중급/고급 names and not TOPIK levels.
+
+## Privacy
+
+No account, no server, no analytics. Your words live in `chrome.storage.local`
+on your own machine and are never uploaded anywhere.
+
+Four things leave your browser, each only when you do something that needs it:
+
+| When | Goes to | What is sent |
+|---|---|---|
+| You click an English word | `dictionary.cambridge.org` | the word |
+| You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
+| You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
+| You play a pronunciation | `dictionary.cambridge.org` | nothing — the audio file is streamed from the URL on the card |
+
+Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
+click it, and nothing is fetched in the background. Opening the dashboard makes
+no third-party request at all — the fonts are vendored under `fonts/`.
+
+Two permissions look broader than they are:
+
+- **`<all_urls>`** — the content script has to be on the page you are reading
+  for a click to look a word up, and there is no way to know in advance which
+  page that is. It reads the word you clicked. It sends nothing on its own.
+- **`nativeMessaging`** — macOS capture only. It talks to `tools/vocab-host.py`
+  on your own machine, which is a queue file the Quick Action writes to. It is
+  inert until you run `tools/install-macos.sh`, and nothing leaves the machine.
 
 ## How it is put together
 
