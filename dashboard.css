@@ -4,7 +4,10 @@
    design rather than a flipped palette: navy starry cards, an olive primary
    and a rounded sans. It lives in the tokens below plus the night block at
    the end of this file, so every rule above reads the same in both. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=Nunito:wght@600;700;800&display=swap');
+/* Fonts are vendored under fonts/, not fetched from Google: the dashboard
+   should make no third-party request just to render, and it has to work
+   offline. Regenerate with tools/vendor-fonts.py. */
+@import url('fonts/fonts.css');
 
 :root{
   --paper:#faf7f2; --panel:#f4efe6; --ink:#1c1a17; --ink2:#6b655c; --ink3:#938c80;
