@@ -42,7 +42,12 @@ PY
 # The capture is silent otherwise, and a save you cannot see is a save you do
 # not trust.
 if [ -n "$SAVED" ]; then
-  osascript -e "display notification \"$SAVED\" with title \"Saved to Vocab-track\"" >/dev/null 2>&1
+  # The word is passed as an argument, never interpolated into the script text.
+  # osascript parses -e as AppleScript, so a selection beginning with a double
+  # quote would close the string literal and have the rest evaluated as code.
+  osascript -e 'on run {msg}
+display notification msg with title "Saved to Vocab-track"
+end run' "$SAVED" >/dev/null 2>&1
 else
   osascript -e 'display notification "Nothing was selected" with title "Vocab-track"' >/dev/null 2>&1
 fi
