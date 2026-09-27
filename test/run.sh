@@ -2,7 +2,13 @@
 # Runs test/test.html in headless Chrome and prints the assertion summary.
 # Exits non-zero unless every assertion passed.
 set -u
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# Chrome sits somewhere different on every platform, and a contributor on
+# Linux should not have to edit this file to run the suite. Override with
+# CHROME=/path/to/chrome if yours is somewhere else again.
+MAC_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+CHROME=${CHROME:-$(command -v google-chrome || command -v google-chrome-stable \
+       || command -v chromium || echo "$MAC_CHROME")}
+[ -x "$CHROME" ] || { echo "Chrome not found. Set CHROME=/path/to/chrome"; exit 1; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Overridable, so two runs at once (parallel agents, a watcher) do not share a
 # server and read each other's pages.

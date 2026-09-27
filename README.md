@@ -73,9 +73,10 @@ Built for one person. No accounts, no sync, no server.
 
 ## Install
 
-No build step.
+No build step, and nothing to install first.
 
-1. `chrome://extensions` → enable **Developer mode**
+1. Clone or download this repository, then `chrome://extensions` → enable
+   **Developer mode**
 2. **Load unpacked** → select this folder
 3. Pin it. The toolbar icon toggles the side panel; the dashboard is one click
    further, from the panel's **Open dashboard →**.
