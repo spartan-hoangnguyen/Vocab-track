@@ -68,7 +68,11 @@
       gram: null,
       ipa: null, ipaUs: null,
       audio: null, audioUs: null,
-      level: null,
+      // The level is the one field no lookup API carries. The English pack reads
+      // it from the bundled CEFR list (lang/en/cefr.js, loaded alongside this
+      // file in the panel, the dashboard and the test page). Guarded so a context
+      // that somehow lacks the list degrades to no level rather than throwing.
+      level: typeof cefrLevel === 'function' ? cefrLevel(first.word) : null,
       def: senses[0]?.def ?? null,
       senses,
       synonyms,

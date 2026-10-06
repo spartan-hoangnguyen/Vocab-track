@@ -6,9 +6,10 @@ Korean.
 Select a word on any page, click the button that appears, and the side panel
 shows what the dictionary has. For English that is a Datamuse entry: the
 definition of each sense, the part of speech, and synonyms, alongside a
-Vietnamese translation and **the sentence you met it in**. There is no CEFR
-level, no IPA and no recorded audio from this source. The play button speaks the
-word with the system voice, and the **Wiktionary ↗** link opens the full entry.
+Vietnamese translation and **the sentence you met it in**. The CEFR level comes
+from a bundled word list, because no lookup carries it. There is no IPA and no
+recorded audio from this source. The play button speaks the word with the system
+voice, and the **Wiktionary ↗** link opens the full entry.
 Cambridge put a bot wall in front of its pages that a background request cannot
 pass, so the lookup moved to a keyless source. Saved words are highlighted when
 you revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
@@ -255,6 +256,18 @@ Sources: the word list is the **Octanove Vocabulary Profile C1/C2** from
 [Open Language Profiles](https://github.com/openlanguageprofiles/olp-en-cefrj),
 CC BY-SA 4.0. Definitions, IPA, audio and examples are scraped from Cambridge
 one page at a time, for personal use, at about a page a second.
+
+### CEFR levels
+
+The English dictionary no longer carries a CEFR level, so the level comes from a
+bundled word list, `lang/en/cefr.js`. `tools/build-cefr-list.py` builds it from
+two open sources through [Open Language Profiles](https://github.com/openlanguageprofiles/olp-en-cefrj).
+The CEFR-J Vocabulary Profile 1.5 covers A1 to B2. It is from Tono Laboratory at
+Tokyo University of Foreign Studies, free to use with citation. The Octanove
+Vocabulary Profile C1/C2 1.0 covers C1 and C2, under CC BY-SA 4.0. A word takes
+the easiest level any sense of it has. A word outside the list, such as a proper
+noun, has no level. This file ships with the extension and loads in the side
+panel and the dashboard, never in the content script.
 
 ### Phrasal verbs
 

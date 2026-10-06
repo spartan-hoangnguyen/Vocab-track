@@ -254,7 +254,9 @@ async function parserTests() {
   const dmDefs = await fixtureJson('datamuse-resilient');
   const dmSyn = await fixtureJson('datamuse-resilient-syn');
   const resilient = enDict.parse(dmDefs[0], dmSyn);
-  eq('resilient has no CEFR level', resilient.level, null);
+  // The level is not in the Datamuse response; it comes from the bundled CEFR
+  // list (lang/en/cefr.js), which parse() reads by the word.
+  eq('resilient level comes from the CEFR list', resilient.level, 'C1');
   eq('resilient has no IPA', resilient.ipa, null);
   eq('resilient has no recorded audio', resilient.audio, null);
   eq('nor a second recording', resilient.audioUs, null);
@@ -283,6 +285,15 @@ async function parserTests() {
   const noDefs = enDict.parse({ word: 'x' }, []);
   eq('parse of a defs-less match has no def', noDefs.def, null);
   check('and is a soft miss too', !noDefs.notFound);
+
+  // --- the bundled CEFR list (lang/en/cefr.js). The level the lookup no longer
+  // carries, read from a word list instead.
+  eq('cefrLevel reads a listed word', cefrLevel('abandon'), 'B1');
+  eq('cefrLevel is case-insensitive', cefrLevel('HAPPY'), 'A1');
+  eq('cefrLevel de-inflects a plural not in the list', cefrLevel('studies'), 'A1');
+  eq('cefrLevel de-inflects an -ing form not in the list', cefrLevel('abandoning'), 'B1');
+  eq('cefrLevel is null for a word outside the list', cefrLevel('zxqwv'), null);
+  eq('cefrLevel is null for the empty string', cefrLevel(''), null);
 
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');

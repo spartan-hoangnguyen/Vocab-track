@@ -102,6 +102,37 @@ function ownersOf(id) {
   return Object.values(words).filter((e) => VT.foldersOf(e).includes(id));
 }
 
+// Bumped when lang/en/cefr.js is regenerated, so the backfill runs again over
+// words it could not place before.
+const CEFR_VERSION = 1;
+
+// Give a level to English words that have none. The dictionary stopped carrying
+// a CEFR level when the lookup moved off Cambridge, so every word saved in
+// between sits under "—" in the level charts. This reads the level from the
+// bundled list for those words, once — a word that genuinely has no level (a
+// proper noun, a word outside the list) is left alone and simply skipped next
+// run by the stored version flag. Runs on boot, after the first load populated
+// `words`, and re-renders only when it actually changed something.
+async function backfillCefr() {
+  if (typeof cefrLevel !== 'function') return;
+  const { cefrBackfill } = await chrome.storage.local.get('cefrBackfill');
+  if (cefrBackfill === CEFR_VERSION) return;
+  const patches = {};
+  for (const [word, entry] of Object.entries(words)) {
+    if (!entry || entry.level || LANG.of(entry).id !== 'en') continue;
+    const level = cefrLevel(word);
+    if (level) patches[word] = { level };
+  }
+  if (Object.keys(patches).length) {
+    await putWords(patches);
+    for (const [word, patch] of Object.entries(patches)) {
+      if (words[word]) words[word].level = patch.level;
+    }
+    render();
+  }
+  await chrome.storage.local.set({ cefrBackfill: CEFR_VERSION });
+}
+
 function render() {
   // The one load point every view fans out from, so filtering here is what
   // makes the toggle reach all of them. The exception is the streak below.
@@ -1011,7 +1042,7 @@ async function drainCaptures() {
   await refresh();
 }
 
-refresh().then(drainCaptures);
+refresh().then(backfillCefr).then(drainCaptures);
 
 
 /* ---------- review ---------- */
