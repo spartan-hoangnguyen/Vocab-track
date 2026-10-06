@@ -4,11 +4,14 @@ A personal Chrome extension for learning vocabulary while reading. English and
 Korean.
 
 Select a word on any page, click the button that appears, and the side panel
-shows what the dictionary has. For English that is the Cambridge entry — CEFR
-level, UK and US pronunciation, every sense with its own level and example,
-synonyms — alongside a Vietnamese translation and **the sentence you met it
-in**. Saved words are highlighted when you revisit the page, and reviewed as
-flashcards on a spaced-repetition schedule.
+shows what the dictionary has. For English that is a Datamuse entry: the
+definition of each sense, the part of speech, and synonyms, alongside a
+Vietnamese translation and **the sentence you met it in**. There is no CEFR
+level, no IPA and no recorded audio from this source. The play button speaks the
+word with the system voice, and the **Wiktionary ↗** link opens the full entry.
+Cambridge put a bot wall in front of its pages that a background request cannot
+pass, so the lookup moved to a keyless source. Saved words are highlighted when
+you revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
 
 Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, with no dictionary behind it yet. See
@@ -328,14 +331,21 @@ carry the 초급/중급/고급 names and not TOPIK levels.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Four things leave your browser, each only when you do something that needs it:
+Five things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
-| You click an English word | `dictionary.cambridge.org` | the word |
+| You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
-| You play a pronunciation | `dictionary.cambridge.org` | nothing — the audio file is streamed from the URL on the card |
+| You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
+| You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+
+GIFs on cards are off until you add your own GIPHY API key. The key field is
+under **Import & export**, in **GIFs on cards**. The key is kept in
+`chrome.storage.local` on this machine. It is never part of an export. Nothing
+is sent to GIPHY until you press the button on a review card. A found GIF is then
+stored by its URL, so a word is never searched twice.
 
 Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes

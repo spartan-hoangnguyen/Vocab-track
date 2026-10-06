@@ -526,6 +526,25 @@ const VT = {
     }
   },
 
+  // Whether a stored GIF URL is safe to put in an <img src>. An https GIPHY CDN
+  // URL and nothing else — the same scheme-checking shape sourceLink uses, and
+  // for a sharper reason: entry.gif can arrive from an IMPORTED JSON file, which
+  // import merges field by field (Object.assign), so an untrusted export could
+  // otherwise point the card at a third-party tracking pixel. Both giphy.js
+  // (parsing a response) and the dashboard (before setting src) call this, so
+  // the one test covers both ends.
+  //
+  // The host must END with .giphy.com — media.giphy.com, media0–4.giphy.com,
+  // i.giphy.com — not merely contain it, so giphy.com.evil.test is rejected.
+  giphyOk(url) {
+    try {
+      const u = new URL(String(url ?? ''));
+      return u.protocol === 'https:' && /(^|\.)giphy\.com$/.test(u.hostname);
+    } catch {
+      return false;
+    }
+  },
+
   // The word under a caret offset. Needed because YouTube's captions set
   // user-select:none, so there is no selection to read — a click resolves to a
   // caret position and the word has to be grown out of it in both directions.

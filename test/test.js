@@ -203,10 +203,12 @@ const source = [1, 2, 3, 4, 5];
 eq('shuffled keeps every item', VT.shuffled(source, pinned).slice().sort().join(), '1,2,3,4,5');
 eq('shuffled does not touch the caller\'s array', source.join(), '1,2,3,4,5');
 
-// --- parseCambridge, against real saved pages
-async function fixture(name) {
-  const res = await fetch(`fixtures/${name}.html`);
-  return res.text();
+// --- the English dictionary parser, against real saved API responses.
+// The source is the Free Dictionary API now, so the fixtures are saved JSON
+// rather than saved HTML — the Cambridge scrape 403s from an extension.
+async function fixtureJson(name) {
+  const res = await fetch(`fixtures/${name}.json`);
+  return res.json();
 }
 
 async function parserTests() {
@@ -239,46 +241,48 @@ async function parserTests() {
   eq('the full-entry link points at krdict', new URL(koHref).origin, ko.base);
   check('and carries the word percent-encoded', koHref.endsWith('=%EC%B1%85'), koHref);
 
-  const resilient = LANG.dict('en').parse(await fixture('resilient'));
-  eq('resilient level', resilient.level, 'C2');
-  eq('resilient ipa', resilient.ipa, 'rɪˈzɪl.i.ənt');
-  eq('resilient def', resilient.def,
-     'able to be happy, successful, etc. again after something difficult or bad has happened:');
-  eq('resilient audio', resilient.audio,
-     'https://dictionary.cambridge.org/media/english/uk_pron/u/ukr/ukres/ukresid009.mp3');
+  const enDict = LANG.dict('en');
+  eq('the English dictionary links to Wiktionary', enDict.name, 'Wiktionary');
+  eq('and its full-entry link opens Wiktionary',
+     new URL(enDict.href('resilient')).hostname, 'en.wiktionary.org');
+  eq('and carries the word percent-encoded',
+     new URL(enDict.href('déjà')).pathname, '/wiki/d%C3%A9j%C3%A0');
 
-  const happy = LANG.dict('en').parse(await fixture('happy'));
-  eq('happy level', happy.level, 'A1');
-  eq('happy ipa', happy.ipa, 'ˈhæp.i');
-  eq('happy def', happy.def, 'feeling, showing, or causing pleasure or satisfaction:');
+  // resilient from Datamuse: plain-text defs tagged "adj\t…", synonyms from the
+  // second endpoint. No CEFR level, no IPA and no recorded audio from this
+  // source — the play button uses the system voice and the ↗ link has the rest.
+  const dmDefs = await fixtureJson('datamuse-resilient');
+  const dmSyn = await fixtureJson('datamuse-resilient-syn');
+  const resilient = enDict.parse(dmDefs[0], dmSyn);
+  eq('resilient has no CEFR level', resilient.level, null);
+  eq('resilient has no IPA', resilient.ipa, null);
+  eq('resilient has no recorded audio', resilient.audio, null);
+  eq('nor a second recording', resilient.audioUs, null);
+  eq('resilient part of speech is expanded from the tag', resilient.pos, 'adjective');
+  eq('resilient def is the first sense, with the pos tab stripped', resilient.def,
+     'Returning quickly to normal after damaging events or conditions. (of systems, organisms or people)');
+  eq('resilient def equals its first sense', resilient.def, resilient.senses[0].def);
+  check('no sense leaks the pos tab', resilient.senses.every((s) => !s.def.includes('\t')));
+  check('every sense has a definition', resilient.senses.every((s) => s.def));
+  eq('senses are capped at MAX_SENSES', resilient.senses.length, VT.MAX_SENSES);
+  eq('resilient synonyms', resilient.synonyms.join(), 'spirited,live,elastic,bouncy,springy,whippy');
+  check('synonyms never include the headword', !resilient.synonyms.includes('resilient'));
+  check('synonyms are capped', resilient.synonyms.length <= VT.MAX_XREF);
+  check('synonyms are deduplicated',
+        new Set(resilient.synonyms).size === resilient.synonyms.length);
+  eq('no opposites from this source', resilient.opposites.length, 0);
+  eq('and no grammar label', resilient.gram, null);
 
-  // The important case: a real entry with no CEFR level. "ubiquitous" is
-  // outside the English Profile word list. A null level must not stop the
-  // other three fields from parsing.
-  const ubi = LANG.dict('en').parse(await fixture('ubiquitous'));
-  eq('ubiquitous level is null', ubi.level, null);
-  eq('ubiquitous ipa still parses', ubi.ipa, 'juːˈbɪk.wɪ.təs');
-  eq('ubiquitous def still parses', ubi.def, 'seeming to be everywhere:');
-  check('ubiquitous audio still parses', ubi.audio?.endsWith('.mp3'));
-
-  // notfound.html: saved 2026-09-13 via
-  // `curl -sL -A "Mozilla/5.0 ..." https://dictionary.cambridge.org/dictionary/english/zzqqxwv`
-  // — the page Cambridge 302-redirects an unknown word to. It has no
-  // `.entry-body__el`, but does carry a Word-of-the-Day promo block with its
-  // own `.ipa` and `source[src$=".mp3"]`. All four fields must come back
-  // null, proving the entry-scoped parse does not pick up that promo block.
-  const notfound = LANG.dict('en').parse(await fixture('notfound'));
-  eq('not-found level is null', notfound.level, null);
-  eq('not-found ipa is null', notfound.ipa, null);
-  eq('not-found def is null', notfound.def, null);
-  eq('not-found audio is null', notfound.audio, null);
-
-  // Garbage in, four nulls out. Never throws.
-  const empty = LANG.dict('en').parse('<html><body>nothing here</body></html>');
-  eq('empty level', empty.level, null);
-  eq('empty ipa', empty.ipa, null);
-  eq('empty def', empty.def, null);
-  eq('empty audio', empty.audio, null);
+  // A miss or an odd response must degrade to the four nulls, NOT a notFound: a
+  // notFound aborts the save (lookup.js:135) and loses the gloss. A real
+  // not-found is decided in lookup() from the network, not here.
+  const miss = enDict.parse(null, []);
+  eq('parse(null) has no level', miss.level, null);
+  eq('parse(null) has no def', miss.def, null);
+  check('parse(null) is a soft miss, not a not-found', !miss.notFound);
+  const noDefs = enDict.parse({ word: 'x' }, []);
+  eq('parse of a defs-less match has no def', noDefs.def, null);
+  check('and is a soft miss too', !noDefs.notFound);
 
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');
@@ -502,45 +506,8 @@ async function parserTests() {
   eq('median of nothing is null', VT.medianLevel([]), null);
   eq('median of only-null levels is null', VT.medianLevel([{ level: null }]), null);
 
-  // --- richer parse fields, read from the same three fixtures
-  const rich = LANG.dict('en').parse(await fixture('resilient'));
-  eq('resilient part of speech', rich.pos, 'adjective');
-  eq('resilient US ipa', rich.ipaUs, 'rɪˈzɪl.jənt');
-  check('resilient US audio is a cambridge mp3', rich.audioUs?.startsWith(LANG.dict('en').base));
-  check('resilient US audio differs from UK', rich.audioUs !== rich.audio);
-  eq('resilient sense count', rich.senses.length, 2);
-  eq('resilient first example', rich.senses[0].example,
-     "She's a resilient girl - she won't be unhappy for long.");
-  eq('resilient related words', rich.related.join(), 'resilience');
-  // Synonyms come from two sources merged: the sparse .xref.synonym
-  // cross-reference and the richer .daccord thesaurus block.
-  eq('resilient synonyms', rich.synonyms.join(), 'strong,powerful,muscular,muscled');
-  check('synonyms are deduplicated',
-        new Set(rich.synonyms).size === rich.synonyms.length);
-  check('a word is never its own synonym',
-        !rich.synonyms.some((w) => w.toLowerCase() === 'resilient'));
-
-  const happyRich = LANG.dict('en').parse(await fixture('happy'));
-  eq('happy grammar label', happyRich.gram, '[ before noun ]');
-  eq('happy sense count', happyRich.senses.length, 3);
-  check('every parsed sense has a definition', happyRich.senses.every((s) => s.def));
-
-  const ubiRich = LANG.dict('en').parse(await fixture('ubiquitous'));
-  eq('ubiquitous synonym', ubiRich.synonyms.join(), 'omnipresent');
-  eq('happy synonyms', happyRich.synonyms.join(), 'cheerful,in a good mood,pleased,glad');
-  check('synonyms are capped', rich.synonyms.length <= VT.MAX_XREF);
-  // Top-level level/def still describe the first sense, so entries saved
-  // before senses existed keep rendering identically.
-  eq('top-level def still mirrors sense 0', ubiRich.def, ubiRich.senses[0].def);
-
-  // Caps exist because every sense is stored per word against a ~10MB quota.
-  check('senses are capped', VT.MAX_SENSES <= 5 && rich.senses.length <= VT.MAX_SENSES);
-
-  // A page with no entry yields nulls and empty lists, never a throw.
-  const none = LANG.dict('en').parse('<html><body>nothing</body></html>');
-  eq('no-entry page has null pos', none.pos ?? null, null);
-  eq('no-entry page has no senses', (none.senses ?? []).length, 0);
-  eq('no-entry page has no synonyms', (none.synonyms ?? []).length, 0);
+  // (The English parser's full invariants — caps, dedupe, soft-miss, pos
+  // expansion — are asserted on the Datamuse fixtures above.)
 
   // --- sentenceAround: the line from the page that the word appeared in
   const para = 'The system failed. Engineers called it resilient anyway! Then it fell over.';
@@ -753,21 +720,59 @@ async function parserTests() {
   eq('a file url is not a link', VT.sourceLink('file:///Users/me/a.pdf', null, 'x'), null);
   check('an http url still links', VT.sourceLink('http://e.com/a', null, 'x') === 'http://e.com/a');
 
-  // --- source guard: the Cambridge fetch must not send cookies
-  // Not a behaviour test (the fetch needs Chrome), but this option is a
-  // one-word deletion away from a silent 403 on every lookup, so it is worth
-  // pinning where a test run will catch it. Comments are stripped first: the
-  // comment justifying the option also contains the string, and matching that
-  // made an earlier version of this check pass with the option deleted.
-  //
-  // It moved with the rest of the Cambridge pipeline into the English pack,
-  // so that is the file read here.
+  // --- source guard: the English lookup hits the Free Dictionary API, not the
+  // Cambridge scrape it replaced. Not a behaviour test (the fetch needs Chrome),
+  // but a regression back to a dictionary.cambridge.org fetch would 403 every
+  // English lookup silently, so the source URL is pinned here where a run catches
+  // it. Comments are stripped first, the way the old credentials check did it:
+  // the header comment names Cambridge, and matching that would hide a regression.
   const dictSrc = await (await fetch('../lang/en/dictionary.js?t=' + Date.now())).text();
-  const cambridgeFn = dictSrc.slice(dictSrc.indexOf('async function lookup'),
-                                    dictSrc.indexOf('LANG.dictionary('));
-  const cambridgeCode = cambridgeFn.replace(/^\s*\/\/.*$/gm, '');
-  check('cambridge fetch omits credentials', /credentials:\s*'omit'/.test(cambridgeCode),
-        'Cambridge 403s when Chrome attaches cookies to this cross-origin fetch');
+  const dictCode = dictSrc.replace(/^\s*\/\/.*$/gm, '');
+  check('the English lookup uses the Datamuse API',
+        /api\.datamuse\.com/.test(dictCode));
+  check('and no longer fetches Cambridge', !/cambridge\.org/.test(dictCode),
+        'a cambridge.org fetch 403s from an extension — that is why this moved');
+
+  // --- GIFs on cards (giphy.js). The pure halves only: the query, the URL and
+  // the pick. giphyFind needs the network and chrome.storage, so it is not here.
+
+  // VT.giphyOk gates what reaches an <img src>, including a URL out of an
+  // imported export, so the host check has to reject a look-alike domain.
+  check('giphyOk accepts an https giphy cdn url', VT.giphyOk('https://media.giphy.com/media/x/200.gif'));
+  check('giphyOk accepts a numbered media host', VT.giphyOk('https://media3.giphy.com/media/x/200.gif'));
+  check('giphyOk rejects http', !VT.giphyOk('http://media.giphy.com/media/x/200.gif'));
+  check('giphyOk rejects another host', !VT.giphyOk('https://evil.test/x.gif'));
+  check('giphyOk rejects a look-alike host', !VT.giphyOk('https://giphy.com.evil.test/x.gif'));
+  check('giphyOk rejects junk', !VT.giphyOk('not a url'));
+  check('giphyOk rejects null', !VT.giphyOk(null));
+
+  // giphyQuery: English searches its word; a Korean card searches its
+  // Vietnamese gloss, because GIPHY indexes neither Hangul nor the word itself.
+  eq('en searches the word', giphyQuery({ word: 'cat', lang: 'en' }).q, 'cat');
+  eq('en searches in english', giphyQuery({ word: 'cat', lang: 'en' }).lang, 'en');
+  eq('ko searches the vietnamese gloss', giphyQuery({ word: '고양이', lang: 'ko', vi: 'con mèo' }).q, 'con mèo');
+  eq('ko searches in vietnamese', giphyQuery({ word: '고양이', lang: 'ko', vi: 'con mèo' }).lang, 'vi');
+  eq('ko with no gloss falls back to the word', giphyQuery({ word: '고양이', lang: 'ko' }).q, '고양이');
+
+  const gurl = new URL(giphyUrl('KEY123', 'con mèo', 'vi'));
+  eq('giphyUrl carries the key', gurl.searchParams.get('api_key'), 'KEY123');
+  eq('giphyUrl encodes the query', gurl.searchParams.get('q'), 'con mèo');
+  eq('giphyUrl carries the language', gurl.searchParams.get('lang'), 'vi');
+  eq('giphyUrl keeps it roughly sfw', gurl.searchParams.get('rating'), 'pg-13');
+
+  const gjson = { data: [
+    { images: { fixed_height: { url: 'https://media.giphy.com/media/a/200.gif' } } },
+    { images: { fixed_width: { url: 'https://media1.giphy.com/media/b/200w.gif' } } },
+    { images: { fixed_height: { url: 'https://evil.test/c.gif' } } }  // dropped by giphyOk
+  ] };
+  eq('giphyPick takes the first with a pinned rand', giphyPick(gjson, () => 0),
+     'https://media.giphy.com/media/a/200.gif');
+  eq('giphyPick re-rolls to the second', giphyPick(gjson, () => 0.5),
+     'https://media1.giphy.com/media/b/200w.gif');
+  check('giphyPick never returns an off-giphy url',
+        giphyPick(gjson, () => 0.99) !== 'https://evil.test/c.gif');
+  eq('giphyPick returns null on no results', giphyPick({ data: [] }), null);
+  eq('giphyPick returns null on a junk response', giphyPick(null), null);
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

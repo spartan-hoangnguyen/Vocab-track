@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -1045,6 +1045,63 @@ ready.then(() => setTimeout(async () => {
   window.resolveWord = realResolve;
   delete STORE.lang;
   await refresh();
+
+  /* ---- a dictionary 404 still saves the word when a gloss covers it --------
+     The Free Dictionary API (English now) 404s real words it simply lacks —
+     "france" is the case that prompted this — so resolveWord must not abort the
+     save on a not-found alone. It aborts only when the gloss is ALSO empty,
+     which is a true non-word. fetchEntry and glossFor are stubbed the way
+     resolveWord's own dependencies are; the real resolveWord runs against the
+     storage stub. The senses check guards a real class of bug: newEntry reads
+     `parsed.senses ?? []`, so a four-null parse stores [] — a future field
+     added without the `?? []` would store undefined on every FD-404 word. */
+  const realFetchEntry = window.fetchEntry;
+  const realGlossFor = window.glossFor;
+  window.fetchEntry = async () => ({ notFound: true });
+  window.glossFor = async () => ({ vi: 'Pháp', failed: null });
+  const saved404 = await resolveWord('francetest', 'https://e.com/a', [], 'a sentence', 'en');
+  check('a 404 with a gloss still returns an entry', !!saved404.entry && !saved404.notFound,
+        JSON.stringify(saved404).slice(0, 80));
+  check('a 404 raises no dict warning — the word was absent, not a failure',
+        saved404.failed?.dict === null, String(saved404.failed?.dict));
+  check('the FD-404 word lands in storage with its gloss and a null level',
+        STORE.words.francetest?.vi === 'Pháp' && STORE.words.francetest?.level === null,
+        JSON.stringify(STORE.words.francetest)?.slice(0, 80));
+  check('and its senses is an empty array, never undefined',
+        Array.isArray(STORE.words.francetest?.senses) && STORE.words.francetest.senses.length === 0,
+        String(STORE.words.francetest?.senses));
+
+  window.glossFor = async () => ({ vi: null, failed: null });
+  const missed404 = await resolveWord('zzjunkword', 'https://e.com/a', [], null, 'en');
+  check('a 404 with no gloss is a real not-found', missed404.notFound === true,
+        JSON.stringify(missed404).slice(0, 80));
+  check('and nothing is saved for a true non-word', !STORE.words.zzjunkword);
+  window.fetchEntry = realFetchEntry;
+  window.glossFor = realGlossFor;
+  delete STORE.words.francetest;
+
+  /* ---- the GIF control on a words-list card --------------------------------
+     This is the place the user kept looking. gifSection gates on the key the
+     same way the review card does; wordCard is pure enough to call directly, so
+     the three states are checked without rendering the whole view. VT.giphyOk is
+     applied before an <img src>, including a url that arrived from an import. */
+  giphyKey = '';
+  const gifNoKey = wordCard(mk('gifword'));
+  check('a word card with no key shows no GIF control (empty box collapses)',
+        gifNoKey.querySelector('.wc-gif')?.childElementCount === 0,
+        String(gifNoKey.querySelector('.wc-gif')?.childElementCount));
+  giphyKey = 'TESTKEY123';
+  const gifKey = wordCard(mk('gifword'));
+  const gifBtn = gifKey.querySelector('.wc-gif button');
+  check('a word card with a key shows a Find GIF button',
+        !!gifBtn && /Find GIF/.test(gifBtn.textContent), gifBtn?.textContent);
+  const gifStored = wordCard(mk('gifword', { gif: 'https://media.giphy.com/media/x/200.gif' }));
+  check('a word card with a stored GIF shows the image',
+        gifStored.querySelector('.wc-gif img')?.getAttribute('src') === 'https://media.giphy.com/media/x/200.gif');
+  const gifEvil = wordCard(mk('gifword', { gif: 'https://evil.test/x.gif' }));
+  check('an off-giphy stored url is never put in an img',
+        !gifEvil.querySelector('.wc-gif img'));
+  giphyKey = '';
 
   /* ---- the folder GRID is language-scoped, not just the counts on it ------
      The reported bug: a Korean session showed IELTS C1, IELTS C2, Phrasal A1

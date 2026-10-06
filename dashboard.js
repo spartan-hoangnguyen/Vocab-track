@@ -20,6 +20,10 @@ let activeLang = LANG.FALLBACK;
 let queueLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
 let pins = [];
+// The GIPHY key, mirrored here only so renderCard can decide whether to offer a
+// Find GIF button without an async read per card. giphy.js re-reads storage for
+// the actual search, so this copy is never the source of truth for a request.
+let giphyKey = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
 const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
@@ -58,10 +62,17 @@ async function getLang() {
   return LANG.get(lang)?.id ?? LANG.FALLBACK;
 }
 
+// A flat key like `lang` and `theme`, trimmed so a stray space pasted after the
+// key does not read as a configured-but-wrong key.
+async function getGiphyKey() {
+  const { giphyKey } = await chrome.storage.local.get('giphyKey');
+  return String(giphyKey ?? '').trim();
+}
+
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins, activeLang] = await Promise.all(
+  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey] = await Promise.all(
     [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-     getLang()]);
+     getLang(), getGiphyKey()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -432,6 +443,12 @@ function wordCard(entry) {
     card.appendChild(chips);
   }
 
+  // --- a GIF mnemonic, on the card where the word is browsed. Shown as a stored
+  // image, else a Find button once a GIPHY key is set, else nothing — the same
+  // three states the review card has, built here so the words list can find a
+  // GIF without opening the review.
+  card.appendChild(gifSection(entry));
+
   // --- footer: where it came from, where to read more, which folders
   const foot = el('div', 'wc-foot');
 
@@ -484,6 +501,65 @@ function wordCard(entry) {
 
   card.appendChild(foot);
   return card;
+}
+
+// The GIF control for a words-list card: a stored image with Try another /
+// Remove, else a Find button once a key is set, else an empty box that CSS
+// (:empty) collapses so it costs no space. Appended unconditionally so wordCard
+// stays a straight line of appends.
+function gifSection(entry) {
+  const box = el('div', 'wc-gif');
+  if (entry.gif && VT.giphyOk(entry.gif)) {
+    const img = el('img', 'wc-gifimg');
+    img.src = entry.gif;
+    img.alt = `A GIF for ${entry.word}`;
+    img.loading = 'lazy';
+    const row = el('div', 'wc-gifrow');
+    const again = el('button', 'wc-gifbtn', 'Try another');
+    again.addEventListener('click', () => cardFindGif(entry, again));
+    const drop = el('button', 'wc-gifbtn', 'Remove');
+    drop.addEventListener('click', async () => {
+      await putWord(entry.word, { gif: null });
+      await refresh();
+    });
+    // "via GIPHY" is the attribution GIPHY's terms ask for, beside the image.
+    row.append(el('span', 'wc-gifvia', 'via GIPHY'), again, drop);
+    box.append(img, row);
+    return box;
+  }
+  if (!giphyKey) return box;
+  const btn = el('button', 'wc-gifbtn', '\u{1F39E} Find GIF');
+  btn.addEventListener('click', () => cardFindGif(entry, btn));
+  box.appendChild(btn);
+  return box;
+}
+
+async function cardFindGif(entry, btn) {
+  // One search at a time, shared with the review card's guard: a 42-an-hour
+  // budget cannot afford a double-click.
+  if (finding) return;
+  finding = true;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Searching GIPHY…';
+  try {
+    const { url, failed } = await searchGif(entry);
+    finding = false;
+    // A found GIF rebuilds the whole words view, so the card comes back with the
+    // image in place of the button — the same refresh() the delete and skip
+    // controls on this card already use.
+    if (url) { await refresh(); return; }
+    btn.disabled = false;
+    btn.textContent = label;
+    btn.closest('.wc-gif')?.appendChild(el('p', 'wc-gifmsg', failed
+      ? `Could not fetch a GIF — ${failed}`
+      : `No GIF found for “${giphyQuery(entry).q}”.`));
+  } catch (err) {
+    finding = false;
+    console.error('[vocab-track] card find gif failed for', entry.word, err);
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 /* ---------- tag picker ---------- */
@@ -848,6 +924,17 @@ $('theme-btn').addEventListener('click', () => {
 // or stale (the theme changed in another dashboard tab while this was shut).
 chrome.storage.local.get('theme').then(({ theme }) => applyTheme(theme));
 
+// The GIPHY key: a flat key like `theme`, saved as you type. The module copy is
+// updated here too so a card rendered before the next refresh() still sees the
+// key. Trimmed on write for the reason getGiphyKey trims on read.
+$('giphy-key').addEventListener('input', (event) => {
+  giphyKey = event.target.value.trim();
+  chrome.storage.local.set({ giphyKey });
+});
+chrome.storage.local.get('giphyKey').then(({ giphyKey: stored }) => {
+  $('giphy-key').value = stored ?? '';
+});
+
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');
@@ -1137,8 +1224,100 @@ function renderCard() {
     $('rv-cam').removeAttribute('href');
   }
   renderFull(revealed ? entry : null);
+  renderGif(revealed ? entry : null);
   renderDiff(revealed && canType ? VT.diffWord(typed, entry.word) : null);
   renderGrades(revealed ? suggestedGrade() : null);
+}
+
+let finding = false;
+
+// The GIF on the back of a card. Three states: a stored GIF (the image, the
+// GIPHY credit, and the re-roll/remove controls), a key set but no GIF yet (the
+// Find button), and no key at all (nothing on screen — the key goes in the
+// Import & export view).
+//
+// Idempotent on the image. renderCard runs on every storage change, including a
+// star press mid-card, and rebuilding the <img> each pass would re-request the
+// file and flicker, so an unchanged src is left alone. VT.giphyOk is applied
+// here as well as in giphy.js: a gif URL can arrive from an imported export,
+// which is untrusted, so it is checked again before it reaches an <img src>.
+function renderGif(entry) {
+  const host = $('rv-gif');
+  if (!entry) { host.hidden = true; host.replaceChildren(); return; }
+
+  if (entry.gif && VT.giphyOk(entry.gif)) {
+    host.hidden = false;
+    if (host.querySelector('img')?.src === entry.gif) return;  // already on screen
+    const img = el('img', 'rvgifimg');
+    img.src = entry.gif;
+    img.alt = `A GIF for ${entry.word}`;
+    img.loading = 'lazy';
+    const row = el('div', 'rvgifrow');
+    const again = el('button', 'rvgifbtn', 'Try another');
+    again.onclick = () => findGif(entry);
+    const drop = el('button', 'rvgifbtn', 'Remove');
+    drop.onclick = () => removeGif(entry);
+    // "via GIPHY" is the attribution GIPHY's terms ask for, next to the image.
+    row.append(el('span', 'rvgifvia', 'via GIPHY'), again, drop);
+    host.replaceChildren(img, row);
+    return;
+  }
+
+  // No key means no button: the feature is off until one is set, and a dead
+  // button would only prompt a lookup nothing can answer.
+  if (!giphyKey) { host.hidden = true; host.replaceChildren(); return; }
+  host.hidden = false;
+  const btn = el('button', 'rvgifbtn', '🎞 Find GIF');
+  btn.onclick = () => findGif(entry);
+  host.replaceChildren(btn);
+}
+
+// Search GIPHY for this word and store the result on the entry. The schedule is
+// never touched — a GIF is a decoration on the card, not a review of it. Shared
+// by the review card and the words-list card, so both find and store a GIF the
+// same way; each caller owns its own rendering.
+async function searchGif(entry) {
+  const { url, failed } = await giphyFind(entry);
+  if (url) {
+    await putWord(entry.word, { gif: url });
+    entry.gif = url;
+    words[entry.word] = entry;
+  }
+  return { url, failed };
+}
+
+async function findGif(entry) {
+  // Same re-entry guard as grade()/toggleStar(): a double-click is two GIPHY
+  // calls against a 42-an-hour budget.
+  if (finding) return;
+  finding = true;
+  const host = $('rv-gif');
+  host.hidden = false;
+  host.replaceChildren(el('span', 'rvgifwait', 'Searching GIPHY…'));
+  try {
+    const { url, failed } = await searchGif(entry);
+    finding = false;
+    // A slow search can land after you have moved to the next card; let the new
+    // card own the cell rather than painting this result over it.
+    if (queue[0]?.word !== entry.word) { renderCard(); return; }
+    renderGif(entry);
+    if (!url) {
+      host.append(el('p', 'rvgifmsg', failed
+        ? `Could not fetch a GIF — ${failed}`
+        : `No GIF found for “${giphyQuery(entry).q}”.`));
+    }
+  } catch (err) {
+    finding = false;
+    console.error('[vocab-track] find gif failed for', entry.word, err);
+    if (queue[0]?.word === entry.word) renderGif(entry);
+  }
+}
+
+async function removeGif(entry) {
+  await putWord(entry.word, { gif: null });
+  delete entry.gif;
+  words[entry.word] = entry;
+  renderGif(entry);
 }
 
 function kbd(text) {

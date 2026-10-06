@@ -1,119 +1,125 @@
-// English. The lookup half: Cambridge.
+// English. The lookup half: the Datamuse API (api.datamuse.com).
 //
-// Not loaded into the content script. It needs DOMParser to read the page it
-// fetches, and the MV3 CORS bypass to fetch it at all — which is the side
-// panel, the dashboard, and test/test.html, where the parser runs against
-// saved fixtures.
+// This is the second source this file has worn. Cambridge put its pages behind
+// a bot wall that a background fetch cannot pass (every lookup 403'd). The Free
+// Dictionary API replaced it, but it is hosted on small infrastructure and was
+// slow or unreachable from some networks — a 10s timeout on every lookup and a
+// retry on top, which is worse. Datamuse runs on robust infrastructure, answers
+// in about 100ms, is keyless, and returns clean plain-text definitions and a
+// part of speech, plus synonyms from a second endpoint.
+//
+// What it does NOT carry: a CEFR level (no free source does, so `level` is null
+// now, exactly as it is for Korean), IPA, or a recorded pronunciation. The play
+// button falls through to the system voice for English, the way it already does
+// for a word saved before audio was parsed, and the "↗" link opens the full
+// Wiktionary entry, which has the IPA and the recording for anyone who wants it.
+//
+// Parsing is JSON, so there is no DOMParser here. It is still kept out of the
+// content script — fetchEntry runs in the side panel and the dashboard — because
+// that is where resolveWord lives.
 (() => {
-  const CAMBRIDGE = 'https://dictionary.cambridge.org';
+  const DATAMUSE = 'https://api.datamuse.com/words';
 
-  // Selectors verified against real Cambridge pages on 2026-09-13.
-  // Each field is independent: a markup change that breaks one selector
-  // yields null for that field and leaves the others intact.
-  //
-  // Scoped to the first `.entry-body__el` (the actual dictionary entry),
-  // not the whole document: an off-entry page (e.g. the dictionary index a
-  // not-found lookup redirects to) carries a Word-of-the-Day promo block
-  // with its own `.ipa` and `source[src$=".mp3"]`, which would otherwise be
-  // picked up as if they belonged to the looked-up word.
-  //
-  // level/ipa/def/audio stay top level and describe the FIRST sense, so
-  // entries saved before senses existed keep rendering unchanged.
-  function parse(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const root = doc.querySelector('.entry-body__el');
-    if (!root) return { level: null, ipa: null, def: null, audio: null };
+  // Datamuse tags a definition with an abbreviated part of speech; the card
+  // shows the long form the Cambridge pack used to.
+  const POS = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: null };
 
-    const text = (el, sel) => el?.querySelector(sel)?.textContent.trim() || null;
-    const audioIn = (el) => {
-      const src = el?.querySelector('source[src$=".mp3"]')?.getAttribute('src');
-      return src ? CAMBRIDGE + src : null;
+  // Build the entry shape from Datamuse's first match and its synonym list.
+  // Pure, so test.js drives it from saved JSON fixtures.
+  //
+  // `first` is one Datamuse word object: { word, score, tags, defs }, where each
+  // def is "pos\tdefinition text", e.g. "adj\tReturning quickly to normal…". A
+  // non-array `defs` (or no `first`) yields the four-null shape — NOT notFound —
+  // so an odd response degrades to "saved with a gloss" rather than aborting the
+  // save (lookup.js:135). A real not-found is decided in lookup() below.
+  function parse(first, syns) {
+    if (!first || !Array.isArray(first.defs)) {
+      return { level: null, ipa: null, def: null, audio: null };
+    }
+
+    const textOf = (raw) => {
+      const str = String(raw ?? '');
+      const tab = str.indexOf('\t');
+      return (tab >= 0 ? str.slice(tab + 1) : str).trim();
     };
-    const uk = root.querySelector('.uk.dpron-i');
-    const us = root.querySelector('.us.dpron-i');
+    const posOf = (raw) => {
+      const str = String(raw ?? '');
+      const tab = str.indexOf('\t');
+      return tab >= 0 ? str.slice(0, tab) : '';
+    };
 
-    // Capped deliberately: every sense and example is stored per word, and
-    // chrome.storage.local is ~10MB. Three senses with one example each keeps
-    // an entry near 1KB, so the quota still holds roughly 10,000 words.
-    const senses = [...root.querySelectorAll('.def-block.ddef_block')]
+    // Capped like the Cambridge parser was: an entry is stored whole against a
+    // ~10MB quota. Datamuse carries no examples, so a sense is a level and a def.
+    const senses = first.defs
       .slice(0, VT.MAX_SENSES)
-      .map((block) => ({
-        level: text(block, '.epp-xref'),
-        def: text(block, '.def.ddef_d'),
-        example: text(block, '.examp.dexamp')
-      }))
+      .map((raw) => ({ level: null, def: textOf(raw), example: null }))
       .filter((sense) => sense.def);
 
-    // The headword, so it can be filtered out of its own synonym list —
-    // Cambridge's thesaurus block lists the word itself first.
-    const headword = text(root, '.hw.dhw')?.toLowerCase() ?? null;
-
-    const collect = (sel) => [...root.querySelectorAll(sel)]
-      .map((el) => el.textContent.trim())
-      .filter(Boolean);
-
-    const clean = (items) => [...new Set(items)]
-      .filter((item) => item.toLowerCase() !== headword)
+    const abbrev = posOf(first.defs[0]) || (first.tags ?? [])[0] || '';
+    const headword = String(first.word ?? '').toLowerCase();
+    const synonyms = [...new Set((syns ?? []).map((s) => s?.word).filter(Boolean))]
+      .filter((word) => word.toLowerCase() !== headword)
       .slice(0, VT.MAX_XREF);
 
-    // Two sources, because either alone is thin. `.xref.synonym` is a curated
-    // cross-reference that most entries lack; the `.daccord` thesaurus block
-    // is richer but absent on others. Measured over eight words: xref alone
-    // covered three, the thesaurus block six, the two together seven.
-    const synonyms = clean([
-      ...collect('.xref.synonym .x-h'),
-      ...collect('.daccord li.had.t-i > a')
-    ]);
-
     return {
-      pos: text(root, '.pos.dpos'),
-      gram: text(root, '.gram.dgram'),
-      ipa: text(uk, '.ipa') ?? text(root, '.ipa'),
-      ipaUs: text(us, '.ipa'),
-      audio: audioIn(uk) ?? audioIn(root),
-      audioUs: audioIn(us),
-      level: senses[0]?.level ?? text(root, '.epp-xref'),
-      def: senses[0]?.def ?? text(root, '.def.ddef_d'),
+      pos: POS[abbrev] ?? (abbrev || null),
+      // No grammar label, no antonyms, no "related" category in this source.
+      // Kept as the fields newEntry reads, so the UI's optional rows stay hidden.
+      gram: null,
+      ipa: null, ipaUs: null,
+      audio: null, audioUs: null,
+      level: null,
+      def: senses[0]?.def ?? null,
       senses,
       synonyms,
-      related: clean(collect('.xref.related_word .x-h')),
-      opposites: clean(collect('.xref.opposite .x-h'))
+      related: [],
+      opposites: []
     };
   }
 
   async function lookup(word) {
+    // `sp` is "spelled-like": the exact word comes back first when it exists,
+    // with its definitions attached by md=d (p adds the part of speech). The
+    // synonyms are a second, independent endpoint, run in parallel so the two
+    // do not add up. A short timeout and NO retry: Datamuse answers in ~100ms,
+    // so a request that is still open at 7s is a dead network, and retrying it
+    // only doubles the wait before the word saves with its gloss anyway.
+    const defsUrl = `${DATAMUSE}?sp=${encodeURIComponent(word)}&md=dp&max=1`;
+    const synUrl = `${DATAMUSE}?rel_syn=${encodeURIComponent(word)}&max=${VT.MAX_XREF}`;
     try {
-      // credentials:'omit' is load-bearing, not tidiness. Chrome attaches the
-      // user's dictionary.cambridge.org cookies to this cross-origin fetch, and
-      // that request shape — cors mode, sec-fetch-site: none, carrying cookies —
-      // trips Cambridge's bot protection, which answers 403. The identical
-      // request without cookies returns 200. Verified in the panel console
-      // 2026-09-13: with cookies 403, with credentials:'omit' 200.
-      const res = await fetch(`${CAMBRIDGE}/dictionary/english/${encodeURIComponent(word)}`,
-                              { credentials: 'omit' });
-      // Cambridge never 404s an unknown word: it 302-redirects to the
-      // dictionary index, which fetch follows, so res.ok is true and
-      // res.status is useless here. res.redirected is ALSO not a valid test —
-      // a known word like "cats" legitimately 302s to a real entry
-      // (.../dictionary/english/cat). The only reliable signal is where the
-      // redirect actually landed: only the bare index path means not-found.
-      if (new URL(res.url).pathname === '/dictionary/english/') return { notFound: true };
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return parse(await res.text());
+      const [defsRes, synRes] = await Promise.all([
+        fetch(defsUrl, { signal: AbortSignal.timeout(7000) }),
+        fetch(synUrl, { signal: AbortSignal.timeout(7000) })
+      ]);
+      if (!defsRes.ok) throw new Error(`HTTP ${defsRes.status}`);
+      const defs = await defsRes.json();
+      const first = defs?.[0];
+      // `sp` is fuzzy: a non-word comes back as [] or as a near-miss whose
+      // `word` is something else. Only an exact match that actually carries
+      // definitions is a hit; anything else is a not-found, which lets
+      // resolveWord fall back to the gloss (lookup.js:135).
+      if (!first || first.word?.toLowerCase() !== word.toLowerCase() || !first.defs?.length) {
+        return { notFound: true };
+      }
+      // Synonyms are a bonus: a failure there must never sink the definition.
+      const syns = synRes.ok ? await synRes.json().catch(() => []) : [];
+      return parse(first, syns);
     } catch (err) {
-      // Degrade, never abort: the word is still worth saving with a translation.
-      console.error('[vocab-track] cambridge lookup failed for', word, err);
+      // Degrade, never abort: the word is still worth saving with its gloss.
+      console.error('[vocab-track] datamuse lookup failed for', word, err);
       // `failed` distinguishes "the dictionary call did not happen" from "the
-      // entry has no CEFR level", which are otherwise the same four nulls and
-      // read identically in the UI.
+      // entry has no level", which are otherwise the same four nulls.
       return { level: null, ipa: null, def: null, audio: null, failed: String(err) };
     }
   }
 
   LANG.dictionary('en', {
-    name: 'Cambridge',
-    base: CAMBRIDGE,
-    href: (word) => `${CAMBRIDGE}/dictionary/english/${encodeURIComponent(word)}`,
+    // The human-facing name, used for the "↗" link and the "… lookup failed"
+    // warning. Wiktionary, because that is where the link goes — the full entry
+    // there carries the IPA and the recording this API does not.
+    name: 'Wiktionary',
+    base: 'https://api.datamuse.com',
+    href: (word) => `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`,
     lookup,
     parse
   });
