@@ -615,6 +615,19 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     article flashes whole clauses at once, because Chinese has no spaces to
     split on. Known limit.
 
+## Chinese: HSK levels and the starter list
+
+98. **A lookup carries its level.** Look up `学生` on a page: the card's level
+    chip reads **HSK 1**. `经济` reads **HSK 4**. A word outside HSK 2.0
+    (`魑魅魍魉`) has no chip.
+
+99. **The starter list lands under 中文.** Dashboard → **Import** →
+    `data/zh/hsk.json` from an English session. The note says the words are in
+    Chinese. Choose **中文** in the language dropdown: six folders, **HSK 1**
+    to **HSK 6**, with 150 words in HSK 1. Open one card: pinyin and an English
+    meaning show; the Vietnamese gloss fills in when you click the word on a
+    page or look it up.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

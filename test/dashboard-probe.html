@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../lang/zh/hsk.js', '../lang/zh/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -1114,31 +1114,38 @@ ready.then(() => setTimeout(async () => {
         !gifEvil.querySelector('.wc-gif img'));
   giphyKey = '';
 
-  /* ---- CEFR backfill gives a level to English words that lost it ----------
-     The lookup stopped carrying a CEFR level, so words saved in between sit under
-     "—". backfillCefr reads the level from the bundled list (lang/en/cefr.js)
-     once, keyed by a stored version flag; a word outside the list is left alone. */
-  // Drain the boot's floating refresh().then(backfillCefr) first: it is pure
+  /* ---- the level backfill gives a level to words that lost it ------------
+     The English lookup stopped carrying a CEFR level, and Chinese words saved
+     before the HSK list had none, so both sit under "—". backfillLevels reads the
+     level from the word's own language list once, keyed by a stored version
+     flag; a word outside the list is left alone. */
+  // Drain the boot's floating refresh().then(backfillLevels) first: it is pure
   // microtasks, so one macrotask boundary guarantees it has run and written its
   // version flag. Without this, its late write could land after the delete below
   // and this test would pass only by timing.
   await tick();
-  const savedForCefr = STORE.words;
-  delete STORE.cefrBackfill;
+  const savedForLevels = STORE.words;
+  delete STORE.levelBackfill;
   STORE.words = {
     abandon: mk('abandon', { level: null }),
-    frenchtownxyz: mk('frenchtownxyz', { level: null })
+    frenchtownxyz: mk('frenchtownxyz', { level: null }),
+    '学生': mk('学生', { level: null, lang: 'zh' }),
+    '책': mk('책', { level: null, lang: 'ko' })
   };
   await refresh();
-  await backfillCefr();
+  await backfillLevels();
   check('backfill gives a listed English word its CEFR level',
         STORE.words.abandon?.level === 'B1', String(STORE.words.abandon?.level));
+  check('backfill gives a listed Chinese word its HSK level',
+        STORE.words['学生']?.level === 'HSK 1', String(STORE.words['学生']?.level));
   check('backfill leaves an unlisted word with no level',
         !STORE.words.frenchtownxyz?.level);
+  check('and a language with no list (Korean) alone',
+        !STORE.words['책']?.level, String(STORE.words['책']?.level));
   check('backfill records its version so it runs only once',
-        STORE.cefrBackfill === 1, String(STORE.cefrBackfill));
-  STORE.words = savedForCefr;
-  delete STORE.cefrBackfill;
+        STORE.levelBackfill === 1, String(STORE.levelBackfill));
+  STORE.words = savedForLevels;
+  delete STORE.levelBackfill;
   await refresh();
 
   /* ---- the folder GRID is language-scoped, not just the counts on it ------

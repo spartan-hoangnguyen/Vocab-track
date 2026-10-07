@@ -3,7 +3,7 @@ Data files in this directory
 
 data/ko/starter.json
 --------------------
-Derived work, and the only data file this repository ships.
+Derived work.
 
   * Headwords and the 초급/중급/고급 grades come from
     julienshim/combined_korean_vocabulary_list, MIT licensed. The full licence
@@ -11,6 +11,16 @@ Derived work, and the only data file this repository ships.
   * The Vietnamese gloss on each entry is machine translation, produced by
     tools/build-korean-list.py. It is not edited by a person and carries no
     claim of accuracy.
+
+Reuse it under the MIT terms in ../NOTICE.
+
+
+data/zh/hsk.json
+----------------
+Derived work. Headwords, HSK 2.0 levels, pinyin and English meanings come
+from drkameleon/complete-hsk-vocabulary, MIT licensed, built by
+tools/zh/build-hsk-list.py. lang/zh/hsk.js is built from the same source. The
+full licence text is in ../NOTICE, section 4.
 
 Reuse it under the MIT terms in ../NOTICE.
 

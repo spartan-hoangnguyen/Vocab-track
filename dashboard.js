@@ -102,25 +102,25 @@ function ownersOf(id) {
   return Object.values(words).filter((e) => VT.foldersOf(e).includes(id));
 }
 
-// Bumped when lang/en/cefr.js is regenerated, so the backfill runs again over
-// words it could not place before.
-const CEFR_VERSION = 1;
+// Bumped when a bundled level list (lang/en/cefr.js, lang/zh/hsk.js) is
+// regenerated, so the backfill runs again over words it could not place before.
+const LEVEL_VERSION = 1;
 
-// Give a level to English words that have none. The dictionary stopped carrying
-// a CEFR level when the lookup moved off Cambridge, so every word saved in
-// between sits under "—" in the level charts. This reads the level from the
-// bundled list for those words, once — a word that genuinely has no level (a
-// proper noun, a word outside the list) is left alone and simply skipped next
-// run by the stored version flag. Runs on boot, after the first load populated
-// `words`, and re-renders only when it actually changed something.
-async function backfillCefr() {
-  if (typeof cefrLevel !== 'function') return;
-  const { cefrBackfill } = await chrome.storage.local.get('cefrBackfill');
-  if (cefrBackfill === CEFR_VERSION) return;
+// Give a level to words that have none, from their language's bundled list.
+// English lost its CEFR level when the lookup moved off Cambridge, and Chinese
+// words saved before the HSK list existed never had one, so both sit under "—"
+// in the level charts. The list comes from the word's dictionary (`level`), so
+// a language without one (Korean) is skipped. Once per version — a word that
+// genuinely has no level (a proper noun, a word outside the list) is left
+// alone. Runs on boot, after the first load populated `words`, and re-renders
+// only when it actually changed something.
+async function backfillLevels() {
+  const { levelBackfill } = await chrome.storage.local.get('levelBackfill');
+  if (levelBackfill === LEVEL_VERSION) return;
   const patches = {};
   for (const [word, entry] of Object.entries(words)) {
-    if (!entry || entry.level || LANG.of(entry).id !== 'en') continue;
-    const level = cefrLevel(word);
+    if (!entry || entry.level) continue;
+    const level = LANG.dict(LANG.of(entry).id)?.level?.(word);
     if (level) patches[word] = { level };
   }
   if (Object.keys(patches).length) {
@@ -130,7 +130,7 @@ async function backfillCefr() {
     }
     render();
   }
-  await chrome.storage.local.set({ cefrBackfill: CEFR_VERSION });
+  await chrome.storage.local.set({ levelBackfill: LEVEL_VERSION });
 }
 
 function render() {
@@ -1042,7 +1042,7 @@ async function drainCaptures() {
   await refresh();
 }
 
-refresh().then(backfillCefr).then(drainCaptures);
+refresh().then(backfillLevels).then(drainCaptures);
 
 
 /* ---------- review ---------- */

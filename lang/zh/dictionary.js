@@ -8,6 +8,7 @@
 // Not loaded into the content script, like every dictionary.js.
 (() => {
   const MDBG = 'https://www.mdbg.net';
+  const level = (word) => (typeof hskLevel === 'function' ? hskLevel(word) : null);
 
   LANG.dictionary('zh', {
     name: 'CC-CEDICT',
@@ -16,11 +17,15 @@
     // card shows, plus stroke order and examples.
     href: (word) => `${MDBG}/chinese/dictionary?wdqb=${encodeURIComponent(word)}`,
 
-    // The four nulls and nothing else — no `failed`, no `notFound`, for the
-    // reasons lang/ko/dictionary.js spells out: the MT gloss is the meaning
-    // until CEDICT is wired in, and notFound would abort the save.
-    async lookup() {
-      return { level: null, ipa: null, def: null, audio: null };
+    // The HSK 2.0 level from lang/zh/hsk.js, loaded beside this file. Guarded
+    // like en's cefrLevel, so a page without the list degrades to no level.
+    level,
+
+    // No `failed`, no `notFound`, for the reasons lang/ko/dictionary.js spells
+    // out: the MT gloss is the meaning until CEDICT is wired in, and notFound
+    // would abort the save.
+    async lookup(word) {
+      return { level: level(word), ipa: null, def: null, audio: null };
     }
   });
 })();

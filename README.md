@@ -340,6 +340,28 @@ Sources: the word list is
 built from, though the band mapping is unofficial, which is why the folders
 carry the 초급/중급/고급 names and not TOPIK levels.
 
+### Chinese (HSK)
+
+`data/zh/hsk.json` imports the same way: **4,991 Simplified words** in six
+folders, **HSK 1 150, HSK 2 147, HSK 3 298, HSK 4 598, HSK 5 1,298, HSK 6
+2,500**, the HSK 2.0 levels the Chinese level bars are drawn against. Every card
+carries pinyin and the source's English meanings; the Vietnamese gloss is
+fetched the first time you click the word, so the build makes no MT calls.
+Twenty a day, HSK 1 first, so the last card is due in 249 days.
+
+The same builder writes `lang/zh/hsk.js`, the word → level table a Chinese
+lookup reads its HSK level from, the way English reads `lang/en/cefr.js`. It
+loads in the side panel and the dashboard, never the content script. Words
+saved before it existed get their level from the dashboard's one-time backfill.
+
+```bash
+python3 tools/zh/build-hsk-list.py
+```
+
+Source: [drkameleon/complete-hsk-vocabulary](https://github.com/drkameleon/complete-hsk-vocabulary)
+(MIT). Its `old-1` … `old-6` tags are HSK 2.0; a word on two levels keeps the
+easier. HSK 3.0 is not used.
+
 ## Privacy
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`

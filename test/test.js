@@ -313,6 +313,29 @@ async function parserTests() {
   eq('cefrLevel is null for a word outside the list', cefrLevel('zxqwv'), null);
   eq('cefrLevel is null for the empty string', cefrLevel(''), null);
 
+  // --- the bundled HSK 2.0 list (lang/zh/hsk.js), and the lookup that reads it.
+  eq('hskLevel reads a listed word', hskLevel('学生'), 'HSK 1');
+  eq('hskLevel reads a higher level', hskLevel('经济'), 'HSK 4');
+  eq('hskLevel is null for a word outside the list', hskLevel('魑魅魍魉'), null);
+  eq('hskLevel is null for the empty string', hskLevel(''), null);
+  eq('a Chinese lookup carries the HSK level', (await LANG.dict('zh').lookup('学生')).level, 'HSK 1');
+  check('and every level is on the pack scale',
+        Object.values(ZH_HSK).every((l) => LANG.get('zh').levels.includes(l)));
+
+  // --- the HSK starter list (data/zh/hsk.json) is an Import file filed under 中文.
+  const hsk = await (await fetch('../data/zh/hsk.json')).json();
+  const hskWords = Object.values(hsk.words);
+  eq('the HSK starter has six folders, one per level',
+     Object.values(hsk.folders).map((f) => `${f.name}:${f.lang}`).join(),
+     'HSK 1:zh,HSK 2:zh,HSK 3:zh,HSK 4:zh,HSK 5:zh,HSK 6:zh');
+  check('every starter word routes to the Chinese pack',
+        hskWords.every((e) => LANG.of(e).id === 'zh'));
+  check('and carries pinyin and a meaning the card can show',
+        hskWords.every((e) => e.ipa && VT.glossOf(e)));
+  check('and sits in its level folder',
+        hskWords.every((e) => e.folders[0] === `zh-hsk${e.level.slice(4)}`));
+  eq('学生 is in it at HSK 1', hsk.words['学生']?.level, 'HSK 1');
+
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');
 

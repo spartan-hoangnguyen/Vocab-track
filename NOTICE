@@ -100,13 +100,42 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-4. Fraunces, Inter and Nunito — fonts/
+4. HSK 2.0 word list — data/zh/hsk.json, lang/zh/hsk.js
+---------------------------------------------------------
+The Simplified Chinese headwords, their HSK 2.0 levels, pinyin and English
+meanings come from drkameleon/complete-hsk-vocabulary.
+https://github.com/drkameleon/complete-hsk-vocabulary
+
+MIT License
+
+Copyright (c) 2026 Yanis Zafirópulos
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+5. Fraunces, Inter and Nunito — fonts/
 --------------------------------------
 Vendored web fonts, all three under the SIL Open Font License 1.1.
 The full licence and the three copyright lines are in fonts/OFL.txt.
 
 
-5. Octanove Vocabulary Profile C1/C2 — not redistributed
+6. Octanove Vocabulary Profile C1/C2 — not redistributed
 --------------------------------------------------------
 tools/build-ielts-list.py fetches this CEFR-graded word list at build time; no
 part of it is committed here. It is published by Open Language Profiles under
