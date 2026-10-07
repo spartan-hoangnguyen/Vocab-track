@@ -33,6 +33,10 @@
     // too and isCandidate turns it down.
     script: /\p{Script=Han}/u,
 
+    // Google's MT wants the script variant: bare zh is accepted but zh-CN is
+    // what pins Simplified.
+    mt: 'zh-CN',
+
     // HSK 2.0, easiest first, so VT.medianLevel reads the scale off the pack.
     levels: ['HSK 1', 'HSK 2', 'HSK 3', 'HSK 4', 'HSK 5', 'HSK 6'],
 

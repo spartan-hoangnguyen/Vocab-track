@@ -32,6 +32,9 @@ const LANG = (() => {
       // tag defaults to the id because the two agree for a bare language subtag
       // — a pack whose region is load-bearing (ko-KR) names it itself.
       voices: [{ id: 'std', label: pack.native ?? id, bcp47: id }],
+      // The source language the MT gloss is asked in. The id, unless the
+      // endpoint wants something more specific (zh → zh-CN).
+      mt: id,
       // The written forms that still count as this word when it is looked for
       // in a sentence — practice-speak's grading. English has real morphology to
       // add (lang/en/index.js); for a language that does not inflect the word it

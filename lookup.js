@@ -24,8 +24,10 @@ async function fetchVietnamese(word, lang = 'en') {
   //
   // `sl` is the study language, not always English: the same endpoint answers
   // for Korean unchanged (verified: sl=ko&tl=vi on 책 returns "sách").
+  // The pack names the code the endpoint wants (zh → zh-CN), not its id.
+  const sl = LANG.get(lang)?.mt ?? lang;
   const url = 'https://translate.googleapis.com/translate_a/single'
-    + `?client=dict-chrome-ex&sl=${encodeURIComponent(lang)}&tl=vi`
+    + `?client=dict-chrome-ex&sl=${encodeURIComponent(sl)}&tl=vi`
     + `&dt=t&q=${encodeURIComponent(word)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

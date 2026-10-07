@@ -568,6 +568,30 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     System Voice → Manage Voices → Korean) and press ▶ again: it should switch
     to the enhanced recording without any setting being touched.
 
+## Chinese: lookup
+
+90. **Double-click segmentation.** Open a Simplified Chinese article
+    (zh.wikipedia.org) and double-click inside a two-character word such as
+    `学生` or `中文`. **Write down what Chrome selected.** Chrome breaks words
+    with ICU, the same dictionary `Intl.Segmenter` uses in `lang/zh/index.js`,
+    so it should select the same unit the highlighter matches — `学生`, not one
+    character and not the whole sentence. ICU glues some one-character words
+    to a neighbour (`我是`, `他在`), so a double-click there selects both
+    characters; drag-select to get one.
+    *Answer (fill in):* ______
+
+91. **A Chinese word saves under zh with a gloss.** Select `学生` → the 📘
+    button appears. Click it: the panel shows the Vietnamese gloss *học sinh*,
+    no "lookup failed" warning, and a *full entry ↗* link to mdbg.net. In
+    DevTools → Application → Extension storage → local, the entry carries
+    `lang: "zh"`, and the panel's Network tab shows the `translate_a/single`
+    request with `sl=zh-CN`. Look up an English and a Korean word next: their
+    requests still say `sl=en` and `sl=ko`.
+
+92. **Japanese with kana is not offered.** On a Japanese page, select `食べる`
+    → no 📘 button. A kanji-only selection (`学生` on a Japanese page) does get
+    one and is treated as Chinese — a known limit.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

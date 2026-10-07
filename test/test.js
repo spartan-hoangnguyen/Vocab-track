@@ -241,6 +241,24 @@ async function parserTests() {
   eq('the full-entry link points at krdict', new URL(koHref).origin, ko.base);
   check('and carries the word percent-encoded', koHref.endsWith('=%EC%B1%85'), koHref);
 
+  // --- the Chinese dictionary pack: the same two things it must not say.
+  const zh = LANG.dict('zh');
+  check('Chinese has a dictionary registered', !!zh);
+  eq('and it names itself', zh?.name, 'CC-CEDICT');
+  const zhLookup = await zh.lookup('学生');
+  check('a Chinese lookup does not report a failure',
+        !('failed' in zhLookup), JSON.stringify(zhLookup.failed));
+  check('nor not-found, which would abort the save and lose the gloss',
+        !('notFound' in zhLookup), JSON.stringify(zhLookup.notFound));
+  const zhHref = zh.href('学生');
+  eq('the full-entry link points at MDBG', new URL(zhHref).origin, zh.base);
+  check('and carries the word percent-encoded', zhHref.endsWith('=%E5%AD%A6%E7%94%9F'), zhHref);
+
+  // --- the MT source language comes from the pack, not the id.
+  eq('Chinese is glossed from zh-CN', LANG.get('zh').mt, 'zh-CN');
+  eq('English is still glossed from en', LANG.get('en').mt, 'en');
+  eq('Korean is still glossed from ko', LANG.get('ko').mt, 'ko');
+
   const enDict = LANG.dict('en');
   eq('the English dictionary links to Wiktionary', enDict.name, 'Wiktionary');
   eq('and its full-entry link opens Wiktionary',

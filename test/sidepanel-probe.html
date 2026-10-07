@@ -30,7 +30,7 @@
             .replace(/<script[\s\S]*?<\/script>/g, '');
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
+    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../lang/zh/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
       // Serial, not Promise.all: each of these reads the one before it at load.
       .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
         const tag = document.createElement('script');
@@ -384,6 +384,22 @@ ready.then(() => setTimeout(async () => {
 
   window.fetchVietnamese = realVi;
   GLOSS.pausedUntil = 0;
+
+  /* ---- a Chinese word saves under zh and is glossed from zh-CN ---- */
+  const realFetch = window.fetch;
+  const zhAsked = [];
+  window.fetch = async (url) => {
+    zhAsked.push(String(url));
+    return new Response(JSON.stringify([[['học sinh', '学生']]]));
+  };
+  STORE.words = {};
+  const zhSaved = await resolveWord('学生', null, null, null);
+  window.fetch = realFetch;
+  check('a Chinese word saves under zh', zhSaved.entry?.lang === 'zh', String(zhSaved.entry?.lang));
+  check('with its gloss', zhSaved.entry?.vi === 'học sinh', String(zhSaved.entry?.vi));
+  check('asked from zh-CN, not the pack id',
+        zhAsked.some((u) => u.includes('translate_a') && u.includes('sl=zh-CN&')), zhAsked.join(' '));
+  check('and no lookup-failed warning', !zhSaved.failed?.dict, JSON.stringify(zhSaved.failed));
   STORE.words = WORDS;
 
   /* ---- the not-found sentence, in both dictionaries ----
