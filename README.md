@@ -101,7 +101,7 @@ the session rebuilds against the other language. It is
 saved, so the dashboard opens where you left it, and it is hidden altogether
 while only one language pack is loaded.
 
-**Saving a word ignores the toggle**, on purpose. The 📘 button and the panel
+**Saving a word ignores the dropdown**, on purpose. The 📘 button and the panel
 route on the script of what you selected, so a Korean word saves as Korean
 while the dashboard is showing English — and the dashboard follows it, rather
 than dropping the word into a list it is filtering out.
@@ -142,6 +142,29 @@ Hangul syllable block plus a per-particle minimum length, not a dictionary, and
 the classes it gets wrong are listed under *Known limits* — they are written
 into the pack's own tests as the values it actually produces, so they are facts
 under test rather than surprises.
+
+**What Chinese gives you today.** Simplified Chinese is the third language, and
+it has the most complete card of the three non-English sides: a lookup carries
+**pinyin and up to three English senses** from a bundled CC-CEDICT, a
+**Vietnamese gloss**, and an **HSK 2.0 level** (HSK 1–6) from a bundled list —
+no API key and no dictionary call, since both files ship with the extension.
+Highlighting, the sentence you met it in (split on 。！？；), Fill the gap,
+the typing card, every practice mode, and a starter list of 4,991 HSK words
+(see *Word lists*) all work. ▶ speaks with a **zh-CN** voice (Tingting on a
+Mac); without one installed, nothing is spoken and a line says where to add it.
+
+**Matching asks the segmenter.** Chinese writes no spaces, so a saved word is
+found with `Intl.Segmenter` and only where it is a whole word: a saved 学 does
+not light up inside 学生. A word ICU splits in two (图书馆 → 图书 + 馆) still
+matches as a run of segments.
+
+What Chinese does not do, all listed under *Known limits*: **Traditional
+characters** route to Chinese and get the gloss, but no pinyin, definition or
+level, because nothing converts them; a **Japanese** selection written only in
+kanji (学生 is Japanese too) is treated as Chinese; a one-character word ICU
+glues to its neighbour (我 in 我是, 在 in 他在) is not highlighted there; the
+speed reader flashes a whole clause at a time, because it splits on spaces; and
+there is no writing check, since LanguageTool's Chinese is out of scope.
 
 ## Saving from outside Chrome
 
@@ -662,3 +685,15 @@ manual checklist for it.
 - **Captures resolve when the dashboard opens**, not instantly. They queue
   offline in the meantime, so nothing is lost if Chrome is shut.
 - Roughly 1 word in 8 has no synonyms on Cambridge.
+- **Chinese is Simplified only.** Traditional characters route to Chinese and
+  get the Vietnamese gloss, but CC-CEDICT and the HSK list are keyed on the
+  Simplified form and nothing converts, so there is no pinyin, definition or
+  level. HSK 3.0 is not used.
+- **A Japanese word written only in kanji is taken for Chinese.** Script alone
+  cannot tell 学生 in a Japanese sentence from 学生 in a Chinese one; a
+  selection with kana in it is not offered a lookup.
+- **Chinese matching is only as good as ICU's segmenter.** A one-character word
+  ICU joins to its neighbour (我 in 我是, 在 in 他在) is not highlighted there.
+  `lang/zh/index.js` pins these as the values it actually produces.
+- **The speed reader is not tuned for Chinese.** It splits on spaces, so a
+  Chinese paragraph flashes a clause at a time.

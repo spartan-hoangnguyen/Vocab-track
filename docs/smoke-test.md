@@ -648,6 +648,41 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
      listens in zh-CN: say a sentence using the word, five words or more
      (`我是一个很好的学生` counts as five; ICU joins 我是 into one) → it passes.
 
+## Chinese: switching, next to English and Korean
+
+103. **The dropdown switches everything.** With English, Korean and Chinese
+     words saved, choose **中文** in the dashboard's language dropdown: the
+     words list holds only Chinese words, the folders are the HSK ones plus
+     *From reading* and *Starred*, the Overview level bars read HSK 1 … HSK 6,
+     and Review deals only Chinese cards. Choose **한국어**, then **English**:
+     each restores its own words, folders, scale and queue. Mid-review, the
+     session rebuilds on the switch.
+
+104. **A Chinese card end to end.** Review a Chinese card: the prompt is the
+     Vietnamese gloss (or the English sense for a starter word with no gloss
+     yet), the typing box takes the characters from an IME without grading on
+     the IME's Enter, and revealing shows the word, **Pinyin: …** and ▶.
+
+## Chinese: known limits
+
+These are expected, not failures. Each is written into the README's *Known
+limits*.
+
+- Traditional characters (`學生`) get a gloss but no pinyin, definition or
+  level.
+- A kanji-only Japanese word is looked up as Chinese.
+- A one-character word ICU joins to its neighbour is not highlighted there
+  (`我` in `我是`, `在` in `他在`).
+- The speed reader flashes Chinese a clause at a time.
+
+## Chinese: last full run
+
+Run items 90–104 in a real Chrome profile that also has English and Korean
+words, then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Result: ______ (items that failed, with what you saw)
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture
