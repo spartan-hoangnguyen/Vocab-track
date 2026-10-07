@@ -257,7 +257,7 @@ async function parserTests() {
   // The level is not in the Datamuse response; it comes from the bundled CEFR
   // list (lang/en/cefr.js), which parse() reads by the word.
   eq('resilient level comes from the CEFR list', resilient.level, 'C1');
-  eq('resilient has no IPA', resilient.ipa, null);
+  eq('resilient IPA is rebuilt from the CMU pronunciation', resilient.ipa, 'rɪˈzɪljənt');
   eq('resilient has no recorded audio', resilient.audio, null);
   eq('nor a second recording', resilient.audioUs, null);
   eq('resilient part of speech is expanded from the tag', resilient.pos, 'adjective');
@@ -294,6 +294,14 @@ async function parserTests() {
   eq('cefrLevel de-inflects an -ing form not in the list', cefrLevel('abandoning'), 'B1');
   eq('cefrLevel is null for a word outside the list', cefrLevel('zxqwv'), null);
   eq('cefrLevel is null for the empty string', cefrLevel(''), null);
+
+  // --- ARPAbet (CMU) -> IPA, the pronunciation rebuilt from Datamuse md=r.
+  const ipa = enDict.arpaToIpa;
+  eq('arpaToIpa places stress before the onset', ipa('HH AE1 P IY0'), 'ˈhæpi');
+  eq('arpaToIpa handles a cluster onset', ipa('S T R AE1 T AH0 JH IY0'), 'ˈstrætədʒi');
+  eq('arpaToIpa reduces an unstressed AH to schwa', ipa('R IH0 Z IH1 L Y AH0 N T'), 'rɪˈzɪljənt');
+  eq('arpaToIpa is null on empty input', ipa(''), null);
+  eq('arpaToIpa is null on unknown phonemes', ipa('?? !!'), null);
 
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');

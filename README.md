@@ -7,9 +7,10 @@ Select a word on any page, click the button that appears, and the side panel
 shows what the dictionary has. For English that is a Datamuse entry: the
 definition of each sense, the part of speech, and synonyms, alongside a
 Vietnamese translation and **the sentence you met it in**. The CEFR level comes
-from a bundled word list, because no lookup carries it. There is no IPA and no
-recorded audio from this source. The play button speaks the word with the system
-voice, and the **Wiktionary ↗** link opens the full entry.
+from a bundled word list, because no lookup carries it. The IPA is rebuilt from
+the word's CMU pronunciation. There is no recorded audio from this source. The
+play button speaks the word with the system voice, and the **Wiktionary ↗** link
+opens the full entry.
 Cambridge put a bot wall in front of its pages that a background request cannot
 pass, so the lookup moved to a keyless source. Saved words are highlighted when
 you revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
