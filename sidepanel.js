@@ -98,7 +98,16 @@ function renderProns(entry) {
     const play = document.createElement('button');
     play.textContent = '▶';
     play.setAttribute('aria-label', `Pronounce ${entry.word} (${tag})`);
-    play.addEventListener('click', () => pronounce({ ...entry, audio: audio ?? entry.audio }));
+    play.addEventListener('click', () => {
+      if (pronounce({ ...entry, audio: audio ?? entry.audio })) return;
+      // No voice for this language on this machine: say why, once, under the rows.
+      if (box.querySelector('.hint')) return;
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.setAttribute('role', 'status');
+      hint.textContent = voiceHint(LANG.of(entry));
+      box.appendChild(hint);
+    });
     row.append(label, text, play);
     box.appendChild(row);
   }

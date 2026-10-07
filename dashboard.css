@@ -656,3 +656,10 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
    falls under 4.5:1. */
 :root[data-theme="night"] .f .edit,
 :root[data-theme="night"] .f p{opacity:.9}
+
+/* The "no voice installed" line speakWord shows when there is nothing to say
+   a word with. Fixed, because the word can be played from any view. */
+.voicehint{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;
+           max-width:min(560px,calc(100vw - 32px));margin:0;padding:10px 16px;
+           border-radius:10px;background:var(--ink);color:var(--paper);
+           font:500 13px/1.4 Inter}

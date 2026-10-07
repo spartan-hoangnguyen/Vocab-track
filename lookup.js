@@ -176,12 +176,18 @@ function pronounce(entry, accent = 'uk') {
       console.error('[vocab-track] audio playback failed for', entry.word, err);
       speak(entry.word, accent, entry.lang);
     });
-    return;
+    return true;
   }
   // The only caller that holds an entry, so the only place the word's language
   // can still be recovered. Without these two arguments every synthesised word
   // on every surface is English.
-  speak(entry.word, accent, entry.lang);
+  return speak(entry.word, accent, entry.lang);
+}
+
+// What a caller with a surface shows when pronounce() answers false.
+function voiceHint(pack) {
+  return `No ${pack.name} voice is installed. Add one in System Settings → `
+    + 'Accessibility → Spoken Content → System Voice → Manage Voices.';
 }
 
 // `lang` is a pack id, and optional for a different reason than `accent` is.
@@ -212,11 +218,15 @@ const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred
 // local, which beats whatever is left. An empty list returns null and the
 // utterance keeps the language alone — exactly the old behaviour, which is
 // the right answer while getVoices() is still filling in.
-function bestVoice(tag, voices) {
-  const want = String(tag ?? '').toLowerCase().split(/[-_]/)[0];
+//
+// `exact` asks for the whole tag (zh-CN), for a pack whose regions are
+// different languages: a zh-HK voice speaks Cantonese.
+function bestVoice(tag, voices, exact = false) {
+  const norm = (t) => String(t ?? '').toLowerCase().replace(/_/g, '-');
+  const want = exact ? norm(tag) : norm(tag).split('-')[0];
   if (!want) return null;
   const matching = (voices ?? [])
-    .filter((v) => String(v.lang ?? '').toLowerCase().split(/[-_]/)[0] === want);
+    .filter((v) => (exact ? norm(v.lang) : norm(v.lang).split('-')[0]) === want);
   const serious = matching.filter((v) => !NOVELTY.test(v.name ?? ''));
   const pool = serious.length ? serious : matching;
   return pool.find((v) => /premium|enhanced|siri/i.test(v.name ?? ''))
@@ -233,15 +243,19 @@ function speak(word, accent = 'uk', lang) {
   // to the pack's first voice is what makes that an accent that does not apply
   // rather than utterance.lang = undefined.
   const voice = voices.find((v) => v.id === accent) ?? voices[0];
-  const utterance = new SpeechSynthesisUtterance(word);
-  utterance.lang = voice.bcp47;
+  const list = speechSynthesis.getVoices();
   // Named explicitly rather than left to Chrome — see bestVoice above. Null
   // is a legal value and means "you choose", which is where this started.
-  utterance.voice = bestVoice(voice.bcp47, speechSynthesis.getVoices());
-  // ponytail: says nothing at all when the OS has no voice for this tag —
-  // Chrome neither throws nor fires an error, it just stays silent, and a Mac
-  // ships no Korean voice until one is downloaded. getVoices() is the check,
-  // but it fills asynchronously (voiceschanged) and this seam owns no surface
-  // to warn on. The warning belongs to a caller that has one.
+  const chosen = bestVoice(voice.bcp47, list, voice.exact);
+  // The OS has voices and none of them speaks this language: Chrome would
+  // stay silent (or, for zh, reach for Cantonese), so say nothing and answer
+  // false — the caller owns the surface to show voiceHint() on. An EMPTY list
+  // is not that: it fills asynchronously (voiceschanged), and headless Chrome
+  // never has one, so it speaks and lets Chrome choose, as before.
+  if (list.length && !chosen) return false;
+  const utterance = new SpeechSynthesisUtterance(word);
+  utterance.lang = voice.bcp47;
+  utterance.voice = chosen;
   speechSynthesis.speak(utterance);
+  return true;
 }

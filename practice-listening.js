@@ -23,12 +23,15 @@
   // O(n²) scar from doing real work in eligibility.
   let spoken = null;
   const base = (tag) => String(tag ?? '').toLowerCase().split(/[-_]/)[0];
+  const full = (tag) => String(tag ?? '').toLowerCase().replace(/_/g, '-');
 
   function voiceTags() {
     if (spoken) return spoken;
     const list = speechSynthesis?.getVoices?.() ?? [];
     if (!list.length) return null;
-    spoken = new Set(list.map((v) => base(v.lang)));
+    // Both the primary subtag and the whole tag, so an `exact` pack voice
+    // (zh-CN, lang/zh/index.js) can ask for its region: zh-HK is Cantonese.
+    spoken = new Set(list.flatMap((v) => [base(v.lang), full(v.lang)]));
     return spoken;
   }
 
@@ -46,7 +49,7 @@
   // accent matches.
   function speakable(pack) {
     const have = voiceTags();
-    return !have || pack.voices.some((v) => have.has(base(v.bcp47)));
+    return !have || pack.voices.some((v) => have.has(v.exact ? full(v.bcp47) : base(v.bcp47)));
   }
 
   PRACTICE.register('listening', {
@@ -90,9 +93,6 @@
     // silent (lookup.js:122).
     eligible: (entry) => {
       const pack = LANG.of(entry);
-      // Not Chinese yet: its voice is a bare 'zh' until T008 names zh-CN, and a
-      // bare tag can land on a Cantonese (zh-HK) voice.
-      if (pack.id === 'zh') return false;
       return String(entry.word).trim().split(/\s+/).every((part) => pack.isCandidate(part))
         && speakable(pack);
     },
@@ -498,7 +498,7 @@
     const voice = voices.find((v) => v.id === accent) ?? voices[0];
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = voice.bcp47;
-    utterance.voice = bestVoice(voice.bcp47, speechSynthesis.getVoices());
+    utterance.voice = bestVoice(voice.bcp47, speechSynthesis.getVoices(), voice.exact);
     utterance.rate = rate;
     // No cancel() first, deliberately: pronounce() does not cancel either, so
     // pressing any of the three buttons twice queues the second reading behind

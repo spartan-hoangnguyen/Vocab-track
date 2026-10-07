@@ -1759,9 +1759,25 @@ function speakWord(entry) {
   // and the words-view title click can both be handed a word from outside the
   // current filter. Same fallback as the picker — one stored accent, many
   // languages, and 'uk' means nothing on a Korean voice list.
-  const voices = LANG.of(entry).voices;
-  pronounce(entry, voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id);
+  const pack = LANG.of(entry);
+  const voices = pack.voices;
+  if (!pronounce(entry, voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id)) {
+    showVoiceHint(voiceHint(pack));
+  }
 }
+
+// One line at the bottom of the window, gone after a few seconds: speakWord is
+// reached from the card, the words list and practice, so the hint cannot live
+// in any one of them.
+let voiceHintTimer = 0;
+function showVoiceHint(text) {
+  const box = $('voice-hint');
+  box.textContent = text;
+  box.hidden = false;
+  clearTimeout(voiceHintTimer);
+  voiceHintTimer = setTimeout(() => { box.hidden = true; }, VOICE_HINT_MS);
+}
+const VOICE_HINT_MS = 6000;
 
 // The words a practice mode draws from: the review's folder when it has one,
 // everything otherwise. Skipped words are out, as they are out of review.

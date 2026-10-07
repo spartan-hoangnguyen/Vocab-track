@@ -37,12 +37,23 @@
     // what pins Simplified.
     mt: 'zh-CN',
 
+    // Mandarin as spoken in mainland China. `exact` because the primary subtag
+    // is not enough here: zh-HK is Cantonese, a different spoken language, and
+    // bestVoice would otherwise take it for a zh card (lookup.js).
+    voices: [{ id: 'std', label: '中文', bcp47: 'zh-CN', exact: true }],
+
     // `ipa` holds pinyin for a Chinese word (lang/zh/dictionary.js), so the
     // panel and the card label it rather than wrap it in IPA's slashes.
     pronLabel: 'Pinyin',
 
     // HSK 2.0, easiest first, so VT.medianLevel reads the scale off the pack.
     levels: ['HSK 1', 'HSK 2', 'HSK 3', 'HSK 4', 'HSK 5', 'HSK 6'],
+
+    // Chinese has no spaces, so practice-speak's "at least 5 words" counts
+    // the segmenter's words instead (punctuation is not word-like).
+    wordCount(text) {
+      return segments(String(text ?? '')).filter((s) => s.isWordLike).length;
+    },
 
     // NFC and trim as every pack does, plus inner whitespace: a selection that
     // crosses a line break in the page comes back as 学 生, and Chinese has no

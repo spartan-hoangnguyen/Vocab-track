@@ -608,8 +608,7 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
 
 96. **Fill the gap.** With four Chinese words that have a saved sentence, open
     Practice → Fill the gap. The sentence shows `_____` exactly where the word
-    was, and nothing of the word leaks around the gap. Listening and Speak do
-    not offer Chinese cards yet (T008).
+    was, and nothing of the word leaks around the gap.
 
 97. **RSVP is not tuned for Chinese.** Starting the speed reader on a Chinese
     article flashes whole clauses at once, because Chinese has no spaces to
@@ -635,6 +634,19 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
      it: the line under the word reads **Pinyin: …**, while an English card
      still shows its IPA between slashes. A word CEDICT lacks still saves with
      its gloss and no banner.
+
+101. **The Chinese voice is Mandarin.** With a zh-CN voice installed
+     (Tingting; System Settings → Accessibility → Spoken Content → System
+     Voice → Manage Voices → Chinese (China mainland)), press ▶ on a Chinese
+     card: Mandarin, never a Cantonese (Sinji) or Taiwanese (Meijia) voice.
+     Remove it and press ▶ again: nothing is spoken, and a line says no Chinese
+     voice is installed and where to add one — in the dashboard at the bottom
+     of the window, in the panel under the pronunciation row.
+
+102. **Speaking and listening practice take Chinese.** With four Chinese
+     words, Practice → Listening plays each in Mandarin. Practice → Speak
+     listens in zh-CN: say a sentence using the word, five words or more
+     (`我是一个很好的学生` counts as five; ICU joins 我是 into one) → it passes.
 
 ## If something fails
 

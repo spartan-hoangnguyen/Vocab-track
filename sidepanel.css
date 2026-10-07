@@ -35,6 +35,8 @@ h1{font:600 23px/1.2 system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.015em
 
 .prons{display:flex;flex-direction:column;gap:5px;margin:0 0 14px}
 .pron{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+/* speak() had no voice for this language: why ▶ said nothing. */
+.prons .hint{margin:2px 0 0;font-size:12px;line-height:1.4;color:var(--ink2)}
 .pron .tag{font-weight:600;font-size:10px;letter-spacing:.06em;color:var(--ink3);
            border:1px solid var(--rule);border-radius:5px;padding:1px 5px}
 .pron button{border:1px solid var(--rule);background:var(--card);color:var(--ink);

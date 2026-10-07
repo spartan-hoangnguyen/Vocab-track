@@ -59,9 +59,6 @@ const SPEAK = (() => {
     return best;
   }
 
-  function wordCount(sentence) {
-    return String(sentence ?? '').trim().split(/\s+/).filter(Boolean).length;
-  }
 
   // Both rules answered at once, which is the one thing grade() cannot say: it
   // stops at the first failure so that it can name a single reason. The
@@ -70,7 +67,7 @@ const SPEAK = (() => {
   // grade() having never reached it.
   function coverage(sentence, word, pack) {
     const hit = findWord(sentence, word, pack);
-    const words = wordCount(sentence);
+    const words = (pack ?? LANG.pick(null, word)).wordCount(sentence);
     return { hit, used: !!hit, words, long: words >= MIN_WORDS };
   }
 
@@ -316,9 +313,7 @@ PRACTICE.register('speak', {
   // true by accident, and reading as a bug the first time someone timed it.
   // Zero says it on purpose: this mode tops out at Good.
   fast: 0,
-  // Not Chinese yet: recognition has no zh-CN tag until T008, and MIN_WORDS
-  // counts spaces, which a Chinese sentence has none of — it could never pass.
-  eligible: (entry) => !!entry.word && LANG.of(entry).id !== 'zh',
+  eligible: (entry) => !!entry.word,
   ask: SPEAK.ask,
   async selfTest() {
     const out = [];

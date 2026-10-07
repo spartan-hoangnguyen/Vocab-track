@@ -295,6 +295,45 @@ ready.then(() => setTimeout(async () => {
   check('the English side is unmoved: Cambridge accents still resolve',
         bestVoice('en-US', mac)?.name === 'Alex', bestVoice('en-US', mac)?.name);
 
+  /* ---- Chinese: Mandarin from mainland China, never Cantonese ---- */
+  const zhVoice = LANG.get('zh').voices[0];
+  check('the Chinese pack speaks zh-CN, and asks for the region exactly',
+        zhVoice.bcp47 === 'zh-CN' && zhVoice.exact === true, JSON.stringify(zhVoice));
+  const zhMac = [...mac, V('Sinji', 'zh-HK'), V('Meijia', 'zh-TW'), V('Tingting', 'zh_CN')];
+  check('an exact zh-CN ask picks the mainland voice',
+        bestVoice('zh-CN', zhMac, true)?.name === 'Tingting', bestVoice('zh-CN', zhMac, true)?.name);
+  check('and finds none when only Cantonese and Taiwan voices are installed',
+        bestVoice('zh-CN', zhMac.slice(0, -1), true) === null,
+        bestVoice('zh-CN', zhMac.slice(0, -1), true)?.name);
+  // With voices installed and none for zh-CN, nothing is spoken and the
+  // panel's ▶ says why instead.
+  const realGetVoices = speechSynthesis.getVoices;
+  const realSay = speechSynthesis.speak;
+  // A real utterance refuses a hand-made voice object, so a plain one stands in.
+  const RealUtterance = window.SpeechSynthesisUtterance;
+  window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const zhSaid = [];
+  speechSynthesis.getVoices = () => zhMac.slice(0, -1);
+  speechSynthesis.speak = (u) => zhSaid.push(u.lang);
+  const zhEntry = { word: '学生', lang: 'zh', ipa: 'xuésheng', audio: null, ipaUs: null, audioUs: null };
+  check('pronounce answers false for a zh word with no zh-CN voice',
+        pronounce(zhEntry) === false && zhSaid.length === 0, zhSaid.join());
+  speechSynthesis.getVoices = () => zhMac;
+  check('and speaks it in zh-CN once one is installed',
+        pronounce(zhEntry) === true && zhSaid.join() === 'zh-CN', zhSaid.join());
+  speechSynthesis.getVoices = () => zhMac.slice(0, -1);
+  zhSaid.length = 0;
+  renderProns(zhEntry);
+  document.querySelector('#entry-prons .pron button').click();
+  check('the panel ▶ shows the no-voice hint and says nothing',
+        /No Chinese voice is installed/.test(document.getElementById('entry-prons').textContent)
+          && zhSaid.length === 0,
+        document.getElementById('entry-prons').textContent);
+  check('and labels the pinyin', /Pinyin: xuésheng/.test(document.getElementById('entry-prons').textContent));
+  speechSynthesis.getVoices = realGetVoices;
+  speechSynthesis.speak = realSay;
+  window.SpeechSynthesisUtterance = RealUtterance;
+
   /* ---- a gloss that never landed is asked for again ----------------------
      The endpoint is unofficial and rate-limits, and resolveWord's known path
      returns before any network call — so a word saved during one bad minute

@@ -124,6 +124,12 @@ eq('a Korean word does not match English text',
 // keeps a new language from having to know these exist.
 eq('English offers the two accents Cambridge records',
    LANG.get('en').voices.map((v) => `${v.id}:${v.bcp47}`).join(), 'uk:en-GB,us:en-US');
+eq('Chinese speaks Mandarin from mainland China',
+   LANG.get('zh').voices.map((v) => `${v.id}:${v.bcp47}`).join(), 'std:zh-CN');
+eq('a Chinese sentence counts its words without spaces',
+   LANG.get('zh').wordCount('我是学生，我喜欢学习中文。'), 6);
+eq('an English sentence still counts by spaces',
+   LANG.get('en').wordCount('I am a good student.'), 5);
 eq('Korean names its region, so the utterance is not a bare language match',
    LANG.get('ko').voices.map((v) => `${v.id}:${v.bcp47}`).join(), 'std:ko-KR');
 check('every pack has at least one voice, so voices[0] is always a fallback',

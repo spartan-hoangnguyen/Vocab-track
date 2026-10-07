@@ -38,6 +38,9 @@ const LANG = (() => {
       // How the pronunciation field (`ipa`) is labelled. Null is IPA, which
       // shows bare between slashes; a romanisation names itself (zh: Pinyin).
       pronLabel: null,
+      // How many words a sentence holds, for practice-speak's "a full
+      // sentence" rule. Spaces, unless the language writes none (zh).
+      wordCount: (text) => String(text ?? '').trim().split(/\s+/).filter(Boolean).length,
       // The written forms that still count as this word when it is looked for
       // in a sentence — practice-speak's grading. English has real morphology to
       // add (lang/en/index.js); for a language that does not inflect the word it
