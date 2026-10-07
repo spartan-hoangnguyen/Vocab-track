@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -945,9 +945,10 @@ ready.then(() => setTimeout(async () => {
   /* ---- the toggle itself ---- */
   const seg = document.getElementById('lang-seg');
   const segBtn = (id) => seg.querySelector(`[data-lang="${id}"]`);
-  check('both registered packs get a segment, labelled with their short name',
-        !seg.hidden && seg.children.length === 2
-        && segBtn('en')?.textContent === 'EN' && segBtn('ko')?.textContent === '한',
+  check('every registered pack gets a segment, labelled with its short name',
+        !seg.hidden && seg.children.length === LANG.list().length
+        && segBtn('en')?.textContent === 'EN' && segBtn('ko')?.textContent === '한'
+        && segBtn('zh')?.textContent === '中',
         [...seg.children].map((b) => b.textContent).join());
   check('and the active one is the pressed segment',
         segBtn('ko').getAttribute('aria-pressed') === 'true'

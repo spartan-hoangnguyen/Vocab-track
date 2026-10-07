@@ -79,7 +79,7 @@ eq('blank leaves a text with no hit alone',
 
 // --- the language registry
 eq('English is detected from Latin script', LANG.detect('resilient')?.id, 'en');
-eq('an unknown script detects as nothing', LANG.detect('\u4e2d\u6587'), null);
+eq('an unknown script detects as nothing', LANG.detect('\u0e20\u0e32\u0e29\u0e32'), null);
 eq('a word with no lang falls back to English', LANG.of({ word: 'cat' }).id, 'en');
 eq('an explicit lang wins', LANG.pick('en', '\uCC45').id, 'en');
 eq('normalise folds NFD to NFC',

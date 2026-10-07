@@ -30,7 +30,7 @@
             .replace(/<script[\s\S]*?<\/script>/g, '');
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
+    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
       // Serial, not Promise.all: each of these reads the one before it at load.
       .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
         const tag = document.createElement('script');

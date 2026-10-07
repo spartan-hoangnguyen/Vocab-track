@@ -52,6 +52,7 @@
         "lang/lang.js",
         "lang/en/index.js",
         "lang/ko/index.js",
+        "lang/zh/index.js",
         "content-script.js",
         "reader.js",
         "writer.js"
