@@ -293,6 +293,14 @@ const VT = {
   // there is no translation. Null when the entry has neither — a word saved
   // while both the dictionary and the translator were down cannot be an
   // option, right or wrong.
+  // A pronunciation as the card prints it: IPA between slashes, or a pack's
+  // romanisation under its own label (Pinyin: xuésheng). Empty when there is
+  // none, so callers can hide the line.
+  pronText(ipa, pack) {
+    if (!ipa) return '';
+    return pack?.pronLabel ? `${pack.pronLabel}: ${ipa}` : `/${ipa}/`;
+  },
+
   glossOf(entry) {
     const gloss = String(entry?.vi ?? entry?.def ?? '').trim();
     return gloss || null;

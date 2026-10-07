@@ -94,7 +94,7 @@ function renderProns(entry) {
     label.className = 'tag';
     label.textContent = tag;
     const text = document.createElement('span');
-    text.textContent = ipa ? `/${ipa}/` : DASH;
+    text.textContent = VT.pronText(ipa, LANG.of(entry)) || DASH;
     const play = document.createElement('button');
     play.textContent = '▶';
     play.setAttribute('aria-label', `Pronounce ${entry.word} (${tag})`);

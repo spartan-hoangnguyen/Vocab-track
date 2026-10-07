@@ -429,7 +429,7 @@ function wordCard(entry) {
   head.appendChild(title);
   if (entry.level) head.appendChild(el('span', 'lvl', entry.level));
   if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
-  if (entry.ipa) head.appendChild(el('span', 'wc-ipa', `/${entry.ipa}/`));
+  if (entry.ipa) head.appendChild(el('span', 'wc-ipa', VT.pronText(entry.ipa, LANG.of(entry))));
 
   const spacer = el('span', 'wc-spacer');
   head.appendChild(spacer);
@@ -1201,11 +1201,9 @@ function renderCard() {
   // The IPA and the play button are the answer's shape and the answer's sound.
   // Both would hand it to you, so neither appears until you have committed.
   //
-  // ponytail: the /…/ delimiters assume IPA. Nothing to do yet — a Korean entry
-  // has no `ipa` at all while its dictionary is MT-only, so this line is hidden
-  // — but a pack that one day supplies romanisation wants its own delimiters.
+  // IPA between slashes, or the pack's romanisation under its label (Pinyin).
   $('rv-ipa').hidden = !(revealed && entry.ipa);
-  $('rv-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : '';
+  $('rv-ipa').textContent = VT.pronText(entry.ipa, LANG.of(entry));
   $('rv-play').hidden = !revealed;
   $('rv-play').onclick = () => speakWord(entry);
 

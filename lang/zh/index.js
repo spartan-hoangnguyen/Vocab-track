@@ -37,6 +37,10 @@
     // what pins Simplified.
     mt: 'zh-CN',
 
+    // `ipa` holds pinyin for a Chinese word (lang/zh/dictionary.js), so the
+    // panel and the card label it rather than wrap it in IPA's slashes.
+    pronLabel: 'Pinyin',
+
     // HSK 2.0, easiest first, so VT.medianLevel reads the scale off the pack.
     levels: ['HSK 1', 'HSK 2', 'HSK 3', 'HSK 4', 'HSK 5', 'HSK 6'],
 

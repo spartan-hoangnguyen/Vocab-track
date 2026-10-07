@@ -303,6 +303,21 @@ ready.then(() => setTimeout(async () => {
   renderCard();
   check('the drawer stays open on the next render', document.getElementById('rv-full').open);
 
+  /* ---- the pronunciation line names a romanisation ---- */
+  const rvIpa = document.getElementById('rv-ipa');
+  const heldCard = queue[0];
+  revealed = true;
+  renderCard();
+  check('an English card shows its IPA between slashes once revealed',
+        !rvIpa.hidden && rvIpa.textContent === `/${heldCard.ipa}/`, rvIpa.textContent);
+  queue[0] = { ...heldCard, word: '学生', lang: 'zh', ipa: 'xuésheng', vi: 'học sinh', def: 'student' };
+  renderCard();
+  check('a Chinese card shows its pinyin under a Pinyin label',
+        !rvIpa.hidden && rvIpa.textContent === 'Pinyin: xuésheng', rvIpa.textContent);
+  queue[0] = heldCard;
+  revealed = false;
+  renderCard();
+
   /* ---- Skip: out of the rotation, still in the collection ---- */
   startReview(null);
   renderCard();

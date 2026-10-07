@@ -628,6 +628,14 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     meaning show; the Vietnamese gloss fills in when you click the word on a
     page or look it up.
 
+100. **Pinyin and a definition.** Look up `学生`: the panel shows
+     **Pinyin: xuésheng**, the sense *student*, the gloss *học sinh* and no
+     warning. Look up `行`: **Pinyin: háng / xíng**, with senses from both
+     readings, each prefixed with its own. Review a Chinese card and reveal
+     it: the line under the word reads **Pinyin: …**, while an English card
+     still shows its IPA between slashes. A word CEDICT lacks still saves with
+     its gloss and no banner.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

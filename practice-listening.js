@@ -233,7 +233,7 @@
           // Now the word can show: what it was, how it sounds, what it means.
           const reveal = node('div', 'prlreveal');
           reveal.appendChild(node('p', 'prask', entry.word));
-          if (entry.ipa) reveal.appendChild(node('p', 'prlipa', `/${entry.ipa}/`));
+          if (entry.ipa) reveal.appendChild(node('p', 'prlipa', VT.pronText(entry.ipa, LANG.of(entry))));
           const gloss = VT.glossOf(entry);
           if (gloss) reveal.appendChild(node('p', 'prhint', gloss));
           root.appendChild(reveal);
@@ -564,7 +564,7 @@
                           + 'no recording, so there is nothing to play.'),
       node('p', 'prask', entry.word)
     );
-    if (entry.ipa) box.appendChild(node('p', 'prlipa', `/${entry.ipa}/`));
+    if (entry.ipa) box.appendChild(node('p', 'prlipa', VT.pronText(entry.ipa, LANG.of(entry))));
     const gloss = VT.glossOf(entry);
     if (gloss) box.appendChild(node('p', 'prhint', gloss));
     root.appendChild(box);

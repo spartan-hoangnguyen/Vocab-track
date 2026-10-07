@@ -100,7 +100,7 @@ const SPEAK = (() => {
 
     const root = node('div', 'pr-speak');
     root.appendChild(node('p', 'prask', entry.word));
-    if (entry.ipa) root.appendChild(node('p', 'prhint', `/${entry.ipa}/`));
+    if (entry.ipa) root.appendChild(node('p', 'prhint', VT.pronText(entry.ipa, LANG.of(entry))));
     const gloss = VT.glossOf(entry);
     if (gloss) root.appendChild(node('p', 'prhint', gloss));
     root.appendChild(node('p', 'prhint pr-speak-task', 'Make a sentence with this word and say it aloud.'));

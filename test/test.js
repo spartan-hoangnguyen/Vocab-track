@@ -241,15 +241,36 @@ async function parserTests() {
   eq('the full-entry link points at krdict', new URL(koHref).origin, ko.base);
   check('and carries the word percent-encoded', koHref.endsWith('=%EC%B1%85'), koHref);
 
-  // --- the Chinese dictionary pack: the same two things it must not say.
+  // --- the Chinese dictionary pack, against a two-word fixture rather than
+  // the 8 MB CC-CEDICT the extension ships.
   const zh = LANG.dict('zh');
   check('Chinese has a dictionary registered', !!zh);
   eq('and it names itself', zh?.name, 'CC-CEDICT');
+  check('it reads the bundled CEDICT by default',
+        zh.url.endsWith('/data/zh/cedict.json'), zh.url);
+  zh.url = 'fixtures/cedict-mini.json';
+  zh.table = null;
   const zhLookup = await zh.lookup('学生');
+  eq('a Chinese lookup carries the pinyin in ipa', zhLookup.ipa, 'xuésheng');
+  eq('and the first sense as the definition', zhLookup.def, 'student');
+  eq('and every sense', zhLookup.senses.map((s) => s.def).join('|'), 'student|schoolchild');
   check('a Chinese lookup does not report a failure',
         !('failed' in zhLookup), JSON.stringify(zhLookup.failed));
   check('nor not-found, which would abort the save and lose the gloss',
         !('notFound' in zhLookup), JSON.stringify(zhLookup.notFound));
+  const xing = await zh.lookup('行');
+  eq('a word with two readings lists both', xing.ipa, 'háng / xíng');
+  eq('and its senses alternate readings, each naming its own',
+     xing.senses.map((s) => s.def).join('|'),
+     '(háng) row; line|(xíng) to walk; to go; to travel|(háng) line of business; trade; profession');
+  const zhMiss = await zh.lookup('魑魅');
+  check('a word CEDICT lacks is the four nulls, not a failure or a not-found',
+        zhMiss.ipa === null && zhMiss.def === null && !('failed' in zhMiss) && !('notFound' in zhMiss),
+        JSON.stringify(zhMiss));
+  eq('the pinyin is labelled as pinyin',
+     VT.pronText('xuésheng', LANG.get('zh')), 'Pinyin: xuésheng');
+  eq('and IPA keeps its slashes', VT.pronText('ˈkæt', LANG.get('en')), '/ˈkæt/');
+  eq('no pronunciation is no text', VT.pronText(null, LANG.get('zh')), '');
   const zhHref = zh.href('学生');
   eq('the full-entry link points at MDBG', new URL(zhHref).origin, zh.base);
   check('and carries the word percent-encoded', zhHref.endsWith('=%E5%AD%A6%E7%94%9F'), zhHref);

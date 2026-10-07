@@ -35,6 +35,9 @@ const LANG = (() => {
       // The source language the MT gloss is asked in. The id, unless the
       // endpoint wants something more specific (zh → zh-CN).
       mt: id,
+      // How the pronunciation field (`ipa`) is labelled. Null is IPA, which
+      // shows bare between slashes; a romanisation names itself (zh: Pinyin).
+      pronLabel: null,
       // The written forms that still count as this word when it is looked for
       // in a sentence — practice-speak's grading. English has real morphology to
       // add (lang/en/index.js); for a language that does not inflect the word it
