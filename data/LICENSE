@@ -25,6 +25,18 @@ full licence text is in ../NOTICE, section 4.
 Reuse it under the MIT terms in ../NOTICE.
 
 
+data/zh/cedict.json
+-------------------
+Derived work, CC BY-SA 4.0. A trimmed CC-CEDICT (Simplified headwords, tone-
+marked pinyin, up to three senses per reading), built by
+tools/zh/build-cedict.py from CC-CEDICT as published by MDBG
+(https://www.mdbg.net/chinese/dictionary?page=cc-cedict), itself based on
+CEDICT, Copyright (C) 1997, 1998 Paul Andrew Denisowski. Licence:
+https://creativecommons.org/licenses/by-sa/4.0/ — see ../NOTICE, section 5.
+
+Reuse it under CC BY-SA 4.0: credit CC-CEDICT and share alike.
+
+
 What is NOT here
 ----------------
 data/ielts-c1-c2.json and data/phrasal-verbs.json are not committed. Their

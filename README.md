@@ -362,6 +362,31 @@ Source: [drkameleon/complete-hsk-vocabulary](https://github.com/drkameleon/compl
 (MIT). Its `old-1` … `old-6` tags are HSK 2.0; a word on two levels keeps the
 easier. HSK 3.0 is not used.
 
+### Chinese dictionary (CC-CEDICT)
+
+`data/zh/cedict.json` is the dictionary a Chinese lookup reads its pinyin and
+senses from: **113,483 Simplified headwords, 7.9 MB** (3.2 MB gzipped, which is
+roughly what it adds to the packed extension). Each reading of a word keeps its
+pinyin with tone marks (`xuésheng`) and up to three senses; a word with two
+readings (行 háng / xíng) keeps both. Cross-references (*variant of*, *see*,
+*used in*), classifier lines and headwords longer than six characters, which
+the pack never offers a lookup for, are left out. Traditional headwords are
+not keyed.
+
+It is over the 4 MB the plan aimed for. Getting there means dropping about
+half the headwords, and CC-CEDICT carries no frequency to choose which half,
+so the file keeps them all.
+
+```bash
+python3 tools/zh/build-cedict.py
+```
+
+Source: [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict),
+published by MDBG under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), based on CEDICT
+© 1997, 1998 Paul Andrew Denisowski. The trimmed file is a derived work under
+the same licence.
+
 ## Privacy
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`

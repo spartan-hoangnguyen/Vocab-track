@@ -129,13 +129,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-5. Fraunces, Inter and Nunito — fonts/
+5. CC-CEDICT — data/zh/cedict.json
+----------------------------------
+A trimmed copy of CC-CEDICT, the community-maintained Chinese-English
+dictionary published by MDBG, built by tools/zh/build-cedict.py.
+https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+
+Licensed under the Creative Commons Attribution-ShareAlike 4.0 International
+License: https://creativecommons.org/licenses/by-sa/4.0/
+Referenced work: CEDICT, Copyright (C) 1997, 1998 Paul Andrew Denisowski.
+The trimmed file is distributed under the same licence.
+
+
+6. Fraunces, Inter and Nunito — fonts/
 --------------------------------------
 Vendored web fonts, all three under the SIL Open Font License 1.1.
 The full licence and the three copyright lines are in fonts/OFL.txt.
 
 
-6. Octanove Vocabulary Profile C1/C2 — not redistributed
+7. Octanove Vocabulary Profile C1/C2 — not redistributed
 --------------------------------------------------------
 tools/build-ielts-list.py fetches this CEFR-graded word list at build time; no
 part of it is committed here. It is published by Open Language Profiles under
