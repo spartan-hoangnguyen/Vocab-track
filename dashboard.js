@@ -913,25 +913,25 @@ function setTheme(theme) {
 
 /* ---------- the language toggle ---------- */
 
-// Built from the registry, so a third pack appears here the moment its script
-// is loaded. Hidden below two: a segmented control with one segment is not a
-// choice, and every surface downstream already defaults to the one pack.
+// Built from the registry, so a new pack appears here the moment its script
+// is loaded. A dropdown at any count, not a segmented control: three short
+// labels already crowd the top bar, and one path is less to keep in step.
+// Hidden below two: a choice of one is not a choice, and every surface
+// downstream already defaults to the one pack.
 function renderLang() {
   const packs = LANG.list();
-  const seg = $('lang-seg');
-  seg.hidden = packs.length < 2;
-  if (seg.hidden) return;
-  seg.replaceChildren(...packs.map((pack) => {
-    const btn = el('button', 'rvopt', pack.short ?? pack.id.toUpperCase());
-    btn.dataset.lang = pack.id;
-    btn.title = pack.name;
-    // aria-pressed, not a class: it is the state the .rvopt styling already
-    // reads, in both themes, and it is what a screen reader announces.
-    btn.setAttribute('aria-pressed', String(pack.id === activeLang));
-    btn.addEventListener('click', () => setLang(pack.id));
-    return btn;
+  $('lang-seg').hidden = packs.length < 2;
+  if (packs.length < 2) return;
+  const select = $('lang-select');
+  select.replaceChildren(...packs.map((pack) => {
+    const opt = el('option', null, pack.native ?? pack.name);
+    opt.value = pack.id;
+    return opt;
   }));
+  select.value = activeLang;
 }
+
+$('lang-select').addEventListener('change', (e) => setLang(e.target.value));
 
 async function setLang(id) {
   if (id === activeLang) return;

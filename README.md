@@ -84,7 +84,7 @@ No build step, and nothing to install first.
 2. **Load unpacked** → select this folder
 3. Pin it. The toolbar icon toggles the side panel; the dashboard is one click
    further, from the panel's **Open dashboard →**.
-4. Open the dashboard. **EN / 한** sits in the top bar, beside Review. That is
+4. Open the dashboard. The language dropdown sits in the top bar, beside Review. That is
    the whole of the setup — there is nothing to configure per language. Korean
    is keyless too, in the sense that it works without one; what a krdict key
    would buy it is under *Known limits*.
@@ -93,10 +93,11 @@ Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 
 ## Languages
 
-**EN / 한** in the dashboard's top bar decides which language you are studying
-*right now*. It filters the words list, the folders, the level bars, the
-statistics and the review queue, and it swaps the CEFR scale for 초급/중급/고급.
-Flip it mid-review and the session rebuilds against the other language. It is
+The **language dropdown** (English / 한국어 / 中文) in the dashboard's top bar
+decides which language you are studying *right now*. It filters the words
+list, the folders, the level bars, the statistics and the review queue, and it
+swaps the CEFR scale for 초급/중급/고급 or HSK 1–6. Switch it mid-review and
+the session rebuilds against the other language. It is
 saved, so the dashboard opens where you left it, and it is hidden altogether
 while only one language pack is loaded.
 

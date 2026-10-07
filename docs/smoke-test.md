@@ -519,23 +519,23 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     yet, and that sentence is the only reason that is not alarming: the words
     are filed under Korean folders and the session is showing English.
 
-83. **The toggle reaches the folder grid, not just the words.** Flip to **한**.
+83. **The toggle reaches the folder grid, not just the words.** Choose **한국어** in the language dropdown.
     *All folders* shows **초급 669**, **중급 1,395**, **고급 1,832**, plus
     *From reading* and *Starred*. **IELTS C1, IELTS C2, Phrasal A1 and Phrasal
     A2 must all be gone** — that is the bug this change exists for, and an
     empty card with a `0 words` count is the old behaviour, not the new one.
-    The subtitle counts the folders you can see. Flip back to **EN**: the
+    The subtitle counts the folders you can see. Choose **English** again: the
     English folders return and the three Korean ones go.
 
-84. **A card from the list.** In **한**, open 초급 and review one. The meaning
+84. **A card from the list.** In **한국어**, open 초급 and review one. The meaning
     is a Vietnamese gloss; the level chip reads 초급, not a CEFR band; the
     level bars on the Overview are labelled 초급/중급/고급 and have words in
     them. The pronunciation row on the side panel says **한국어**, never UK.
     About seven cards in ten also carry a collocation with the word blanked
     out; the rest ask from the gloss alone.
 
-85. **A folder scope cannot outlive its language.** In **EN**, open *IELTS C1*
-    so the words view is scoped to it. Flip to **한** without leaving the view:
+85. **A folder scope cannot outlive its language.** In **English**, open *IELTS C1*
+    so the words view is scoped to it. Switch to **한국어** without leaving the view:
     the title falls back to *All words* rather than sitting over an empty list
     under an English folder's name. *From reading* survives the same flip — it
     belongs to every language.

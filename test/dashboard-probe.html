@@ -944,19 +944,29 @@ ready.then(() => setTimeout(async () => {
 
   /* ---- the toggle itself ---- */
   const seg = document.getElementById('lang-seg');
-  const segBtn = (id) => seg.querySelector(`[data-lang="${id}"]`);
-  check('every registered pack gets a segment, labelled with its short name',
-        !seg.hidden && seg.children.length === LANG.list().length
-        && segBtn('en')?.textContent === 'EN' && segBtn('ko')?.textContent === '한'
-        && segBtn('zh')?.textContent === '中',
-        [...seg.children].map((b) => b.textContent).join());
-  check('and the active one is the pressed segment',
-        segBtn('ko').getAttribute('aria-pressed') === 'true'
-        && segBtn('en').getAttribute('aria-pressed') === 'false');
+  const langSel = document.getElementById('lang-select');
+  const choose = async (id) => {
+    langSel.value = id;
+    langSel.dispatchEvent(new Event('change'));
+    await tick();
+  };
+  check('every registered pack is an option, named in its own language',
+        !seg.hidden && [...langSel.options].map((o) => `${o.value}:${o.textContent}`).join()
+          === 'en:English,ko:한국어,zh:中文',
+        [...langSel.options].map((o) => `${o.value}:${o.textContent}`).join());
+  check('and the active one is selected', langSel.value === 'ko', langSel.value);
   STORE.words = { ...savedWords, ...STORE.words };
-  segBtn('en').click();
-  await tick();
-  check('clicking a segment saves the language', STORE.lang === 'en', STORE.lang);
+  await choose('zh');
+  check('choosing 中文 saves the language', STORE.lang === 'zh', STORE.lang);
+  check('and the level bars use HSK',
+        [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join()
+          === `HSK 1,HSK 2,HSK 3,HSK 4,HSK 5,HSK 6,${DASH}`,
+        [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join());
+  check('and the session queue holds no English or Korean card',
+        queue.every((e) => LANG.of(e).id === 'zh'),
+        queue.map((e) => e.word).join());
+  await choose('en');
+  check('choosing English saves the language', STORE.lang === 'en', STORE.lang);
   check('and the words view is back to the English set',
         document.getElementById('ov-total').textContent === String(Object.keys(savedWords).length),
         document.getElementById('ov-total').textContent);
@@ -983,7 +993,7 @@ ready.then(() => setTimeout(async () => {
         queue.length > 0 && queue.every((e) => LANG.of(e).id === 'ko'),
         queue.map((e) => e.word).join());
   check('so the card on screen is in the language the toggle now reads',
-        segBtn('ko').getAttribute('aria-pressed') === 'true'
+        langSel.value === 'ko'
         && LANG.of(queue[0]).id === activeLang,
         document.getElementById('rv-input').placeholder);
 

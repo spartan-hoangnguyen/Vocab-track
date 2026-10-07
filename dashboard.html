@@ -43,9 +43,11 @@
     <span class="sp"></span>
     <!-- After .sp (flex:1), so it right-aligns into the bar's settings cluster
          with Review and the moon rather than sitting beside the search box.
-         Empty: renderLang fills it from LANG.list(), so a third pack needs no
+         Empty: renderLang fills it from LANG.list(), so a new pack needs no
          markup, and it stays hidden while only one language is registered. -->
-    <div class="langseg" id="lang-seg" hidden></div>
+    <label class="rvopt" id="lang-seg" hidden>
+      <select id="lang-select" aria-label="Study language"></select>
+    </label>
     <button class="btn" id="review-btn">Review</button>
     <!-- Last in the bar, where the design keeps its moon. One icon for both
          themes: aria-pressed is the state, and night fills the moon in. -->
