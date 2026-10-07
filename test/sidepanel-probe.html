@@ -294,6 +294,16 @@ ready.then(() => setTimeout(async () => {
         bestVoice('ko-KR', []) === null);
   check('the English side is unmoved: Cambridge accents still resolve',
         bestVoice('en-US', mac)?.name === 'Alex', bestVoice('en-US', mac)?.name);
+  // What macOS actually lists: Samantha is the system default and en-US, so a
+  // primary-subtag match handed UK words to her while Daniel went unused.
+  const enMac = [V('Samantha', 'en-US', { default: true }), V('Daniel', 'en-GB'),
+    V('Google UK English Female', 'en-GB', { localService: false })];
+  check('a UK word is read by the en-GB system voice, not the en-US default',
+        bestVoice('en-GB', enMac)?.name === 'Daniel', bestVoice('en-GB', enMac)?.name);
+  check('and a US word still by the en-US one',
+        bestVoice('en-US', enMac)?.name === 'Samantha', bestVoice('en-US', enMac)?.name);
+  check('a system voice beats a Google network voice for the same region',
+        bestVoice('zh-CN', [V('Google 普通话（中国大陆）', 'zh-CN', { localService: false }), V('Tingting', 'zh-CN')], true)?.name === 'Tingting');
 
   /* ---- Chinese: Mandarin from mainland China, never Cantonese ---- */
   const zhVoice = LANG.get('zh').voices[0];

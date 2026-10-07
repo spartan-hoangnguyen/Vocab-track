@@ -228,13 +228,26 @@ function bestVoice(tag, voices, exact = false) {
   const matching = (voices ?? [])
     .filter((v) => (exact ? norm(v.lang) : norm(v.lang).split('-')[0]) === want);
   const serious = matching.filter((v) => !NOVELTY.test(v.name ?? ''));
-  const pool = serious.length ? serious : matching;
+  const any = serious.length ? serious : matching;
+  // The asked-for region first when the machine has it: the language matches
+  // on its primary subtag above, so without this a UK word was read by
+  // Samantha, the en-US system default, while Daniel (en-GB) sat unused.
+  const regional = any.filter((v) => norm(v.lang) === norm(tag));
+  const pool = regional.length ? regional : any;
   return pool.find((v) => /premium|enhanced|siri/i.test(v.name ?? ''))
     ?? pool.find((v) => v.default)
     ?? pool.find((v) => v.localService)
     ?? pool[0]
     ?? null;
 }
+
+// Chrome loads the voice list only when something first asks for it, and fills
+// it in two steps: its Google network voices first, the system's own voices
+// (Tingting, Yuna, Samantha…) after. Asked for here, on page load, so the list
+// is whole by the time anyone presses ▶. Without this the FIRST press found
+// only network voices and spoke with one — a different, often robotic-sounding
+// voice from every press after it.
+globalThis.speechSynthesis?.getVoices();
 
 function speak(word, accent = 'uk', lang) {
   const voices = LANG.pick(lang, word).voices;
