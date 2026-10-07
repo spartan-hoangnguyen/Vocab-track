@@ -1,5 +1,32 @@
 let button = null;
 
+// Reloading or updating the extension cuts every content script already on an
+// open page off from it: chrome.runtime.id goes undefined and sendMessage
+// throws "Extension context invalidated". Nothing here can reconnect — only a
+// page reload injects a fresh copy — so say that on the page instead of
+// throwing into the console and leaving the click doing nothing.
+function sendLookup(message) {
+  if (!chrome.runtime?.id) {
+    staleNotice();
+    return;
+  }
+  chrome.runtime.sendMessage(message);
+}
+
+function staleNotice() {
+  const note = document.createElement('div');
+  note.setAttribute('role', 'status');
+  note.textContent = 'Vocab-track was updated — reload this page to look words up again.';
+  note.style.cssText = [
+    'all:revert', 'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
+    'z-index:2147483647', 'font:13px/1.4 system-ui,sans-serif', 'padding:8px 12px',
+    'background:#1c1a17', 'color:#faf7f2', 'border-radius:8px', 'box-shadow:0 1px 4px rgba(0,0,0,.3)'
+  ].join(';');
+  document.body.appendChild(note);
+  setTimeout(() => note.remove(), STALE_NOTICE_MS);
+}
+const STALE_NOTICE_MS = 5000;
+
 function removeButton() {
   button?.remove();
   button = null;
@@ -39,7 +66,7 @@ function showButton(word, rect, context) {
     // Stop the page seeing this and clearing the selection first.
     event.preventDefault();
     event.stopPropagation();
-    chrome.runtime.sendMessage({ type: 'lookup', word, url: location.href, context });
+    sendLookup({ type: 'lookup', word, url: location.href, context });
     // Clear the selection so the following mouseup finds no candidate and does not
     // re-show the button. preventDefault() above blocks the browser's default
     // selection-collapse, so it is still live and must be cleared explicitly.
@@ -214,7 +241,7 @@ document.addEventListener('click', (event) => {
     // panel instead of navigating away.
     event.preventDefault();
     event.stopPropagation();
-    chrome.runtime.sendMessage({
+    sendLookup({
       type: 'lookup',
       // The word is already saved, so resolveWord answers from storage with no
       // network call, and context is left null: it is never overwritten on a
@@ -320,7 +347,7 @@ function captionClick(event) {
 
   const id = VT.youtubeId(location.href);
   const seconds = Math.floor(video?.currentTime ?? 0);
-  chrome.runtime.sendMessage({
+  sendLookup({
     type: 'lookup',
     word: hit.word,
     // The timestamp IS the position, the way a text fragment is on a page.
