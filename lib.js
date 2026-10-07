@@ -81,8 +81,10 @@ const VT = {
     if (!text) return null;
     // Split after . ! ? followed by a space — deliberately naive. It can cut
     // an abbreviation ("Dr. Smith") in two; a wrong sentence boundary costs a
-    // slightly odd quote, which is not worth a parser to avoid.
-    const sentences = text.split(/(?<=[.!?])\s+/);
+    // slightly odd quote, which is not worth a parser to avoid. The full-width
+    // 。！？； end a Chinese sentence with no space after them, so they split
+    // on their own.
+    const sentences = text.split(/(?<=[.!?])\s+|(?<=[。！？；])\s*/);
     for (const sentence of sentences) {
       if (VT.has(word, sentence, lang)) {
         const trimmed = sentence.trim();
@@ -611,6 +613,9 @@ const VT = {
   // is calibrated to Latin letter widths, and the long-word beat below never
   // fires on an 어절, which is rarely over four characters. Upgrade path:
   // per-pack pivotOf/holdFor overrides. reader.js needs no edit either way.
+  // Chinese is the hard ceiling: no spaces, so tokenise hands RSVP a whole
+  // clause as one flash. Known limit, out of scope for R013; the fix is a
+  // per-pack tokenise on Intl.Segmenter, the same one lang/zh/index.js uses.
   //
   // Milliseconds to hold one token. A flat 60000/wpm reads like a metronome
   // and loses every sentence boundary; these are the pauses a real reader
@@ -690,13 +695,15 @@ const VT = {
     const [hit] = VT.find(word, clean, lang);
     if (!hit) return url;
 
-    const before = clean.slice(0, hit.index).split(' ').filter(Boolean);
-    const after = clean.slice(hit.index + hit.length).split(' ').filter(Boolean);
-    const snippet = [
-      ...before.slice(-VT.FRAGMENT_WORDS),
-      clean.slice(hit.index, hit.index + hit.length),
-      ...after.slice(0, VT.FRAGMENT_WORDS)
-    ].join(' ').trim();
+    // Sliced out of the context, never re-joined with spaces: Chinese has none
+    // between words, so a join would put spaces the page does not have into
+    // the fragment and Chrome would match nothing. Up to FRAGMENT_WORDS
+    // space-separated words each side; an unspaced context keeps its whole
+    // run, which is at most the one sentence sentenceAround saved.
+    const N = VT.FRAGMENT_WORDS;
+    const before = clean.slice(0, hit.index).match(new RegExp(`(?:\\S+\\s+){0,${N}}\\S*$`))[0];
+    const after = clean.slice(hit.index + hit.length).match(new RegExp(`^\\S*(?:\\s+\\S+){0,${N}}`))[0];
+    const snippet = (before + clean.slice(hit.index, hit.index + hit.length) + after).trim();
     if (!snippet) return url;
 
     // Strip any fragment the saved URL already had: two #s would be invalid.

@@ -581,6 +581,24 @@ async function parserTests() {
   check('existing fragment is replaced, not appended',
         VT.sourceLink('https://e.com/p#section', CTX, 'resilient').split('#').length === 2);
 
+  // --- Chinese: sentences end in 。！？； with no space after, and nothing
+  // separates words, so both the splitter and the fragment must cope.
+  const zhPara = '今天天气很好。我是学生，我喜欢学习中文！你呢？';
+  eq('a Chinese context splits on 。 and keeps one sentence',
+     VT.sentenceAround(zhPara, '学生'), '我是学生，我喜欢学习中文！');
+  eq('and picks the sentence the word is in',
+     VT.sentenceAround(zhPara, '天气'), '今天天气很好。');
+  eq('a saved 学 is not found inside 学生', VT.sentenceAround(zhPara, '学'), null);
+  eq('fill-blank blanks exactly the Chinese word',
+     VT.blank('我是学生，我喜欢学习中文！', VT.find('学生', '我是学生，我喜欢学习中文！', 'zh')),
+     '我是…，我喜欢学习中文！');
+  const zhLink = VT.sourceLink('https://zh.example.com/a', '我是学生，我喜欢学习中文！', '学生', 'zh');
+  eq('a Chinese fragment is the context as the page spells it, no spaces added',
+     decodeURIComponent(zhLink.split('#:~:text=')[1]), '我是学生，我喜欢学习中文！');
+  eq('a fragment keeps the punctuation glued to the word',
+     decodeURIComponent(VT.sourceLink('https://e.com', 'one two resilient, three four', 'resilient')
+       .split('#:~:text=')[1]), 'one two resilient, three four');
+
   // --- youtubeId
   const WATCH = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=94s';
   eq('reads the video id', VT.youtubeId(WATCH), 'dQw4w9WgXcQ');

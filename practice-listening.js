@@ -90,6 +90,9 @@
     // silent (lookup.js:122).
     eligible: (entry) => {
       const pack = LANG.of(entry);
+      // Not Chinese yet: its voice is a bare 'zh' until T008 names zh-CN, and a
+      // bare tag can land on a Cantonese (zh-HK) voice.
+      if (pack.id === 'zh') return false;
       return String(entry.word).trim().split(/\s+/).every((part) => pack.isCandidate(part))
         && speakable(pack);
     },

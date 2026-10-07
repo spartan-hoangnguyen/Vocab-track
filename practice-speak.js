@@ -316,7 +316,9 @@ PRACTICE.register('speak', {
   // true by accident, and reading as a bug the first time someone timed it.
   // Zero says it on purpose: this mode tops out at Good.
   fast: 0,
-  eligible: (entry) => !!entry.word,
+  // Not Chinese yet: recognition has no zh-CN tag until T008, and MIN_WORDS
+  // counts spaces, which a Chinese sentence has none of — it could never pass.
+  eligible: (entry) => !!entry.word && LANG.of(entry).id !== 'zh',
   ask: SPEAK.ask,
   async selfTest() {
     const out = [];

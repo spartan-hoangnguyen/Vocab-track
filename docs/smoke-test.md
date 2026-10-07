@@ -592,6 +592,29 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     → no 📘 button. A kanji-only selection (`学生` on a Japanese page) does get
     one and is treated as Chinese — a known limit.
 
+## Chinese: on the page and in practice
+
+93. **Whole words only.** Save `学生`, and separately save `学`. Open a page with
+    `我是学生` on it: `学生` is highlighted, and no highlight sits on the `学`
+    inside it. A page with `学` standing alone (`学而不思则罔`) highlights it.
+
+94. **One sentence, not the paragraph.** Save a word from a Chinese paragraph
+    of several sentences. The card's context is the one sentence the word was
+    in, ending at its `。`, `！` or `？` — not the whole paragraph.
+
+95. **Back to the spot.** On that card, click the source link: the page opens
+    scrolled to the sentence with it highlighted. (The fragment is the sentence
+    as written; if it was cut with `…` the link still opens the page.)
+
+96. **Fill the gap.** With four Chinese words that have a saved sentence, open
+    Practice → Fill the gap. The sentence shows `_____` exactly where the word
+    was, and nothing of the word leaks around the gap. Listening and Speak do
+    not offer Chinese cards yet (T008).
+
+97. **RSVP is not tuned for Chinese.** Starting the speed reader on a Chinese
+    article flashes whole clauses at once, because Chinese has no spaces to
+    split on. Known limit.
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture
