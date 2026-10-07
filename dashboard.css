@@ -150,6 +150,11 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #giphy-key{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--rule);
            border-radius:9px;background:var(--panel);color:var(--ink);
            font:13px ui-monospace,Menlo,monospace}
+/* The AnkiConnect origin, shown to copy verbatim: wraps rather than overflowing
+   the card, and selectable as one token. */
+#anki-origin{display:inline-block;word-break:break-all;user-select:all;
+             font:12px ui-monospace,Menlo,monospace;background:var(--panel);
+             border:1px solid var(--rule);border-radius:6px;padding:4px 7px;color:var(--ink2)}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);

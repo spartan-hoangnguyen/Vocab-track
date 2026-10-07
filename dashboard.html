@@ -326,6 +326,20 @@
         <input type="text" id="giphy-key" placeholder="GIPHY API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
       </div>
+      <div class="iocard">
+        <h3>Push to Anki</h3>
+        <p>Create Anki cards (word → meaning) from your
+           <b id="anki-lang">English</b> words, through the AnkiConnect add-on.
+           Open the Anki desktop app first. One-time setup: add this origin to
+           AnkiConnect's <code>webCorsOriginList</code> (Anki → Tools → Add-ons →
+           AnkiConnect → Config), then restart Anki.</p>
+        <p><code id="anki-origin"></code></p>
+        <div class="dlgrow">
+          <button class="btn ghost" id="anki-test">Test connection</button>
+          <button class="btn" id="anki-push">Push to Anki</button>
+        </div>
+        <div class="note" id="anki-note"></div>
+      </div>
     </div>
   </section>
 </main>
@@ -375,6 +389,7 @@
 <script src="store.js"></script>
 <script src="lookup.js"></script>
 <script src="giphy.js"></script>
+<script src="anki.js"></script>
 <script src="practice.js"></script>
 <script src="practice-quiz.js"></script>
 <script src="practice-listening.js"></script>

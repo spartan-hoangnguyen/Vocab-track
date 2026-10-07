@@ -204,6 +204,26 @@ effect in every open tab straight away. LanguageTool is open source and
 self-hostable; pointing `LT_URL` in `service-worker.js` at your own container
 is the whole change if you ever want nothing to leave the machine at all.
 
+## Push to Anki
+
+The dashboard can create Anki cards from your words, through the AnkiConnect
+add-on. Each card shows the word on the front. The back shows the meaning, the
+definition, an example, the level and the GIF. The review schedule stays in
+Vocab-track. Anki runs its own.
+
+Set it up once:
+
+1. Install the **AnkiConnect** add-on in the Anki desktop app. Its code is
+   `2055492159`.
+2. Open **Import & export → Push to Anki** in the dashboard. Copy the origin it
+   shows.
+3. In Anki, open **Tools → Add-ons → AnkiConnect → Config**. Add that origin to
+   `webCorsOriginList`. Restart Anki.
+
+Open Anki, then press **Test connection** and **Push to Anki**. It pushes the
+words for the language the toggle shows, into a deck named `Vocab-track`. A
+re-push adds only new words, because a word already in the deck is skipped.
+
 ## Word lists
 
 **The two English lists are not committed here — you build them.** Their
@@ -345,7 +365,7 @@ carry the 초급/중급/고급 names and not TOPIK levels.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Five things leave your browser, each only when you do something that needs it:
+Six things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -354,6 +374,7 @@ Five things leave your browser, each only when you do something that needs it:
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, so nothing leaves it |
 
 GIFs on cards are off until you add your own GIPHY API key. The key field is
 under **Import & export**, in **GIFs on cards**. The key is kept in

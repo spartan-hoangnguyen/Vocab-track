@@ -793,6 +793,42 @@ async function parserTests() {
   eq('giphyPick returns null on no results', giphyPick({ data: [] }), null);
   eq('giphyPick returns null on a junk response', giphyPick(null), null);
 
+  // --- push to Anki (anki.js). The pure note builder only; ankiInvoke is
+  // network. Anki renders a field as HTML, so third-party text must be escaped.
+  eq('escapeHtml neutralises angle brackets', escapeHtml('<b>'), '&lt;b&gt;');
+  eq('escapeHtml neutralises ampersand and quotes', escapeHtml('a&"\''), 'a&amp;&quot;&#39;');
+  eq('ankiTag strips spaces', ankiTag('IELTS C1'), 'IELTS_C1');
+
+  const aNote = ankiNote(
+    { word: 'resilient', lang: 'en', ipa: 'rɪˈzɪljənt', vi: 'kiên cường',
+      def: 'able to recover', level: 'C1', senses: [{ example: 'a resilient girl' }] },
+    'Vocab-track::English', ['IELTS C1']);
+  eq('the front is the bare word, for stable dedupe', aNote.fields.Front, 'resilient');
+  eq('the note uses the Basic model', aNote.modelName, 'Basic');
+  eq('and the deck it was given', aNote.deckName, 'Vocab-track::English');
+  check('the back carries the meaning', aNote.fields.Back.includes('kiên cường'));
+  check('the back carries the IPA', aNote.fields.Back.includes('/rɪˈzɪljənt/'));
+  check('the back carries the example', aNote.fields.Back.includes('a resilient girl'));
+  check('a re-push skips duplicates', aNote.options.allowDuplicate === false);
+  check('tags carry the source, language and folder',
+        aNote.tags.includes('vocab-track') && aNote.tags.includes('lang::en')
+        && aNote.tags.includes('IELTS_C1'));
+
+  // The injection path: a gloss or definition from the translator, rendered as
+  // HTML in Anki. It must come out escaped, never as a live tag.
+  const aEvil = ankiNote({ word: 'w', lang: 'en', def: '<img src=x onerror=alert(1)>' }, 'D');
+  check('a definition cannot smuggle a live tag into Anki',
+        !aEvil.fields.Back.includes('<img src=x onerror')
+        && aEvil.fields.Back.includes('&lt;img src=x onerror=alert(1)&gt;'),
+        aEvil.fields.Back);
+
+  // The GIF is the one allowed <img>, and only when VT.giphyOk passes its URL.
+  const aGif = ankiNote({ word: 'w', lang: 'en', gif: 'https://media.giphy.com/media/a/200.gif' }, 'D');
+  check('a valid giphy url becomes an image',
+        aGif.fields.Back.includes('<img src="https://media.giphy.com/media/a/200.gif"'));
+  const aBadGif = ankiNote({ word: 'w', lang: 'en', gif: 'https://evil.test/x.gif' }, 'D');
+  check('an off-giphy gif url is never an image', !aBadGif.fields.Back.includes('<img'));
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 }

@@ -140,6 +140,9 @@ function render() {
   renderOverview(all);
   renderWords(all);
   renderLang();
+  // The Push to Anki card names the language it will push, so it follows the
+  // toggle like everything else.
+  $('anki-lang').textContent = LANG.get(activeLang).name;
   // Unfiltered, and deliberately: "days with a new word" is a habit, not a view
   // of the language being studied. Halving the streak on a toggle press would
   // read as data loss for something the toggle did not touch.
@@ -865,6 +868,86 @@ $('import-file').addEventListener('change', async (event) => {
     event.target.value = '';
   }
 });
+
+/* ---------- push to Anki ---------- */
+
+// The origin AnkiConnect must whitelist. Shown in the settings card so the user
+// can copy it into webCorsOriginList verbatim.
+function ankiOrigin() {
+  return `chrome-extension://${chrome.runtime.id}`;
+}
+
+// One of three sentences, because the three failures want different fixes.
+// A thrown fetch is Anki not running; an error carrying 403/CORS/origin is the
+// add-on refusing this extension; anything else is the add-on's own message.
+function ankiMessage(err) {
+  const msg = String(err?.message ?? err);
+  if (/Failed to fetch|NetworkError|ERR_CONNECTION/i.test(msg)) {
+    return 'Could not reach Anki. Open the Anki desktop app with the AnkiConnect '
+      + 'add-on installed, then try again.';
+  }
+  if (/\b403\b|cors|origin/i.test(msg)) {
+    return `AnkiConnect blocked this extension. Add ${ankiOrigin()} to its `
+      + 'webCorsOriginList (Anki → Tools → Add-ons → AnkiConnect → Config), then '
+      + 'restart Anki.';
+  }
+  return `Anki error: ${msg}`;
+}
+
+async function testAnki() {
+  const note = $('anki-note');
+  note.textContent = 'Testing…';
+  try {
+    const version = await ankiInvoke('version');
+    note.textContent = `Connected to AnkiConnect (version ${version}).`;
+  } catch (err) {
+    note.textContent = ankiMessage(err);
+  }
+}
+
+let pushingAnki = false;
+
+async function pushToAnki() {
+  if (pushingAnki) return;
+  const note = $('anki-note');
+  const lang = LANG.get(activeLang);
+  // The same scope the review uses: this language, skipped words left out.
+  const scope = Object.values(words)
+    .filter((entry) => VT.isLearnable(entry) && LANG.of(entry).id === activeLang);
+  if (!scope.length) {
+    note.textContent = `No ${lang.name} words to push.`;
+    return;
+  }
+  pushingAnki = true;
+  const btn = $('anki-push');
+  btn.disabled = true;
+  note.textContent = `Pushing ${scope.length} ${lang.name} word${scope.length === 1 ? '' : 's'}…`;
+  try {
+    const deckName = `Vocab-track::${lang.name}`;
+    await ankiInvoke('createDeck', { deck: deckName });
+    const notes = scope.map((entry) => ankiNote(entry, deckName,
+      // Real folders only, not From reading / Starred — a `From_reading` tag on
+      // every single note is noise. Same auto filter renderCard uses (:1096).
+      VT.foldersOf(entry)
+        .filter((id) => folders[id] && !folders[id].auto)
+        .map((id) => folders[id].name)));
+    // addNotes returns an id per note, or null where the note was a duplicate or
+    // could not be added — so the count of nulls is what was already in Anki.
+    const result = await ankiInvoke('addNotes', { notes });
+    const added = (result ?? []).filter((id) => id != null).length;
+    const skipped = (result ?? []).length - added;
+    note.textContent = `Added ${added} to “${deckName}” · ${skipped} already in Anki.`;
+  } catch (err) {
+    note.textContent = ankiMessage(err);
+  } finally {
+    pushingAnki = false;
+    btn.disabled = false;
+  }
+}
+
+$('anki-origin').textContent = ankiOrigin();
+$('anki-test').addEventListener('click', testAnki);
+$('anki-push').addEventListener('click', pushToAnki);
 
 /* ---------- search & shortcuts ---------- */
 
