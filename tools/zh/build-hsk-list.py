@@ -13,7 +13,7 @@ Two outputs from one source, for the same split English has:
 Source: https://github.com/drkameleon/complete-hsk-vocabulary (MIT). Its
 `level` array tags each word with every list it is on; `old-N` is HSK 2.0,
 which is what lang/zh/index.js `levels` names. A word on more than one old
-level keeps the easiest. 4,998 words.
+level keeps the easiest. 4,991 words once duplicates fold.
 
 A starter card carries pinyin in `ipa` and the source's English meanings in
 `def`, which VT.glossOf falls back to when there is no Vietnamese gloss. No MT

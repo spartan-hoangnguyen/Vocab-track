@@ -133,6 +133,7 @@ nav button.active{background:var(--card);color:var(--ink);font-weight:600;
 #quiz-verdict{font-size:13px;font-weight:600;margin:14px 0 0}
 #quiz-verdict.good{color:var(--good)}
 #quiz-verdict.bad{color:var(--bad)}
+.quizhint{margin:6px 0 0;font-size:12px;line-height:1.4;color:var(--ink2)}
 .quizafter{display:flex;gap:8px;margin:14px 0 0}
 .quizafter button{flex:1;padding:9px 12px;border:1px solid var(--rule);border-radius:9px;
                   background:var(--panel);color:var(--ink);font:inherit;font-size:13px;

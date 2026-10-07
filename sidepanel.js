@@ -416,6 +416,7 @@ async function startQuiz(entry) {
   showView('quiz');
   quizEntry = entry;
   quizAnswered = false;
+  $('quiz-voice-hint').hidden = true;
   $('quiz-empty').hidden = true;
   $('quiz-card').hidden = false;
   $('quiz-word').textContent = entry.word;
@@ -460,7 +461,10 @@ function answerQuiz(correct, button) {
   // Deliberately no putWord and no VT.sm2. This is self-testing while you
   // read; ease, interval and due only move in the dashboard's review, where
   // you chose to sit down and be graded.
-  pronounce(quizEntry);
+  if (!pronounce(quizEntry)) {
+    $('quiz-voice-hint').textContent = voiceHint(LANG.of(quizEntry));
+    $('quiz-voice-hint').hidden = false;
+  }
 }
 
 $('quiz-full').addEventListener('click', () => {
