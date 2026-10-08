@@ -220,9 +220,11 @@ Set it up once:
 3. In Anki, open **Tools → Add-ons → AnkiConnect → Config**. Add that origin to
    `webCorsOriginList`. Restart Anki.
 
-Open Anki, then press **Test connection** and **Push to Anki**. It pushes the
-words for the language the toggle shows, into a deck named `Vocab-track`. A
-re-push adds only new words, because a word already in the deck is skipped.
+Open Anki, then press **Test connection**. This loads your Anki decks into the
+picker. Choose one of your decks, or keep the new `Vocab-track` deck the picker
+offers. Then press **Push to Anki**. It pushes the words for the language the
+toggle shows. A re-push adds only new words, because a word already in that deck
+is skipped.
 
 ## Word lists
 

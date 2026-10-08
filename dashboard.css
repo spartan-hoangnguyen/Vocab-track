@@ -155,6 +155,10 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #anki-origin{display:inline-block;word-break:break-all;user-select:all;
              font:12px ui-monospace,Menlo,monospace;background:var(--panel);
              border:1px solid var(--rule);border-radius:6px;padding:4px 7px;color:var(--ink2)}
+.anki-deckrow{display:flex;align-items:center;gap:9px;margin:14px 0 0}
+.anki-deckrow label{font-size:13px;color:var(--ink2)}
+#anki-deck{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);
+           border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);

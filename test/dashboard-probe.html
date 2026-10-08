@@ -1275,6 +1275,7 @@ ready.then(() => setTimeout(async () => {
     ankiCalls.push(body);
     let result = null;
     if (body.action === 'version') result = 6;
+    else if (body.action === 'deckNames') result = ['Default', 'French', 'Vocab-track::English'];
     else if (body.action === 'createDeck') result = 1;
     else if (body.action === 'addNotes') result = body.params.notes.map((n, i) => (i === 0 ? null : 2000 + i));
     return { ok: true, json: async () => ({ result, error: null }) };
@@ -1308,6 +1309,22 @@ ready.then(() => setTimeout(async () => {
   check('push reports what was added and what was already there',
         /Added 1 .* 1 already in Anki/.test(document.getElementById('anki-note').textContent),
         document.getElementById('anki-note').textContent);
+  check('with no decks loaded, the push targets the new-deck default',
+        addCall.params.notes[0].deckName === 'Vocab-track::English');
+
+  // Test connection fills the picker with Anki's own decks; a push then goes to
+  // the chosen deck, not the default.
+  ankiCalls.length = 0;
+  await testAnki();
+  check('Test connection fills the deck picker from Anki',
+        [...document.getElementById('anki-deck').options].some((o) => o.value === 'French'));
+  document.getElementById('anki-deck').value = 'French';
+  await pushToAnki();
+  const add2 = ankiCalls.find((c) => c.action === 'addNotes');
+  check('the push targets the chosen existing deck',
+        add2.params.notes[0].deckName === 'French', add2.params.notes[0].deckName);
+  check('and creates it first, which is a no-op when the deck exists',
+        ankiCalls.some((c) => c.action === 'createDeck' && c.params.deck === 'French'));
 
   // The three failures, each its own sentence.
   window.fetch = async () => { throw new TypeError('Failed to fetch'); };

@@ -141,8 +141,9 @@ function render() {
   renderWords(all);
   renderLang();
   // The Push to Anki card names the language it will push, so it follows the
-  // toggle like everything else.
+  // toggle like everything else. The deck picker's default option follows too.
   $('anki-lang').textContent = LANG.get(activeLang).name;
+  syncAnkiDefault();
   // Unfiltered, and deliberately: "days with a new word" is a habit, not a view
   // of the language being studied. Halving the streak on a toggle press would
   // read as data loss for something the toggle did not touch.
@@ -894,12 +895,48 @@ function ankiMessage(err) {
   return `Anki error: ${msg}`;
 }
 
+// The deck the push goes to when the picker's first option is chosen: a fresh
+// Vocab-track deck for the active language. createDeck makes it if it is new and
+// is a no-op if it already exists, so this value is always safe to push to.
+function ankiDefaultDeck() {
+  return `Vocab-track::${LANG.get(activeLang).name}`;
+}
+
+// The picker's first option is that default; the rest are the decks Anki already
+// has, loaded on a successful connection. Only the first option is touched here,
+// so a render — which runs on every storage change — cannot wipe a loaded list
+// or the deck the user just chose.
+function syncAnkiDefault() {
+  const sel = $('anki-deck');
+  if (!sel) return;
+  if (!sel.options.length) sel.add(new Option());
+  const wasFirst = sel.selectedIndex <= 0;
+  sel.options[0].value = ankiDefaultDeck();
+  sel.options[0].textContent = `New deck: ${ankiDefaultDeck()}`;
+  if (wasFirst) sel.selectedIndex = 0;
+}
+
+// Fill the picker with the decks Anki already has, keeping the new-deck default
+// first. The user's current choice survives if that deck is still there.
+async function loadAnkiDecks() {
+  const names = await ankiInvoke('deckNames');
+  const sel = $('anki-deck');
+  const prev = sel.value;
+  const def = sel.options[0]?.value;
+  while (sel.options.length > 1) sel.remove(1);
+  for (const name of [...names].sort()) {
+    if (name !== def) sel.add(new Option(name, name));
+  }
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+}
+
 async function testAnki() {
   const note = $('anki-note');
   note.textContent = 'Testing…';
   try {
     const version = await ankiInvoke('version');
-    note.textContent = `Connected to AnkiConnect (version ${version}).`;
+    await loadAnkiDecks();
+    note.textContent = `Connected to AnkiConnect (version ${version}). Your decks are in the picker.`;
   } catch (err) {
     note.textContent = ankiMessage(err);
   }
@@ -923,7 +960,9 @@ async function pushToAnki() {
   btn.disabled = true;
   note.textContent = `Pushing ${scope.length} ${lang.name} word${scope.length === 1 ? '' : 's'}…`;
   try {
-    const deckName = `Vocab-track::${lang.name}`;
+    // Whatever deck is picked — an existing one, or the new-deck default.
+    // createDeck is a no-op on a deck that already exists.
+    const deckName = $('anki-deck').value || ankiDefaultDeck();
     await ankiInvoke('createDeck', { deck: deckName });
     const notes = scope.map((entry) => ankiNote(entry, deckName,
       // Real folders only, not From reading / Starred — a `From_reading` tag on
@@ -946,6 +985,7 @@ async function pushToAnki() {
 }
 
 $('anki-origin').textContent = ankiOrigin();
+syncAnkiDefault();
 $('anki-test').addEventListener('click', testAnki);
 $('anki-push').addEventListener('click', pushToAnki);
 
