@@ -7,7 +7,9 @@ Select a word on any page, click the button that appears, and the side panel
 shows what the dictionary has. For English that is a Datamuse entry: the
 definition of each sense, the part of speech, and synonyms, alongside a
 Vietnamese translation and **the sentence you met it in**. The CEFR level comes
-from a bundled word list, because no lookup carries it. The IPA is rebuilt from
+from a bundled word list, because no lookup carries it. A word the list does not
+have gets a level estimated from its frequency, marked with a `~`. The IPA is
+rebuilt from
 the word's CMU pronunciation. There is no recorded audio from this source. The
 play button speaks the word with the system voice, and the **Wiktionary ↗** link
 opens the full entry.
@@ -292,9 +294,15 @@ two open sources through [Open Language Profiles](https://github.com/openlanguag
 The CEFR-J Vocabulary Profile 1.5 covers A1 to B2. It is from Tono Laboratory at
 Tokyo University of Foreign Studies, free to use with citation. The Octanove
 Vocabulary Profile C1/C2 1.0 covers C1 and C2, under CC BY-SA 4.0. A word takes
-the easiest level any sense of it has. A word outside the list, such as a proper
-noun, has no level. This file ships with the extension and loads in the side
-panel and the dashboard, never in the content script.
+the easiest level any sense of it has. This file ships with the extension and
+loads in the side panel and the dashboard, never in the content script.
+
+A word the list does not have takes an estimated level instead, from its
+frequency. The dictionary lookup already asks Datamuse for the word, and asks
+for the frequency in the same request. A frequency tracks CEFR only loosely, so
+this is a coarse band within about one level of the real one. The card marks it
+with a `~`, and the estimate is set only on a fresh lookup, not on words saved
+before. A word with no frequency either, such as a proper noun, has no level.
 
 ### Phrasal verbs
 

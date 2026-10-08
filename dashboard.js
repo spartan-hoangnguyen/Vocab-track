@@ -459,7 +459,11 @@ function wordCard(entry) {
   title.title = 'Pronounce';
   title.addEventListener('click', () => speakWord(entry));
   head.appendChild(title);
-  if (entry.level) head.appendChild(el('span', 'lvl', entry.level));
+  if (entry.level) {
+    const lvl = el('span', 'lvl', VT.levelText(entry));
+    if (entry.levelEst) lvl.title = 'Estimated from word frequency, not a looked-up CEFR level';
+    head.appendChild(lvl);
+  }
   if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
   if (entry.ipa) head.appendChild(el('span', 'wc-ipa', `/${entry.ipa}/`));
 
@@ -1401,7 +1405,8 @@ function renderCard() {
   }
 
   canType = !!(entry.vi || entry.def);
-  $('rv-level').textContent = entry.level ?? DASH;
+  $('rv-level').textContent = VT.levelText(entry) ?? DASH;
+  $('rv-level').title = entry.levelEst ? 'Estimated from word frequency' : '';
   // Instruction text, and wrong on screen the moment a Korean card appears. Per
   // card rather than per toggle, because the card is the thing being asked for;
   // dashboard.html's attribute is only the value before the first render.

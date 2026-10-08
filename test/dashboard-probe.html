@@ -1076,9 +1076,30 @@ ready.then(() => setTimeout(async () => {
   check('a 404 with no gloss is a real not-found', missed404.notFound === true,
         JSON.stringify(missed404).slice(0, 80));
   check('and nothing is saved for a true non-word', !STORE.words.zzjunkword);
+
+  // A known word saved with no dictionary data (a transient failure on the first
+  // save) is repaired on a later lookup: the known path re-fetches when there is
+  // no level and no definition, and fills only the nulls.
+  STORE.words.brokenword = {
+    word: 'brokenword', lang: 'en', vi: 'x', level: null, def: null, ipa: null,
+    senses: [], synonyms: [], sources: ['u'], folders: ['reading'], added: 1,
+    interval: 0, reps: 0, due: 1
+  };
+  window.fetchEntry = async () => ({
+    level: 'B2', levelEst: true, ipa: null, def: 'a definition',
+    senses: [{ def: 'a definition', example: null }], synonyms: ['syn']
+  });
+  window.glossFor = async () => ({ vi: 'x', failed: null });
+  await resolveWord('brokenword', 'u', [], null, 'en');
+  check('a known word with no dictionary data is repaired on re-lookup',
+        STORE.words.brokenword?.def === 'a definition' && STORE.words.brokenword?.level === 'B2',
+        JSON.stringify(STORE.words.brokenword).slice(0, 100));
+  check('and the repaired level is marked estimated', STORE.words.brokenword?.levelEst === true);
+
   window.fetchEntry = realFetchEntry;
   window.glossFor = realGlossFor;
   delete STORE.words.francetest;
+  delete STORE.words.brokenword;
 
   /* ---- the GIF control on a words-list card --------------------------------
      This is the place the user kept looking. gifSection gates on the key the
@@ -1102,6 +1123,12 @@ ready.then(() => setTimeout(async () => {
   check('an off-giphy stored url is never put in an img',
         !gifEvil.querySelector('.wc-gif img'));
   giphyKey = '';
+
+  // An estimated level shows with a trailing ~ on the card; an exact one is bare.
+  check('an estimated level renders with a ~',
+        wordCard(mk('estword', { level: 'C1', levelEst: true })).querySelector('.lvl')?.textContent === 'C1~');
+  check('an exact level renders bare',
+        wordCard(mk('exactword', { level: 'B2' })).querySelector('.lvl')?.textContent === 'B2');
 
   /* ---- CEFR backfill gives a level to English words that lost it ----------
      The lookup stopped carrying a CEFR level, so words saved in between sit under

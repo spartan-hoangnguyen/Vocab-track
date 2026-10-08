@@ -722,6 +722,15 @@ const VT = {
     return order[ranks[Math.floor(ranks.length / 2)]];
   },
 
+  // The level as shown on a card: the bare level, with a trailing ~ when it was
+  // estimated from frequency rather than read from the curated list. Null when
+  // there is no level at all. The charts bucket on the bare `level`, so this is
+  // display only.
+  levelText(entry) {
+    if (!entry?.level) return null;
+    return entry.level + (entry.levelEst ? '~' : '');
+  },
+
   // `lang` is the pack the word belongs to. Detected from the script when not
   // given, so a caller that predates languages — tools/ielts-parse.html, the
   // tests — keeps producing exactly what it did before.
@@ -731,6 +740,10 @@ const VT = {
       lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
       folders: [VT.READING],
       level: parsed.level,
+      // Only written when the level was estimated from frequency rather than
+      // read from the curated list, so no stray field sits on every word (a
+      // keyless Korean import has no estimate at all). The UI marks it.
+      ...(parsed.levelEst ? { levelEst: true } : {}),
       ipa: parsed.ipa,
       def: parsed.def,
       audio: parsed.audio,

@@ -124,8 +124,38 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
         patch.vi = gloss.vi;
       }
     }
+    // The dictionary is retried for the same reason the gloss is: the lookup can
+    // fail transiently (a Datamuse 522) when a word is first saved, leaving it
+    // with no level and no definition, and the known path returns before any
+    // dictionary call — so clicking it again could never repair it. Only when
+    // there is NO dictionary data at all, and only nulls and empty lists are
+    // filled; an existing field is never overwritten. A word the dictionary
+    // genuinely lacks comes back notFound and nothing is added.
+    let dictFailed = null;
+    if (!known.level && !known.def && !known.ipa) {
+      const parsed = await fetchEntry(word, pack.id);
+      if (!parsed.notFound) {
+        dictFailed = parsed.failed ?? null;
+        for (const field of ['level', 'ipa', 'ipaUs', 'audio', 'audioUs', 'def', 'pos', 'gram']) {
+          if (parsed[field] != null && known[field] == null) {
+            known[field] = parsed[field];
+            patch[field] = parsed[field];
+          }
+        }
+        if (patch.level != null && parsed.levelEst) {
+          known.levelEst = true;
+          patch.levelEst = true;
+        }
+        for (const field of ['senses', 'synonyms', 'related', 'opposites']) {
+          if (Array.isArray(parsed[field]) && parsed[field].length && !known[field]?.length) {
+            known[field] = parsed[field];
+            patch[field] = parsed[field];
+          }
+        }
+      }
+    }
     if (Object.keys(patch).length) await putWord(word, patch);
-    return { entry: known, failed: { dict: null, gloss: glossFailed } };
+    return { entry: known, failed: { dict: dictFailed, gloss: glossFailed } };
   }
 
   const [parsed, gloss] = await Promise.all([

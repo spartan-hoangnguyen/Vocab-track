@@ -24,6 +24,21 @@
   // shows the long form the Cambridge pack used to.
   const POS = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: null };
 
+  // A coarse CEFR band from a word's frequency per million (Datamuse md=f), for
+  // the words the curated list does not carry. Calibrated against known-level
+  // words on 2026-10-09: within about one band of the real CEFR, so it is an
+  // ESTIMATE the UI marks as one, not a claim of a true CEFR level. Thresholds
+  // in frequency per million, most frequent first.
+  function freqToLevel(freq) {
+    if (!(freq > 0)) return null;
+    if (freq >= 100) return 'A1';
+    if (freq >= 30) return 'A2';
+    if (freq >= 10) return 'B1';
+    if (freq >= 4) return 'B2';
+    if (freq >= 1.5) return 'C1';
+    return 'C2';
+  }
+
   // ARPAbet (the CMU Pronouncing Dictionary alphabet Datamuse returns under
   // md=r) to IPA. The lookup carries no IPA of its own, so this rebuilds the
   // pronunciation the card used to show from the phoneme string. US pronunciation
@@ -108,6 +123,12 @@
     // asks for md=r. Rebuilt into IPA so the card's pronunciation line, empty
     // since the move off Cambridge, reads again.
     const pron = (first.tags ?? []).find((tag) => tag.startsWith('pron:'));
+    // The level: the curated list first, else an estimate from frequency for a
+    // word the list does not have. levelEst marks the estimate so the UI can
+    // show it as approximate.
+    const exactLevel = typeof cefrLevel === 'function' ? cefrLevel(first.word) : null;
+    const freqTag = (first.tags ?? []).find((tag) => tag.startsWith('f:'));
+    const level = exactLevel ?? freqToLevel(freqTag ? parseFloat(freqTag.slice(2)) : NaN);
     const headword = String(first.word ?? '').toLowerCase();
     const synonyms = [...new Set((syns ?? []).map((s) => s?.word).filter(Boolean))]
       .filter((word) => word.toLowerCase() !== headword)
@@ -121,11 +142,10 @@
       ipa: pron ? arpaToIpa(pron.slice(5)) : null,
       ipaUs: null,
       audio: null, audioUs: null,
-      // The level is the one field no lookup API carries. The English pack reads
-      // it from the bundled CEFR list (lang/en/cefr.js, loaded alongside this
-      // file in the panel, the dashboard and the test page). Guarded so a context
-      // that somehow lacks the list degrades to no level rather than throwing.
-      level: typeof cefrLevel === 'function' ? cefrLevel(first.word) : null,
+      // The curated level (lang/en/cefr.js), or the frequency estimate above.
+      level,
+      // True when the level is the estimate, so the UI can mark it approximate.
+      levelEst: !exactLevel && level != null,
       def: senses[0]?.def ?? null,
       senses,
       synonyms,
@@ -141,7 +161,7 @@
     // do not add up. A short timeout and NO retry: Datamuse answers in ~100ms,
     // so a request that is still open at 7s is a dead network, and retrying it
     // only doubles the wait before the word saves with its gloss anyway.
-    const defsUrl = `${DATAMUSE}?sp=${encodeURIComponent(word)}&md=dpr&max=1`;
+    const defsUrl = `${DATAMUSE}?sp=${encodeURIComponent(word)}&md=dprf&max=1`;
     const synUrl = `${DATAMUSE}?rel_syn=${encodeURIComponent(word)}&max=${VT.MAX_XREF}`;
     try {
       const [defsRes, synRes] = await Promise.all([
@@ -179,7 +199,8 @@
     href: (word) => `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`,
     lookup,
     parse,
-    // Exposed for the test; the pack has no other reason to reach it.
-    arpaToIpa
+    // Exposed for the test; the pack has no other reason to reach them.
+    arpaToIpa,
+    freqToLevel
   });
 })();

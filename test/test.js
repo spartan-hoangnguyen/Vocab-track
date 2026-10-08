@@ -303,6 +303,29 @@ async function parserTests() {
   eq('arpaToIpa is null on empty input', ipa(''), null);
   eq('arpaToIpa is null on unknown phonemes', ipa('?? !!'), null);
 
+  // --- the frequency estimate: a level for a word the curated list lacks.
+  const f2l = enDict.freqToLevel;
+  eq('a very frequent word estimates A1', f2l(407), 'A1');
+  eq('a mid word estimates B1', f2l(12), 'B1');
+  eq('a rare word estimates C2', f2l(0.9), 'C2');
+  eq('no frequency is no level', f2l(0), null);
+
+  // A listed word keeps its exact level and is not marked estimated.
+  eq('resilient is exact, not estimated', resilient.levelEst, false);
+  // A word the list lacks takes the frequency estimate, marked estimated.
+  const est = enDict.parse(
+    { word: 'ubiquitous', defs: ['adj\tseeming to be everywhere'], tags: ['adj', 'f:2.7'] }, []);
+  eq('an unlisted word gets a level from frequency', est.level, 'C1');
+  check('and it is marked estimated', est.levelEst === true);
+  const noLvl = enDict.parse({ word: 'zxqwv', defs: ['n\tx'], tags: ['n'] }, []);
+  eq('an unlisted word with no frequency has no level', noLvl.level, null);
+  check('and is not marked estimated', noLvl.levelEst !== true);
+
+  // levelText marks an estimate with a trailing ~, for display only.
+  eq('levelText marks an estimate', VT.levelText({ level: 'C1', levelEst: true }), 'C1~');
+  eq('levelText leaves an exact level bare', VT.levelText({ level: 'B2' }), 'B2');
+  eq('levelText is null with no level', VT.levelText({ level: null }), null);
+
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');
 
