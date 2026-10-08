@@ -24,6 +24,15 @@ let pins = [];
 // Find GIF button without an async read per card. giphy.js re-reads storage for
 // the actual search, so this copy is never the source of truth for a request.
 let giphyKey = '';
+// Whether AnkiConnect has been reached at least once. Gates the per-word Push to
+// Anki control on a word card, so the cards stay clean for anyone who does not
+// use Anki, and fill with the control once a connection has worked.
+let ankiReady = false;
+// The deck last chosen in the picker, persisted. ankiReady outlives a session
+// but the picker's selection does not, so without this a per-word push on a
+// fresh dashboard open would land in the default deck rather than the one the
+// user picked last time.
+let ankiDeck = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
 const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
@@ -69,10 +78,29 @@ async function getGiphyKey() {
   return String(giphyKey ?? '').trim();
 }
 
+async function getAnkiReady() {
+  const { ankiReady } = await chrome.storage.local.get('ankiReady');
+  return ankiReady === true;
+}
+
+async function getAnkiDeck() {
+  const { ankiDeck } = await chrome.storage.local.get('ankiDeck');
+  return typeof ankiDeck === 'string' ? ankiDeck : '';
+}
+
+// Set once, the first time AnkiConnect answers. No render here; the caller
+// renders, because the two callers already do for their own reasons.
+async function markAnkiReady() {
+  if (ankiReady) return;
+  ankiReady = true;
+  await chrome.storage.local.set({ ankiReady: true });
+}
+
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey] = await Promise.all(
-    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-     getLang(), getGiphyKey()]);
+  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, ankiReady, ankiDeck] =
+    await Promise.all(
+      [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
+       getLang(), getGiphyKey(), getAnkiReady(), getAnkiDeck()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -143,7 +171,7 @@ function render() {
   // The Push to Anki card names the language it will push, so it follows the
   // toggle like everything else. The deck picker's default option follows too.
   $('anki-lang').textContent = LANG.get(activeLang).name;
-  syncAnkiDefault();
+  syncAnkiDeck();
   // Unfiltered, and deliberately: "days with a new word" is a habit, not a view
   // of the language being studied. Halving the streak on a toggle press would
   // read as data loss for something the toggle did not touch.
@@ -534,6 +562,19 @@ function wordCard(entry) {
   add.addEventListener('click', () => openTagPicker(entry));
   foot.appendChild(add);
 
+  // Push to Anki, and whether it is already there. Shown once a connection has
+  // worked, or the word has already been pushed. Both states push on click: a
+  // re-push is dedup-safe and re-adds a card that was deleted in Anki.
+  if (ankiReady || entry.anki) {
+    const inAnki = !!entry.anki;
+    const chip = el('span', `tag clickable${inAnki ? ' anki-on' : ''}`, inAnki ? '✓ Anki' : '⬆ Anki');
+    chip.title = inAnki
+      ? `In Anki deck “${entry.anki.deck}”. Click to push again.`
+      : 'Push this word to Anki';
+    chip.addEventListener('click', () => pushWordToAnki(entry, chip));
+    foot.appendChild(chip);
+  }
+
   card.appendChild(foot);
   return card;
 }
@@ -902,32 +943,37 @@ function ankiDefaultDeck() {
   return `Vocab-track::${LANG.get(activeLang).name}`;
 }
 
-// The picker's first option is that default; the rest are the decks Anki already
-// has, loaded on a successful connection. Only the first option is touched here,
-// so a render — which runs on every storage change — cannot wipe a loaded list
-// or the deck the user just chose.
-function syncAnkiDefault() {
+// The picker's first option is the new-deck default; the rest are the decks Anki
+// already has, loaded on a successful connection. The deck chosen last
+// (`ankiDeck`, persisted) is re-added as an option even before that load, so it
+// is selectable and selected on a fresh open — otherwise a per-word push would
+// go to the default rather than where the user last chose. Runs on every render,
+// re-selecting the chosen deck, which the change handler keeps current.
+function syncAnkiDeck() {
   const sel = $('anki-deck');
   if (!sel) return;
+  const def = ankiDefaultDeck();
   if (!sel.options.length) sel.add(new Option());
-  const wasFirst = sel.selectedIndex <= 0;
-  sel.options[0].value = ankiDefaultDeck();
-  sel.options[0].textContent = `New deck: ${ankiDefaultDeck()}`;
-  if (wasFirst) sel.selectedIndex = 0;
+  sel.options[0].value = def;
+  sel.options[0].textContent = `New deck: ${def}`;
+  if (ankiDeck && ankiDeck !== def && ![...sel.options].some((o) => o.value === ankiDeck)) {
+    sel.add(new Option(ankiDeck, ankiDeck));
+  }
+  const want = ankiDeck || def;
+  if ([...sel.options].some((o) => o.value === want)) sel.value = want;
 }
 
 // Fill the picker with the decks Anki already has, keeping the new-deck default
-// first. The user's current choice survives if that deck is still there.
+// first, then re-select the chosen deck.
 async function loadAnkiDecks() {
   const names = await ankiInvoke('deckNames');
   const sel = $('anki-deck');
-  const prev = sel.value;
   const def = sel.options[0]?.value;
   while (sel.options.length > 1) sel.remove(1);
   for (const name of [...names].sort()) {
     if (name !== def) sel.add(new Option(name, name));
   }
-  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  syncAnkiDeck();
 }
 
 async function testAnki() {
@@ -936,9 +982,43 @@ async function testAnki() {
   try {
     const version = await ankiInvoke('version');
     await loadAnkiDecks();
+    await markAnkiReady();
+    // So the per-word Push to Anki control appears on the word cards now that a
+    // connection has worked.
+    render();
     note.textContent = `Connected to AnkiConnect (version ${version}). Your decks are in the picker.`;
   } catch (err) {
     note.textContent = ankiMessage(err);
+  }
+}
+
+// One word to Anki, from its card. The deck is whatever the Import & export
+// picker holds, so the choice is made in one place. The result is recorded on
+// the word, which is what the ✓ badge reads.
+async function pushWordToAnki(entry, chip) {
+  if (pushingAnki) return;
+  pushingAnki = true;
+  const was = chip.textContent;
+  chip.textContent = 'Anki…';
+  try {
+    const deck = $('anki-deck').value || ankiDefaultDeck();
+    await ankiInvoke('createDeck', { deck });
+    const folderNames = VT.foldersOf(entry)
+      .filter((id) => folders[id] && !folders[id].auto)
+      .map((id) => folders[id].name);
+    const [id] = await ankiInvoke('addNotes', { notes: [ankiNote(entry, deck, folderNames)] });
+    // A null id is "already in this deck" (a duplicate), which still means the
+    // word is there — so both record the push.
+    await putWord(entry.word, { anki: { deck, noteId: id ?? null, at: Date.now() } });
+    words[entry.word] = { ...entry, anki: { deck, noteId: id ?? null, at: Date.now() } };
+    await markAnkiReady();
+    render();
+  } catch (err) {
+    chip.textContent = was;
+    chip.title = ankiMessage(err);
+    chip.classList.add('anki-err');
+  } finally {
+    pushingAnki = false;
   }
 }
 
@@ -975,6 +1055,18 @@ async function pushToAnki() {
     const result = await ankiInvoke('addNotes', { notes });
     const added = (result ?? []).filter((id) => id != null).length;
     const skipped = (result ?? []).length - added;
+    // Record the push on every word in the batch — a null id is a duplicate
+    // already in the deck, which is still "in Anki" — so the ✓ badge shows.
+    const at = Date.now();
+    const patches = {};
+    scope.forEach((entry, i) => {
+      const anki = { deck: deckName, noteId: (result ?? [])[i] ?? null, at };
+      patches[entry.word] = { anki };
+      if (words[entry.word]) words[entry.word].anki = anki;
+    });
+    await putWords(patches);
+    await markAnkiReady();
+    render();
     note.textContent = `Added ${added} to “${deckName}” · ${skipped} already in Anki.`;
   } catch (err) {
     note.textContent = ankiMessage(err);
@@ -985,9 +1077,15 @@ async function pushToAnki() {
 }
 
 $('anki-origin').textContent = ankiOrigin();
-syncAnkiDefault();
+syncAnkiDeck();
 $('anki-test').addEventListener('click', testAnki);
 $('anki-push').addEventListener('click', pushToAnki);
+// The chosen deck is persisted, so a per-word push on a later session lands in
+// the same deck without opening this view again.
+$('anki-deck').addEventListener('change', (event) => {
+  ankiDeck = event.target.value;
+  chrome.storage.local.set({ ankiDeck });
+});
 
 /* ---------- search & shortcuts ---------- */
 

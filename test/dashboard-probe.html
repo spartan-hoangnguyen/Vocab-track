@@ -1325,6 +1325,35 @@ ready.then(() => setTimeout(async () => {
         add2.params.notes[0].deckName === 'French', add2.params.notes[0].deckName);
   check('and creates it first, which is a no-op when the deck exists',
         ankiCalls.some((c) => c.action === 'createDeck' && c.params.deck === 'French'));
+  check('a pushed word is recorded as in Anki, with the deck it went to',
+        STORE.words.apush?.anki?.deck === 'French', JSON.stringify(STORE.words.apush?.anki));
+  check('the ready flag is stored after a push', STORE.ankiReady === true);
+
+  // The word card shows the push state: a ✓ badge when in Anki, a push button
+  // once connected, and nothing before a connection.
+  ankiReady = true;
+  check('a word already in Anki shows the ✓ badge',
+        !!wordCard(mk('apush', { anki: { deck: 'French', at: 1 } })).querySelector('.tag.anki-on'));
+  const cardOut = wordCard(mk('newword'));
+  check('a word not in Anki, once connected, shows a push button',
+        [...cardOut.querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent))
+        && !cardOut.querySelector('.tag.anki-on'));
+  ankiReady = false;
+  check('with no connection and not pushed, there is no Anki control',
+        ![...wordCard(mk('newword2')).querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent)));
+
+  // A per-word push lands in the PERSISTED deck, even without loading the picker
+  // this session — ankiReady outlives the session, the picker selection did not.
+  ankiCalls.length = 0;
+  STORE.ankiDeck = 'French';
+  await refresh();
+  await pushWordToAnki(mk('wpush'), document.createElement('span'));
+  const add3 = ankiCalls.find((c) => c.action === 'addNotes');
+  check('a per-word push uses the persisted deck, with no picker reload',
+        add3?.params.notes[0].deckName === 'French', add3?.params.notes[0].deckName);
+  check('and records the push on that word', STORE.words.wpush?.anki?.deck === 'French',
+        JSON.stringify(STORE.words.wpush?.anki));
+  delete STORE.ankiDeck;
 
   // The three failures, each its own sentence.
   window.fetch = async () => { throw new TypeError('Failed to fetch'); };

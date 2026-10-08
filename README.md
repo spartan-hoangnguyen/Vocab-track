@@ -226,6 +226,10 @@ offers. Then press **Push to Anki**. It pushes the words for the language the
 toggle shows. A re-push adds only new words, because a word already in that deck
 is skipped.
 
+Each word card also carries its own Push to Anki control, so you can push one
+word on its own. A word already in Anki shows a **✓ Anki** badge. The badge's
+tooltip names the deck. A per-word push uses the deck the picker holds.
+
 ## Word lists
 
 **The two English lists are not committed here — you build them.** Their
