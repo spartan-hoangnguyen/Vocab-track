@@ -124,23 +124,68 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
         patch.vi = gloss.vi;
       }
     }
+    // The dictionary is retried for the same reason the gloss is: the lookup can
+    // fail transiently (a Datamuse 522) when a word is first saved, leaving it
+    // with no level and no definition, and the known path returns before any
+    // dictionary call — so clicking it again could never repair it. Only when
+    // there is NO dictionary data at all, and only nulls and empty lists are
+    // filled; an existing field is never overwritten. A word the dictionary
+    // genuinely lacks comes back notFound and nothing is added.
+    let dictFailed = null;
+    if (!known.level && !known.def && !known.ipa) {
+      const parsed = await fetchEntry(word, pack.id);
+      if (!parsed.notFound) {
+        dictFailed = parsed.failed ?? null;
+        for (const field of ['level', 'ipa', 'ipaUs', 'audio', 'audioUs', 'def', 'pos', 'gram']) {
+          if (parsed[field] != null && known[field] == null) {
+            known[field] = parsed[field];
+            patch[field] = parsed[field];
+          }
+        }
+        if (patch.level != null && parsed.levelEst) {
+          known.levelEst = true;
+          patch.levelEst = true;
+        }
+        for (const field of ['senses', 'synonyms', 'related', 'opposites']) {
+          if (Array.isArray(parsed[field]) && parsed[field].length && !known[field]?.length) {
+            known[field] = parsed[field];
+            patch[field] = parsed[field];
+          }
+        }
+      }
+    }
     if (Object.keys(patch).length) await putWord(word, patch);
-    return { entry: known, failed: { dict: null, gloss: glossFailed } };
+    return { entry: known, failed: { dict: dictFailed, gloss: glossFailed } };
   }
 
   const [parsed, gloss] = await Promise.all([
     fetchEntry(word, pack.id),
     glossFor(word, pack.id)
   ]);
-  if (parsed.notFound) return { notFound: true };
+  // A dictionary 404 is NOT proof the word is not a word. The Free Dictionary
+  // API (English now) and krdict both lack entries for words that plainly
+  // exist — "france" 404s on the Free Dictionary — so aborting the save on a
+  // not-found would lose real words the reader met. A not-found therefore ends
+  // the save ONLY when there is also no gloss to fall back on: a real word the
+  // dictionary missed still carries a Vietnamese translation, and that plus the
+  // sentence is worth keeping. A true non-word (a typo) misses both, and that
+  // alone reaches the panel's "Nothing saved."
+  if (parsed.notFound && !gloss.vi) return { notFound: true };
+  // When the dictionary had no entry but the gloss saved it, there is no parsed
+  // data to carry: build the entry on the four nulls a keyless Korean word
+  // already uses, so the card shows the gloss and blank dictionary fields.
+  const parsedEntry = parsed.notFound
+    ? { level: null, ipa: null, def: null, audio: null }
+    : parsed;
 
-  const entry = VT.newEntry(word, parsed, gloss.vi, url, pack.id);
+  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id);
   if (context) entry.context = context;
   // Not persisted: it describes this attempt, not the word. Two channels
   // because the two failures want different sentences — a missing definition
   // and a missing gloss are different losses, and for Korean only the second
-  // one is a loss at all.
-  const failed = { dict: parsed.failed ?? null, gloss: gloss.failed };
+  // one is a loss at all. A clean not-found carries no dict warning: the word
+  // was simply absent, which is not a call that failed.
+  const failed = { dict: parsed.notFound ? null : (parsed.failed ?? null), gloss: gloss.failed };
   if (folderIds?.length) {
     entry.folders = [...new Set([VT.READING, ...folderIds])];
   }

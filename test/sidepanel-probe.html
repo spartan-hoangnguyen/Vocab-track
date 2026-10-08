@@ -392,8 +392,8 @@ ready.then(() => setTimeout(async () => {
      "is not in the krdict dictionary" would read as a stutter. Pinned in full
      because nothing else in the suite would notice the wording drifting back. */
   renderNotFound('zzqqxwv');
-  check('an unknown English word names Cambridge and still reads as a sentence',
-        $$('lookup-empty').textContent === 'No Cambridge entry for "zzqqxwv". Nothing saved.',
+  check('an unknown English word names the dictionary and still reads as a sentence',
+        $$('lookup-empty').textContent === 'No Wiktionary entry for "zzqqxwv". Nothing saved.',
         $$('lookup-empty').textContent);
   renderNotFound('쟄쿽');
   check('and an unknown Korean word names krdict in the same shape',

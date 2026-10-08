@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../anki.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -1046,6 +1046,117 @@ ready.then(() => setTimeout(async () => {
   delete STORE.lang;
   await refresh();
 
+  /* ---- a dictionary 404 still saves the word when a gloss covers it --------
+     The Free Dictionary API (English now) 404s real words it simply lacks —
+     "france" is the case that prompted this — so resolveWord must not abort the
+     save on a not-found alone. It aborts only when the gloss is ALSO empty,
+     which is a true non-word. fetchEntry and glossFor are stubbed the way
+     resolveWord's own dependencies are; the real resolveWord runs against the
+     storage stub. The senses check guards a real class of bug: newEntry reads
+     `parsed.senses ?? []`, so a four-null parse stores [] — a future field
+     added without the `?? []` would store undefined on every FD-404 word. */
+  const realFetchEntry = window.fetchEntry;
+  const realGlossFor = window.glossFor;
+  window.fetchEntry = async () => ({ notFound: true });
+  window.glossFor = async () => ({ vi: 'Pháp', failed: null });
+  const saved404 = await resolveWord('francetest', 'https://e.com/a', [], 'a sentence', 'en');
+  check('a 404 with a gloss still returns an entry', !!saved404.entry && !saved404.notFound,
+        JSON.stringify(saved404).slice(0, 80));
+  check('a 404 raises no dict warning — the word was absent, not a failure',
+        saved404.failed?.dict === null, String(saved404.failed?.dict));
+  check('the FD-404 word lands in storage with its gloss and a null level',
+        STORE.words.francetest?.vi === 'Pháp' && STORE.words.francetest?.level === null,
+        JSON.stringify(STORE.words.francetest)?.slice(0, 80));
+  check('and its senses is an empty array, never undefined',
+        Array.isArray(STORE.words.francetest?.senses) && STORE.words.francetest.senses.length === 0,
+        String(STORE.words.francetest?.senses));
+
+  window.glossFor = async () => ({ vi: null, failed: null });
+  const missed404 = await resolveWord('zzjunkword', 'https://e.com/a', [], null, 'en');
+  check('a 404 with no gloss is a real not-found', missed404.notFound === true,
+        JSON.stringify(missed404).slice(0, 80));
+  check('and nothing is saved for a true non-word', !STORE.words.zzjunkword);
+
+  // A known word saved with no dictionary data (a transient failure on the first
+  // save) is repaired on a later lookup: the known path re-fetches when there is
+  // no level and no definition, and fills only the nulls.
+  STORE.words.brokenword = {
+    word: 'brokenword', lang: 'en', vi: 'x', level: null, def: null, ipa: null,
+    senses: [], synonyms: [], sources: ['u'], folders: ['reading'], added: 1,
+    interval: 0, reps: 0, due: 1
+  };
+  window.fetchEntry = async () => ({
+    level: 'B2', levelEst: true, ipa: null, def: 'a definition',
+    senses: [{ def: 'a definition', example: null }], synonyms: ['syn']
+  });
+  window.glossFor = async () => ({ vi: 'x', failed: null });
+  await resolveWord('brokenword', 'u', [], null, 'en');
+  check('a known word with no dictionary data is repaired on re-lookup',
+        STORE.words.brokenword?.def === 'a definition' && STORE.words.brokenword?.level === 'B2',
+        JSON.stringify(STORE.words.brokenword).slice(0, 100));
+  check('and the repaired level is marked estimated', STORE.words.brokenword?.levelEst === true);
+
+  window.fetchEntry = realFetchEntry;
+  window.glossFor = realGlossFor;
+  delete STORE.words.francetest;
+  delete STORE.words.brokenword;
+
+  /* ---- the GIF control on a words-list card --------------------------------
+     This is the place the user kept looking. gifSection gates on the key the
+     same way the review card does; wordCard is pure enough to call directly, so
+     the three states are checked without rendering the whole view. VT.giphyOk is
+     applied before an <img src>, including a url that arrived from an import. */
+  giphyKey = '';
+  const gifNoKey = wordCard(mk('gifword'));
+  check('a word card with no key shows no GIF control (empty box collapses)',
+        gifNoKey.querySelector('.wc-gif')?.childElementCount === 0,
+        String(gifNoKey.querySelector('.wc-gif')?.childElementCount));
+  giphyKey = 'TESTKEY123';
+  const gifKey = wordCard(mk('gifword'));
+  const gifBtn = gifKey.querySelector('.wc-gif button');
+  check('a word card with a key shows a Find GIF button',
+        !!gifBtn && /Find GIF/.test(gifBtn.textContent), gifBtn?.textContent);
+  const gifStored = wordCard(mk('gifword', { gif: 'https://media.giphy.com/media/x/200.gif' }));
+  check('a word card with a stored GIF shows the image',
+        gifStored.querySelector('.wc-gif img')?.getAttribute('src') === 'https://media.giphy.com/media/x/200.gif');
+  const gifEvil = wordCard(mk('gifword', { gif: 'https://evil.test/x.gif' }));
+  check('an off-giphy stored url is never put in an img',
+        !gifEvil.querySelector('.wc-gif img'));
+  giphyKey = '';
+
+  // An estimated level shows with a trailing ~ on the card; an exact one is bare.
+  check('an estimated level renders with a ~',
+        wordCard(mk('estword', { level: 'C1', levelEst: true })).querySelector('.lvl')?.textContent === 'C1~');
+  check('an exact level renders bare',
+        wordCard(mk('exactword', { level: 'B2' })).querySelector('.lvl')?.textContent === 'B2');
+
+  /* ---- CEFR backfill gives a level to English words that lost it ----------
+     The lookup stopped carrying a CEFR level, so words saved in between sit under
+     "—". backfillCefr reads the level from the bundled list (lang/en/cefr.js)
+     once, keyed by a stored version flag; a word outside the list is left alone. */
+  // Drain the boot's floating refresh().then(backfillCefr) first: it is pure
+  // microtasks, so one macrotask boundary guarantees it has run and written its
+  // version flag. Without this, its late write could land after the delete below
+  // and this test would pass only by timing.
+  await tick();
+  const savedForCefr = STORE.words;
+  delete STORE.cefrBackfill;
+  STORE.words = {
+    abandon: mk('abandon', { level: null }),
+    frenchtownxyz: mk('frenchtownxyz', { level: null })
+  };
+  await refresh();
+  await backfillCefr();
+  check('backfill gives a listed English word its CEFR level',
+        STORE.words.abandon?.level === 'B1', String(STORE.words.abandon?.level));
+  check('backfill leaves an unlisted word with no level',
+        !STORE.words.frenchtownxyz?.level);
+  check('backfill records its version so it runs only once',
+        STORE.cefrBackfill === 1, String(STORE.cefrBackfill));
+  STORE.words = savedForCefr;
+  delete STORE.cefrBackfill;
+  await refresh();
+
   /* ---- the folder GRID is language-scoped, not just the counts on it ------
      The reported bug: a Korean session showed IELTS C1, IELTS C2, Phrasal A1
      and Phrasal A2 as empty cards, because render() filtered `words` by the
@@ -1179,6 +1290,110 @@ ready.then(() => setTimeout(async () => {
   await tick();
   await refresh();
   check('📌 again unpins it', !STORE.pins.length && !document.getElementById('ov-pinned').checkVisibility());
+
+  /* ---- push to Anki, against a stubbed AnkiConnect ------------------------
+     The real AnkiConnect is on the user's machine, so window.fetch is stubbed to
+     a fake that records the action sequence and the notes, and returns an id per
+     note with the first one null — a word already in Anki. */
+  const ankiCalls = [];
+  const realFetch = window.fetch;
+  window.fetch = async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    ankiCalls.push(body);
+    let result = null;
+    if (body.action === 'version') result = 6;
+    else if (body.action === 'deckNames') result = ['Default', 'French', 'Vocab-track::English'];
+    else if (body.action === 'createDeck') result = 1;
+    else if (body.action === 'addNotes') result = body.params.notes.map((n, i) => (i === 0 ? null : 2000 + i));
+    return { ok: true, json: async () => ({ result, error: null }) };
+  };
+  const savedFoldersAnki = STORE.folders;
+  STORE.folders = { ...STORE.folders, mytopic: { id: 'mytopic', name: 'My Topic', auto: false, added: 1 } };
+  STORE.words = {
+    apush: mk('apush', { folders: ['mytopic', VT.READING] }),
+    bpush: mk('bpush'),
+    cskip: mk('cskip', { skipped: true }),
+    '한글푸시': mk('한글푸시', { lang: 'ko' })
+  };
+  await setLang('en');
+  await refresh();
+  await pushToAnki();
+  check('push creates the deck, then adds the notes',
+        ankiCalls.map((c) => c.action).join(',') === 'createDeck,addNotes',
+        ankiCalls.map((c) => c.action).join(','));
+  const addCall = ankiCalls.find((c) => c.action === 'addNotes');
+  check('push sends only the learnable English words', addCall.params.notes.length === 2,
+        String(addCall.params.notes.length));
+  const fronts = addCall.params.notes.map((n) => n.fields.Front);
+  check('the skipped word is left out', !fronts.includes('cskip'));
+  check('the other language is left out', !fronts.includes('한글푸시'));
+  check('the deck is the English deck', addCall.params.notes[0].deckName === 'Vocab-track::English');
+  const apushNote = addCall.params.notes.find((n) => n.fields.Front === 'apush');
+  check('a real folder becomes a tag', apushNote.tags.includes('My_Topic'), apushNote.tags.join(','));
+  check('the auto From reading / Starred folders do not',
+        !apushNote.tags.some((t) => /From_reading|Starred/.test(t)), apushNote.tags.join(','));
+  STORE.folders = savedFoldersAnki;
+  check('push reports what was added and what was already there',
+        /Added 1 .* 1 already in Anki/.test(document.getElementById('anki-note').textContent),
+        document.getElementById('anki-note').textContent);
+  check('with no decks loaded, the push targets the new-deck default',
+        addCall.params.notes[0].deckName === 'Vocab-track::English');
+
+  // Test connection fills the picker with Anki's own decks; a push then goes to
+  // the chosen deck, not the default.
+  ankiCalls.length = 0;
+  await testAnki();
+  check('Test connection fills the deck picker from Anki',
+        [...document.getElementById('anki-deck').options].some((o) => o.value === 'French'));
+  document.getElementById('anki-deck').value = 'French';
+  await pushToAnki();
+  const add2 = ankiCalls.find((c) => c.action === 'addNotes');
+  check('the push targets the chosen existing deck',
+        add2.params.notes[0].deckName === 'French', add2.params.notes[0].deckName);
+  check('and creates it first, which is a no-op when the deck exists',
+        ankiCalls.some((c) => c.action === 'createDeck' && c.params.deck === 'French'));
+  check('a pushed word is recorded as in Anki, with the deck it went to',
+        STORE.words.apush?.anki?.deck === 'French', JSON.stringify(STORE.words.apush?.anki));
+  check('the ready flag is stored after a push', STORE.ankiReady === true);
+
+  // The word card shows the push state: a ✓ badge when in Anki, a push button
+  // once connected, and nothing before a connection.
+  ankiReady = true;
+  check('a word already in Anki shows the ✓ badge',
+        !!wordCard(mk('apush', { anki: { deck: 'French', at: 1 } })).querySelector('.tag.anki-on'));
+  const cardOut = wordCard(mk('newword'));
+  check('a word not in Anki, once connected, shows a push button',
+        [...cardOut.querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent))
+        && !cardOut.querySelector('.tag.anki-on'));
+  ankiReady = false;
+  check('with no connection and not pushed, there is no Anki control',
+        ![...wordCard(mk('newword2')).querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent)));
+
+  // A per-word push lands in the PERSISTED deck, even without loading the picker
+  // this session — ankiReady outlives the session, the picker selection did not.
+  ankiCalls.length = 0;
+  STORE.ankiDeck = 'French';
+  await refresh();
+  await pushWordToAnki(mk('wpush'), document.createElement('span'));
+  const add3 = ankiCalls.find((c) => c.action === 'addNotes');
+  check('a per-word push uses the persisted deck, with no picker reload',
+        add3?.params.notes[0].deckName === 'French', add3?.params.notes[0].deckName);
+  check('and records the push on that word', STORE.words.wpush?.anki?.deck === 'French',
+        JSON.stringify(STORE.words.wpush?.anki));
+  delete STORE.ankiDeck;
+
+  // The three failures, each its own sentence.
+  window.fetch = async () => { throw new TypeError('Failed to fetch'); };
+  await testAnki();
+  check('a dead connection says Anki is not running',
+        /Open the Anki desktop app/.test(document.getElementById('anki-note').textContent),
+        document.getElementById('anki-note').textContent);
+  window.fetch = async () => ({ ok: true, json: async () => ({ result: null, error: 'CORS: origin not allowed' }) });
+  await testAnki();
+  check('a blocked origin tells the user to whitelist the extension',
+        /webCorsOriginList|blocked this extension/.test(document.getElementById('anki-note').textContent),
+        document.getElementById('anki-note').textContent);
+  window.fetch = realFetch;
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

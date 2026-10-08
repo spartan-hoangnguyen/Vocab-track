@@ -145,6 +145,20 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .iocard{border:1px solid var(--rule);border-radius:14px;padding:22px;background:var(--card)}
 .iocard h3{font:600 19px var(--serif);margin:0 0 7px}
 .iocard p{margin:0 0 16px;color:var(--ink2);font-size:13.5px}
+/* The GIPHY key field. Monospace because it is a key, not prose, and full width
+   so the whole of it is visible at once. */
+#giphy-key{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--rule);
+           border-radius:9px;background:var(--panel);color:var(--ink);
+           font:13px ui-monospace,Menlo,monospace}
+/* The AnkiConnect origin, shown to copy verbatim: wraps rather than overflowing
+   the card, and selectable as one token. */
+#anki-origin{display:inline-block;word-break:break-all;user-select:all;
+             font:12px ui-monospace,Menlo,monospace;background:var(--panel);
+             border:1px solid var(--rule);border-radius:6px;padding:4px 7px;color:var(--ink2)}
+.anki-deckrow{display:flex;align-items:center;gap:9px;margin:14px 0 0}
+.anki-deckrow label{font-size:13px;color:var(--ink2)}
+#anki-deck{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);
+           border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
@@ -370,6 +384,21 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 
 .wc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
 
+/* The GIF on a words-list card. The box is appended unconditionally; :empty
+   collapses it to nothing when there is no GIF and no key, so it costs no space
+   and adds no margin. The image is capped so a tall GIF cannot stretch a card. */
+.wc-gif{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:14px}
+.wc-gif:empty{display:none;margin:0}
+.wc-gifimg{max-width:100%;max-height:180px;border-radius:11px;
+           border:1px solid var(--rule);background:var(--panel);object-fit:contain}
+.wc-gifrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wc-gifvia{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3)}
+.wc-gifbtn{background:none;border:1px solid var(--rule);border-radius:8px;cursor:pointer;
+           padding:5px 11px;font-size:13px;color:var(--ink2)}
+.wc-gifbtn:hover{background:var(--panel);color:var(--ink)}
+.wc-gifbtn:disabled{opacity:.6;cursor:default}
+.wc-gifmsg{margin:0;font-size:13px;color:var(--ink2)}
+
 .wc-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
          margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)}
 .wc-link{color:var(--ink2);font-size:12.5px;text-decoration:none;
@@ -377,6 +406,10 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .wc-link:hover{color:var(--ink);border-bottom-color:var(--ink3)}
 .tag.clickable{cursor:pointer}
 .tag.clickable:hover{background:var(--tag-hi);color:var(--ink)}
+/* A word already pushed to Anki: a quiet green tick. .anki-err flags a push
+   that failed, with the reason in the tag's title. */
+.tag.anki-on{color:#2f7d4f}
+.tag.anki-err{color:#c0392b}
 
 /* Words that arrived from another Mac app while the dashboard was shut. */
 .capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);
@@ -431,6 +464,22 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .rvfull li .lvl{margin-left:7px}
 .rvfull .ex{display:block;color:var(--ink2);font-style:italic;margin-top:3px}
 .rvfull .chips{display:flex;flex-wrap:wrap;gap:6px}
+
+/* The GIF mnemonic. Capped so a tall GIF cannot blow the card out, and
+   object-fit:contain so a wide one is letterboxed rather than cropped. */
+.rvgif{margin:14px 0 0;display:flex;flex-direction:column;align-items:center;gap:8px}
+/* A class with display: beats the [hidden] attribute, so it must opt back out,
+   the way .rvcard does — the dashboard probe measures exactly this. */
+.rvgif[hidden]{display:none}
+.rvgifimg{max-width:100%;max-height:220px;border-radius:11px;
+          border:1px solid var(--rule);background:var(--panel);object-fit:contain}
+.rvgifrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+.rvgifvia{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3)}
+.rvgifbtn{background:none;border:1px solid var(--rule);border-radius:8px;cursor:pointer;
+          padding:5px 11px;font-size:13px;color:var(--ink2)}
+.rvgifbtn:hover{background:var(--panel);color:var(--ink)}
+.rvgifwait,.rvgifmsg{font-size:13px;color:var(--ink2)}
+.rvgifmsg{margin:4px 0 0}
 
 /* ---------- review controls ---------- */
 /* Settings for the session, so they read quieter than the card's own buttons. */

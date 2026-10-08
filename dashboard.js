@@ -20,6 +20,19 @@ let activeLang = LANG.FALLBACK;
 let queueLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
 let pins = [];
+// The GIPHY key, mirrored here only so renderCard can decide whether to offer a
+// Find GIF button without an async read per card. giphy.js re-reads storage for
+// the actual search, so this copy is never the source of truth for a request.
+let giphyKey = '';
+// Whether AnkiConnect has been reached at least once. Gates the per-word Push to
+// Anki control on a word card, so the cards stay clean for anyone who does not
+// use Anki, and fill with the control once a connection has worked.
+let ankiReady = false;
+// The deck last chosen in the picker, persisted. ankiReady outlives a session
+// but the picker's selection does not, so without this a per-word push on a
+// fresh dashboard open would land in the default deck rather than the one the
+// user picked last time.
+let ankiDeck = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
 const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
@@ -58,10 +71,36 @@ async function getLang() {
   return LANG.get(lang)?.id ?? LANG.FALLBACK;
 }
 
+// A flat key like `lang` and `theme`, trimmed so a stray space pasted after the
+// key does not read as a configured-but-wrong key.
+async function getGiphyKey() {
+  const { giphyKey } = await chrome.storage.local.get('giphyKey');
+  return String(giphyKey ?? '').trim();
+}
+
+async function getAnkiReady() {
+  const { ankiReady } = await chrome.storage.local.get('ankiReady');
+  return ankiReady === true;
+}
+
+async function getAnkiDeck() {
+  const { ankiDeck } = await chrome.storage.local.get('ankiDeck');
+  return typeof ankiDeck === 'string' ? ankiDeck : '';
+}
+
+// Set once, the first time AnkiConnect answers. No render here; the caller
+// renders, because the two callers already do for their own reasons.
+async function markAnkiReady() {
+  if (ankiReady) return;
+  ankiReady = true;
+  await chrome.storage.local.set({ ankiReady: true });
+}
+
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins, activeLang] = await Promise.all(
-    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-     getLang()]);
+  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, ankiReady, ankiDeck] =
+    await Promise.all(
+      [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
+       getLang(), getGiphyKey(), getAnkiReady(), getAnkiDeck()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -91,6 +130,37 @@ function ownersOf(id) {
   return Object.values(words).filter((e) => VT.foldersOf(e).includes(id));
 }
 
+// Bumped when lang/en/cefr.js is regenerated, so the backfill runs again over
+// words it could not place before.
+const CEFR_VERSION = 1;
+
+// Give a level to English words that have none. The dictionary stopped carrying
+// a CEFR level when the lookup moved off Cambridge, so every word saved in
+// between sits under "—" in the level charts. This reads the level from the
+// bundled list for those words, once — a word that genuinely has no level (a
+// proper noun, a word outside the list) is left alone and simply skipped next
+// run by the stored version flag. Runs on boot, after the first load populated
+// `words`, and re-renders only when it actually changed something.
+async function backfillCefr() {
+  if (typeof cefrLevel !== 'function') return;
+  const { cefrBackfill } = await chrome.storage.local.get('cefrBackfill');
+  if (cefrBackfill === CEFR_VERSION) return;
+  const patches = {};
+  for (const [word, entry] of Object.entries(words)) {
+    if (!entry || entry.level || LANG.of(entry).id !== 'en') continue;
+    const level = cefrLevel(word);
+    if (level) patches[word] = { level };
+  }
+  if (Object.keys(patches).length) {
+    await putWords(patches);
+    for (const [word, patch] of Object.entries(patches)) {
+      if (words[word]) words[word].level = patch.level;
+    }
+    render();
+  }
+  await chrome.storage.local.set({ cefrBackfill: CEFR_VERSION });
+}
+
 function render() {
   // The one load point every view fans out from, so filtering here is what
   // makes the toggle reach all of them. The exception is the streak below.
@@ -98,6 +168,10 @@ function render() {
   renderOverview(all);
   renderWords(all);
   renderLang();
+  // The Push to Anki card names the language it will push, so it follows the
+  // toggle like everything else. The deck picker's default option follows too.
+  $('anki-lang').textContent = LANG.get(activeLang).name;
+  syncAnkiDeck();
   // Unfiltered, and deliberately: "days with a new word" is a habit, not a view
   // of the language being studied. Halving the streak on a toggle press would
   // read as data loss for something the toggle did not touch.
@@ -385,7 +459,11 @@ function wordCard(entry) {
   title.title = 'Pronounce';
   title.addEventListener('click', () => speakWord(entry));
   head.appendChild(title);
-  if (entry.level) head.appendChild(el('span', 'lvl', entry.level));
+  if (entry.level) {
+    const lvl = el('span', 'lvl', VT.levelText(entry));
+    if (entry.levelEst) lvl.title = 'Estimated from word frequency, not a looked-up CEFR level';
+    head.appendChild(lvl);
+  }
   if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
   if (entry.ipa) head.appendChild(el('span', 'wc-ipa', `/${entry.ipa}/`));
 
@@ -431,6 +509,12 @@ function wordCard(entry) {
     for (const word of entry.synonyms.slice(0, 5)) chips.appendChild(el('span', 'tag', word));
     card.appendChild(chips);
   }
+
+  // --- a GIF mnemonic, on the card where the word is browsed. Shown as a stored
+  // image, else a Find button once a GIPHY key is set, else nothing — the same
+  // three states the review card has, built here so the words list can find a
+  // GIF without opening the review.
+  card.appendChild(gifSection(entry));
 
   // --- footer: where it came from, where to read more, which folders
   const foot = el('div', 'wc-foot');
@@ -482,8 +566,80 @@ function wordCard(entry) {
   add.addEventListener('click', () => openTagPicker(entry));
   foot.appendChild(add);
 
+  // Push to Anki, and whether it is already there. Shown once a connection has
+  // worked, or the word has already been pushed. Both states push on click: a
+  // re-push is dedup-safe and re-adds a card that was deleted in Anki.
+  if (ankiReady || entry.anki) {
+    const inAnki = !!entry.anki;
+    const chip = el('span', `tag clickable${inAnki ? ' anki-on' : ''}`, inAnki ? '✓ Anki' : '⬆ Anki');
+    chip.title = inAnki
+      ? `In Anki deck “${entry.anki.deck}”. Click to push again.`
+      : 'Push this word to Anki';
+    chip.addEventListener('click', () => pushWordToAnki(entry, chip));
+    foot.appendChild(chip);
+  }
+
   card.appendChild(foot);
   return card;
+}
+
+// The GIF control for a words-list card: a stored image with Try another /
+// Remove, else a Find button once a key is set, else an empty box that CSS
+// (:empty) collapses so it costs no space. Appended unconditionally so wordCard
+// stays a straight line of appends.
+function gifSection(entry) {
+  const box = el('div', 'wc-gif');
+  if (entry.gif && VT.giphyOk(entry.gif)) {
+    const img = el('img', 'wc-gifimg');
+    img.src = entry.gif;
+    img.alt = `A GIF for ${entry.word}`;
+    img.loading = 'lazy';
+    const row = el('div', 'wc-gifrow');
+    const again = el('button', 'wc-gifbtn', 'Try another');
+    again.addEventListener('click', () => cardFindGif(entry, again));
+    const drop = el('button', 'wc-gifbtn', 'Remove');
+    drop.addEventListener('click', async () => {
+      await putWord(entry.word, { gif: null });
+      await refresh();
+    });
+    // "via GIPHY" is the attribution GIPHY's terms ask for, beside the image.
+    row.append(el('span', 'wc-gifvia', 'via GIPHY'), again, drop);
+    box.append(img, row);
+    return box;
+  }
+  if (!giphyKey) return box;
+  const btn = el('button', 'wc-gifbtn', '\u{1F39E} Find GIF');
+  btn.addEventListener('click', () => cardFindGif(entry, btn));
+  box.appendChild(btn);
+  return box;
+}
+
+async function cardFindGif(entry, btn) {
+  // One search at a time, shared with the review card's guard: a 42-an-hour
+  // budget cannot afford a double-click.
+  if (finding) return;
+  finding = true;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Searching GIPHY…';
+  try {
+    const { url, failed } = await searchGif(entry);
+    finding = false;
+    // A found GIF rebuilds the whole words view, so the card comes back with the
+    // image in place of the button — the same refresh() the delete and skip
+    // controls on this card already use.
+    if (url) { await refresh(); return; }
+    btn.disabled = false;
+    btn.textContent = label;
+    btn.closest('.wc-gif')?.appendChild(el('p', 'wc-gifmsg', failed
+      ? `Could not fetch a GIF — ${failed}`
+      : `No GIF found for “${giphyQuery(entry).q}”.`));
+  } catch (err) {
+    finding = false;
+    console.error('[vocab-track] card find gif failed for', entry.word, err);
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 /* ---------- tag picker ---------- */
@@ -759,6 +915,182 @@ $('import-file').addEventListener('change', async (event) => {
   }
 });
 
+/* ---------- push to Anki ---------- */
+
+// The origin AnkiConnect must whitelist. Shown in the settings card so the user
+// can copy it into webCorsOriginList verbatim.
+function ankiOrigin() {
+  return `chrome-extension://${chrome.runtime.id}`;
+}
+
+// One of three sentences, because the three failures want different fixes.
+// A thrown fetch is Anki not running; an error carrying 403/CORS/origin is the
+// add-on refusing this extension; anything else is the add-on's own message.
+function ankiMessage(err) {
+  const msg = String(err?.message ?? err);
+  if (/Failed to fetch|NetworkError|ERR_CONNECTION/i.test(msg)) {
+    return 'Could not reach Anki. Open the Anki desktop app with the AnkiConnect '
+      + 'add-on installed, then try again.';
+  }
+  if (/\b403\b|cors|origin/i.test(msg)) {
+    return `AnkiConnect blocked this extension. Add ${ankiOrigin()} to its `
+      + 'webCorsOriginList (Anki → Tools → Add-ons → AnkiConnect → Config), then '
+      + 'restart Anki.';
+  }
+  return `Anki error: ${msg}`;
+}
+
+// The deck the push goes to when the picker's first option is chosen: a fresh
+// Vocab-track deck for the active language. createDeck makes it if it is new and
+// is a no-op if it already exists, so this value is always safe to push to.
+function ankiDefaultDeck() {
+  return `Vocab-track::${LANG.get(activeLang).name}`;
+}
+
+// The picker's first option is the new-deck default; the rest are the decks Anki
+// already has, loaded on a successful connection. The deck chosen last
+// (`ankiDeck`, persisted) is re-added as an option even before that load, so it
+// is selectable and selected on a fresh open — otherwise a per-word push would
+// go to the default rather than where the user last chose. Runs on every render,
+// re-selecting the chosen deck, which the change handler keeps current.
+function syncAnkiDeck() {
+  const sel = $('anki-deck');
+  if (!sel) return;
+  const def = ankiDefaultDeck();
+  if (!sel.options.length) sel.add(new Option());
+  sel.options[0].value = def;
+  sel.options[0].textContent = `New deck: ${def}`;
+  if (ankiDeck && ankiDeck !== def && ![...sel.options].some((o) => o.value === ankiDeck)) {
+    sel.add(new Option(ankiDeck, ankiDeck));
+  }
+  const want = ankiDeck || def;
+  if ([...sel.options].some((o) => o.value === want)) sel.value = want;
+}
+
+// Fill the picker with the decks Anki already has, keeping the new-deck default
+// first, then re-select the chosen deck.
+async function loadAnkiDecks() {
+  const names = await ankiInvoke('deckNames');
+  const sel = $('anki-deck');
+  const def = sel.options[0]?.value;
+  while (sel.options.length > 1) sel.remove(1);
+  for (const name of [...names].sort()) {
+    if (name !== def) sel.add(new Option(name, name));
+  }
+  syncAnkiDeck();
+}
+
+async function testAnki() {
+  const note = $('anki-note');
+  note.textContent = 'Testing…';
+  try {
+    const version = await ankiInvoke('version');
+    await loadAnkiDecks();
+    await markAnkiReady();
+    // So the per-word Push to Anki control appears on the word cards now that a
+    // connection has worked.
+    render();
+    note.textContent = `Connected to AnkiConnect (version ${version}). Your decks are in the picker.`;
+  } catch (err) {
+    note.textContent = ankiMessage(err);
+  }
+}
+
+// One word to Anki, from its card. The deck is whatever the Import & export
+// picker holds, so the choice is made in one place. The result is recorded on
+// the word, which is what the ✓ badge reads.
+async function pushWordToAnki(entry, chip) {
+  if (pushingAnki) return;
+  pushingAnki = true;
+  const was = chip.textContent;
+  chip.textContent = 'Anki…';
+  try {
+    const deck = $('anki-deck').value || ankiDefaultDeck();
+    await ankiInvoke('createDeck', { deck });
+    const folderNames = VT.foldersOf(entry)
+      .filter((id) => folders[id] && !folders[id].auto)
+      .map((id) => folders[id].name);
+    const [id] = await ankiInvoke('addNotes', { notes: [ankiNote(entry, deck, folderNames)] });
+    // A null id is "already in this deck" (a duplicate), which still means the
+    // word is there — so both record the push.
+    await putWord(entry.word, { anki: { deck, noteId: id ?? null, at: Date.now() } });
+    words[entry.word] = { ...entry, anki: { deck, noteId: id ?? null, at: Date.now() } };
+    await markAnkiReady();
+    render();
+  } catch (err) {
+    chip.textContent = was;
+    chip.title = ankiMessage(err);
+    chip.classList.add('anki-err');
+  } finally {
+    pushingAnki = false;
+  }
+}
+
+let pushingAnki = false;
+
+async function pushToAnki() {
+  if (pushingAnki) return;
+  const note = $('anki-note');
+  const lang = LANG.get(activeLang);
+  // The same scope the review uses: this language, skipped words left out.
+  const scope = Object.values(words)
+    .filter((entry) => VT.isLearnable(entry) && LANG.of(entry).id === activeLang);
+  if (!scope.length) {
+    note.textContent = `No ${lang.name} words to push.`;
+    return;
+  }
+  pushingAnki = true;
+  const btn = $('anki-push');
+  btn.disabled = true;
+  note.textContent = `Pushing ${scope.length} ${lang.name} word${scope.length === 1 ? '' : 's'}…`;
+  try {
+    // Whatever deck is picked — an existing one, or the new-deck default.
+    // createDeck is a no-op on a deck that already exists.
+    const deckName = $('anki-deck').value || ankiDefaultDeck();
+    await ankiInvoke('createDeck', { deck: deckName });
+    const notes = scope.map((entry) => ankiNote(entry, deckName,
+      // Real folders only, not From reading / Starred — a `From_reading` tag on
+      // every single note is noise. Same auto filter renderCard uses (:1096).
+      VT.foldersOf(entry)
+        .filter((id) => folders[id] && !folders[id].auto)
+        .map((id) => folders[id].name)));
+    // addNotes returns an id per note, or null where the note was a duplicate or
+    // could not be added — so the count of nulls is what was already in Anki.
+    const result = await ankiInvoke('addNotes', { notes });
+    const added = (result ?? []).filter((id) => id != null).length;
+    const skipped = (result ?? []).length - added;
+    // Record the push on every word in the batch — a null id is a duplicate
+    // already in the deck, which is still "in Anki" — so the ✓ badge shows.
+    const at = Date.now();
+    const patches = {};
+    scope.forEach((entry, i) => {
+      const anki = { deck: deckName, noteId: (result ?? [])[i] ?? null, at };
+      patches[entry.word] = { anki };
+      if (words[entry.word]) words[entry.word].anki = anki;
+    });
+    await putWords(patches);
+    await markAnkiReady();
+    render();
+    note.textContent = `Added ${added} to “${deckName}” · ${skipped} already in Anki.`;
+  } catch (err) {
+    note.textContent = ankiMessage(err);
+  } finally {
+    pushingAnki = false;
+    btn.disabled = false;
+  }
+}
+
+$('anki-origin').textContent = ankiOrigin();
+syncAnkiDeck();
+$('anki-test').addEventListener('click', testAnki);
+$('anki-push').addEventListener('click', pushToAnki);
+// The chosen deck is persisted, so a per-word push on a later session lands in
+// the same deck without opening this view again.
+$('anki-deck').addEventListener('change', (event) => {
+  ankiDeck = event.target.value;
+  chrome.storage.local.set({ ankiDeck });
+});
+
 /* ---------- search & shortcuts ---------- */
 
 $('q').addEventListener('input', () => {
@@ -848,6 +1180,17 @@ $('theme-btn').addEventListener('click', () => {
 // or stale (the theme changed in another dashboard tab while this was shut).
 chrome.storage.local.get('theme').then(({ theme }) => applyTheme(theme));
 
+// The GIPHY key: a flat key like `theme`, saved as you type. The module copy is
+// updated here too so a card rendered before the next refresh() still sees the
+// key. Trimmed on write for the reason getGiphyKey trims on read.
+$('giphy-key').addEventListener('input', (event) => {
+  giphyKey = event.target.value.trim();
+  chrome.storage.local.set({ giphyKey });
+});
+chrome.storage.local.get('giphyKey').then(({ giphyKey: stored }) => {
+  $('giphy-key').value = stored ?? '';
+});
+
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');
@@ -924,7 +1267,7 @@ async function drainCaptures() {
   await refresh();
 }
 
-refresh().then(drainCaptures);
+refresh().then(backfillCefr).then(drainCaptures);
 
 
 /* ---------- review ---------- */
@@ -1062,7 +1405,8 @@ function renderCard() {
   }
 
   canType = !!(entry.vi || entry.def);
-  $('rv-level').textContent = entry.level ?? DASH;
+  $('rv-level').textContent = VT.levelText(entry) ?? DASH;
+  $('rv-level').title = entry.levelEst ? 'Estimated from word frequency' : '';
   // Instruction text, and wrong on screen the moment a Korean card appears. Per
   // card rather than per toggle, because the card is the thing being asked for;
   // dashboard.html's attribute is only the value before the first render.
@@ -1137,8 +1481,100 @@ function renderCard() {
     $('rv-cam').removeAttribute('href');
   }
   renderFull(revealed ? entry : null);
+  renderGif(revealed ? entry : null);
   renderDiff(revealed && canType ? VT.diffWord(typed, entry.word) : null);
   renderGrades(revealed ? suggestedGrade() : null);
+}
+
+let finding = false;
+
+// The GIF on the back of a card. Three states: a stored GIF (the image, the
+// GIPHY credit, and the re-roll/remove controls), a key set but no GIF yet (the
+// Find button), and no key at all (nothing on screen — the key goes in the
+// Import & export view).
+//
+// Idempotent on the image. renderCard runs on every storage change, including a
+// star press mid-card, and rebuilding the <img> each pass would re-request the
+// file and flicker, so an unchanged src is left alone. VT.giphyOk is applied
+// here as well as in giphy.js: a gif URL can arrive from an imported export,
+// which is untrusted, so it is checked again before it reaches an <img src>.
+function renderGif(entry) {
+  const host = $('rv-gif');
+  if (!entry) { host.hidden = true; host.replaceChildren(); return; }
+
+  if (entry.gif && VT.giphyOk(entry.gif)) {
+    host.hidden = false;
+    if (host.querySelector('img')?.src === entry.gif) return;  // already on screen
+    const img = el('img', 'rvgifimg');
+    img.src = entry.gif;
+    img.alt = `A GIF for ${entry.word}`;
+    img.loading = 'lazy';
+    const row = el('div', 'rvgifrow');
+    const again = el('button', 'rvgifbtn', 'Try another');
+    again.onclick = () => findGif(entry);
+    const drop = el('button', 'rvgifbtn', 'Remove');
+    drop.onclick = () => removeGif(entry);
+    // "via GIPHY" is the attribution GIPHY's terms ask for, next to the image.
+    row.append(el('span', 'rvgifvia', 'via GIPHY'), again, drop);
+    host.replaceChildren(img, row);
+    return;
+  }
+
+  // No key means no button: the feature is off until one is set, and a dead
+  // button would only prompt a lookup nothing can answer.
+  if (!giphyKey) { host.hidden = true; host.replaceChildren(); return; }
+  host.hidden = false;
+  const btn = el('button', 'rvgifbtn', '🎞 Find GIF');
+  btn.onclick = () => findGif(entry);
+  host.replaceChildren(btn);
+}
+
+// Search GIPHY for this word and store the result on the entry. The schedule is
+// never touched — a GIF is a decoration on the card, not a review of it. Shared
+// by the review card and the words-list card, so both find and store a GIF the
+// same way; each caller owns its own rendering.
+async function searchGif(entry) {
+  const { url, failed } = await giphyFind(entry);
+  if (url) {
+    await putWord(entry.word, { gif: url });
+    entry.gif = url;
+    words[entry.word] = entry;
+  }
+  return { url, failed };
+}
+
+async function findGif(entry) {
+  // Same re-entry guard as grade()/toggleStar(): a double-click is two GIPHY
+  // calls against a 42-an-hour budget.
+  if (finding) return;
+  finding = true;
+  const host = $('rv-gif');
+  host.hidden = false;
+  host.replaceChildren(el('span', 'rvgifwait', 'Searching GIPHY…'));
+  try {
+    const { url, failed } = await searchGif(entry);
+    finding = false;
+    // A slow search can land after you have moved to the next card; let the new
+    // card own the cell rather than painting this result over it.
+    if (queue[0]?.word !== entry.word) { renderCard(); return; }
+    renderGif(entry);
+    if (!url) {
+      host.append(el('p', 'rvgifmsg', failed
+        ? `Could not fetch a GIF — ${failed}`
+        : `No GIF found for “${giphyQuery(entry).q}”.`));
+    }
+  } catch (err) {
+    finding = false;
+    console.error('[vocab-track] find gif failed for', entry.word, err);
+    if (queue[0]?.word === entry.word) renderGif(entry);
+  }
+}
+
+async function removeGif(entry) {
+  await putWord(entry.word, { gif: null });
+  delete entry.gif;
+  words[entry.word] = entry;
+  renderGif(entry);
 }
 
 function kbd(text) {

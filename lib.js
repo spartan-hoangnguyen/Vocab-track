@@ -526,6 +526,25 @@ const VT = {
     }
   },
 
+  // Whether a stored GIF URL is safe to put in an <img src>. An https GIPHY CDN
+  // URL and nothing else — the same scheme-checking shape sourceLink uses, and
+  // for a sharper reason: entry.gif can arrive from an IMPORTED JSON file, which
+  // import merges field by field (Object.assign), so an untrusted export could
+  // otherwise point the card at a third-party tracking pixel. Both giphy.js
+  // (parsing a response) and the dashboard (before setting src) call this, so
+  // the one test covers both ends.
+  //
+  // The host must END with .giphy.com — media.giphy.com, media0–4.giphy.com,
+  // i.giphy.com — not merely contain it, so giphy.com.evil.test is rejected.
+  giphyOk(url) {
+    try {
+      const u = new URL(String(url ?? ''));
+      return u.protocol === 'https:' && /(^|\.)giphy\.com$/.test(u.hostname);
+    } catch {
+      return false;
+    }
+  },
+
   // The word under a caret offset. Needed because YouTube's captions set
   // user-select:none, so there is no selection to read — a click resolves to a
   // caret position and the word has to be grown out of it in both directions.
@@ -703,6 +722,15 @@ const VT = {
     return order[ranks[Math.floor(ranks.length / 2)]];
   },
 
+  // The level as shown on a card: the bare level, with a trailing ~ when it was
+  // estimated from frequency rather than read from the curated list. Null when
+  // there is no level at all. The charts bucket on the bare `level`, so this is
+  // display only.
+  levelText(entry) {
+    if (!entry?.level) return null;
+    return entry.level + (entry.levelEst ? '~' : '');
+  },
+
   // `lang` is the pack the word belongs to. Detected from the script when not
   // given, so a caller that predates languages — tools/ielts-parse.html, the
   // tests — keeps producing exactly what it did before.
@@ -712,6 +740,10 @@ const VT = {
       lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
       folders: [VT.READING],
       level: parsed.level,
+      // Only written when the level was estimated from frequency rather than
+      // read from the curated list, so no stray field sits on every word (a
+      // keyless Korean import has no estimate at all). The UI marks it.
+      ...(parsed.levelEst ? { levelEst: true } : {}),
       ipa: parsed.ipa,
       def: parsed.def,
       audio: parsed.audio,

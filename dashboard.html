@@ -179,6 +179,11 @@
              next to the href (dashboard.js:940) so the two cannot name different
              dictionaries, and hides the line for a language that has none. -->
         <p class="rvlinks" hidden><a id="rv-cam" target="_blank" rel="noreferrer"></a></p>
+        <!-- A GIF mnemonic, after the answer like the play button: the image is
+             paired with the word you just recalled, never shown as a prompt.
+             Empty and hidden — renderGif fills it, shows a Find button once a
+             GIPHY key is set, and stays hidden with no key. -->
+        <div class="rvgif" id="rv-gif" hidden></div>
         <!-- <details>, not a JS toggle: the platform already has this control. -->
         <details class="rvfull" id="rv-full" hidden>
           <summary>Full entry</summary>
@@ -311,6 +316,34 @@
         <input type="file" id="import-file" accept="application/json,.json">
         <div class="note" id="io-note"></div>
       </div>
+      <div class="iocard">
+        <h3>GIFs on cards</h3>
+        <p>Paste a GIPHY API key to add a <b>Find GIF</b> button to the back of
+           each review card — a picture to remember the word by. The key is kept
+           in this browser only and is never part of an export. Get a free key
+           at <a href="https://developers.giphy.com/dashboard/" target="_blank"
+           rel="noreferrer">developers.giphy.com</a>.</p>
+        <input type="text" id="giphy-key" placeholder="GIPHY API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="iocard">
+        <h3>Push to Anki</h3>
+        <p>Create Anki cards (word → meaning) from your
+           <b id="anki-lang">English</b> words, through the AnkiConnect add-on.
+           Open the Anki desktop app first. One-time setup: add this origin to
+           AnkiConnect's <code>webCorsOriginList</code> (Anki → Tools → Add-ons →
+           AnkiConnect → Config), then restart Anki.</p>
+        <p><code id="anki-origin"></code></p>
+        <p class="anki-deckrow">
+          <label for="anki-deck">Deck</label>
+          <select id="anki-deck"></select>
+        </p>
+        <div class="dlgrow">
+          <button class="btn ghost" id="anki-test">Test connection</button>
+          <button class="btn" id="anki-push">Push to Anki</button>
+        </div>
+        <div class="note" id="anki-note"></div>
+      </div>
     </div>
   </section>
 </main>
@@ -354,10 +387,13 @@
 <script src="lang/lang.js"></script>
 <script src="lang/en/index.js"></script>
 <script src="lang/ko/index.js"></script>
+<script src="lang/en/cefr.js"></script>
 <script src="lang/en/dictionary.js"></script>
 <script src="lang/ko/dictionary.js"></script>
 <script src="store.js"></script>
 <script src="lookup.js"></script>
+<script src="giphy.js"></script>
+<script src="anki.js"></script>
 <script src="practice.js"></script>
 <script src="practice-quiz.js"></script>
 <script src="practice-listening.js"></script>

@@ -4,11 +4,18 @@ A personal Chrome extension for learning vocabulary while reading. English and
 Korean.
 
 Select a word on any page, click the button that appears, and the side panel
-shows what the dictionary has. For English that is the Cambridge entry — CEFR
-level, UK and US pronunciation, every sense with its own level and example,
-synonyms — alongside a Vietnamese translation and **the sentence you met it
-in**. Saved words are highlighted when you revisit the page, and reviewed as
-flashcards on a spaced-repetition schedule.
+shows what the dictionary has. For English that is a Datamuse entry: the
+definition of each sense, the part of speech, and synonyms, alongside a
+Vietnamese translation and **the sentence you met it in**. The CEFR level comes
+from a bundled word list, because no lookup carries it. A word the list does not
+have gets a level estimated from its frequency, marked with a `~`. The IPA is
+rebuilt from
+the word's CMU pronunciation. There is no recorded audio from this source. The
+play button speaks the word with the system voice, and the **Wiktionary ↗** link
+opens the full entry.
+Cambridge put a bot wall in front of its pages that a background request cannot
+pass, so the lookup moved to a keyless source. Saved words are highlighted when
+you revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
 
 Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, with no dictionary behind it yet. See
@@ -199,6 +206,32 @@ effect in every open tab straight away. LanguageTool is open source and
 self-hostable; pointing `LT_URL` in `service-worker.js` at your own container
 is the whole change if you ever want nothing to leave the machine at all.
 
+## Push to Anki
+
+The dashboard can create Anki cards from your words, through the AnkiConnect
+add-on. Each card shows the word on the front. The back shows the meaning, the
+definition, an example, the level and the GIF. The review schedule stays in
+Vocab-track. Anki runs its own.
+
+Set it up once:
+
+1. Install the **AnkiConnect** add-on in the Anki desktop app. Its code is
+   `2055492159`.
+2. Open **Import & export → Push to Anki** in the dashboard. Copy the origin it
+   shows.
+3. In Anki, open **Tools → Add-ons → AnkiConnect → Config**. Add that origin to
+   `webCorsOriginList`. Restart Anki.
+
+Open Anki, then press **Test connection**. This loads your Anki decks into the
+picker. Choose one of your decks, or keep the new `Vocab-track` deck the picker
+offers. Then press **Push to Anki**. It pushes the words for the language the
+toggle shows. A re-push adds only new words, because a word already in that deck
+is skipped.
+
+Each word card also carries its own Push to Anki control, so you can push one
+word on its own. A word already in Anki shows a **✓ Anki** badge. The badge's
+tooltip names the deck. A per-word push uses the deck the picker holds.
+
 ## Word lists
 
 **The two English lists are not committed here — you build them.** Their
@@ -252,6 +285,24 @@ Sources: the word list is the **Octanove Vocabulary Profile C1/C2** from
 [Open Language Profiles](https://github.com/openlanguageprofiles/olp-en-cefrj),
 CC BY-SA 4.0. Definitions, IPA, audio and examples are scraped from Cambridge
 one page at a time, for personal use, at about a page a second.
+
+### CEFR levels
+
+The English dictionary no longer carries a CEFR level, so the level comes from a
+bundled word list, `lang/en/cefr.js`. `tools/build-cefr-list.py` builds it from
+two open sources through [Open Language Profiles](https://github.com/openlanguageprofiles/olp-en-cefrj).
+The CEFR-J Vocabulary Profile 1.5 covers A1 to B2. It is from Tono Laboratory at
+Tokyo University of Foreign Studies, free to use with citation. The Octanove
+Vocabulary Profile C1/C2 1.0 covers C1 and C2, under CC BY-SA 4.0. A word takes
+the easiest level any sense of it has. This file ships with the extension and
+loads in the side panel and the dashboard, never in the content script.
+
+A word the list does not have takes an estimated level instead, from its
+frequency. The dictionary lookup already asks Datamuse for the word, and asks
+for the frequency in the same request. A frequency tracks CEFR only loosely, so
+this is a coarse band within about one level of the real one. The card marks it
+with a `~`, and the estimate is set only on a fresh lookup, not on words saved
+before. A word with no frequency either, such as a proper noun, has no level.
 
 ### Phrasal verbs
 
@@ -328,14 +379,22 @@ carry the 초급/중급/고급 names and not TOPIK levels.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Four things leave your browser, each only when you do something that needs it:
+Six things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
-| You click an English word | `dictionary.cambridge.org` | the word |
+| You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
-| You play a pronunciation | `dictionary.cambridge.org` | nothing — the audio file is streamed from the URL on the card |
+| You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
+| You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, so nothing leaves it |
+
+GIFs on cards are off until you add your own GIPHY API key. The key field is
+under **Import & export**, in **GIFs on cards**. The key is kept in
+`chrome.storage.local` on this machine. It is never part of an export. Nothing
+is sent to GIPHY until you press the button on a review card. A found GIF is then
+stored by its URL, so a word is never searched twice.
 
 Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes

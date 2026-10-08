@@ -11,8 +11,11 @@
   ],
   "host_permissions": [
     "https://dictionary.cambridge.org/*",
+    "https://api.datamuse.com/*",
     "https://translate.googleapis.com/*",
-    "https://api.languagetool.org/*"
+    "https://api.languagetool.org/*",
+    "https://api.giphy.com/*",
+    "http://127.0.0.1:8765/*"
   ],
   "background": {
     "service_worker": "service-worker.js"
