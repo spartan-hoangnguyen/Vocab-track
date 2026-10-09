@@ -210,8 +210,9 @@ document.addEventListener('click', (event) => {
   // above owns that, and it ends with the 📘 button.
   if (!window.getSelection()?.isCollapsed) return;
 
-  // A Highlight is setlike, so its ranges iterate directly, and toString() on
-  // one is the matched text.
+  // A Highlight is setlike, so its ranges iterate directly. The word sent is
+  // the saved entry's, not the range's text: a click on "resilience" quizzes
+  // the `resilient` you saved.
   for (const hit of CSS.highlights.get(HIGHLIGHT_NAME) ?? []) {
     if (!hit.isPointInRange(node, range.startOffset)) continue;
     // Capture phase and both of these, so a saved word inside a link opens the
@@ -224,7 +225,7 @@ document.addEventListener('click', (event) => {
       // network call, and context is left null: it is never overwritten on a
       // known word and this click is a quiz, not a save.
       mode: 'quiz',
-      word: VT.normaliseWord(hit.toString()),
+      word: VT.normaliseWord(rangeEntry.get(hit)?.word ?? hit.toString()),
       url: location.href,
       context: null
     });

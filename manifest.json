@@ -50,6 +50,7 @@
       "js": [
         "lib.js",
         "lang/lang.js",
+        "lang/en/irregular.js",
         "lang/en/index.js",
         "lang/ko/index.js",
         "lang/zh/index.js",

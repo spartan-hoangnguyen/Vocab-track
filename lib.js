@@ -47,11 +47,14 @@ const VT = {
   // read once instead of once per saved word. Entries the index cannot serve —
   // other packs, and multi-word keys — come back in `rest` for VT.find.
   //
-  // Two entries can share a form. The first one wins, which is the order
-  // storage hands them back in: a page shows one highlight per word, not two.
+  // Two entries can share a form. A saved word's own spelling always beats
+  // another word's derived form — with `see` and the noun `saw` both saved,
+  // "saw" is `saw` — and between two derived forms the first entry wins, in
+  // the order storage hands them back. A page shows one highlight per word.
   wordIndex(entries) {
     const index = new Map();
     const rest = [];
+    const indexed = [];
     for (const entry of entries) {
       const pack = LANG.of(entry);
       const word = VT.normaliseWord(entry.word);
@@ -59,6 +62,10 @@ const VT = {
         rest.push(entry);
         continue;
       }
+      if (!index.has(word)) index.set(word, entry);
+      indexed.push([pack, word, entry]);
+    }
+    for (const [pack, word, entry] of indexed) {
       for (const form of pack.forms(word)) {
         const key = VT.normaliseWord(form);
         if (!index.has(key)) index.set(key, entry);

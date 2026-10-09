@@ -35,6 +35,10 @@ While iterating: reload the card after changing `manifest.json` or
    avoided. Also try a page that assigns `document.adoptedStyleSheets` itself.
    Then open a different page that uses the same word: it is highlighted there
    too, because every saved word is looked for on every page.
+   **Highlighting forms.** Save `resilient` and `run`. On a page that says
+   "resilience" and "ran", both are highlighted. Click "resilience": the panel
+   quizzes `resilient`. With `accelerate` saved, "accelerator" is not
+   highlighted.
 
 3. **Unknown word.** Look up `zzqqxwv`. The panel must say it is not in the
    dictionary and save nothing. If it saves an entry whose play button

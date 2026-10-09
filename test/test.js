@@ -61,6 +61,18 @@ check('does not match inside bobcat', !hit('bobcat'));
   doc.body.innerHTML = '<p>a cat and 책을</p><pre>cat</pre><div contenteditable="true">cat</div>';
   const hh = VT.highlightHits(doc.body, [cat, { word: '책', lang: 'ko' }]);
   eq('highlight: English and Korean both light up, code and editors do not', hh.length, 2);
+
+  const resilient = { word: 'resilient', lang: 'en' };
+  const formHit = VT.indexHits('Resilience matters.', VT.wordIndex([resilient]).index)[0];
+  check('forms: "Resilience" highlights as the saved resilient', formHit?.entry === resilient);
+  eq('forms: the range covers the page\'s spelling', formHit?.length, 10);
+  eq('forms: "accelerator" stays dark with accelerate saved',
+     VT.indexHits('the accelerator', VT.wordIndex([{ word: 'accelerate', lang: 'en' }]).index).length, 0);
+  const see = { word: 'see', lang: 'en' };
+  const saw = { word: 'saw', lang: 'en' };
+  check('forms: a saved word\'s own spelling beats a derived form',
+        VT.indexHits('a saw', VT.wordIndex([see, saw]).index)[0]?.entry === saw);
+  eq('forms: match() still does not stem', VT.find('resilient', 'resilience').length, 0);
 }
 
 eq('finds every occurrence', VT.find('cat', 'cat, Cat and CAT').length, 3);

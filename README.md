@@ -509,7 +509,11 @@ manual checklist for it.
   view re-renders on every keystroke in the search box, so with a couple of
   thousand words saved it shows the newest 300 and the count says so. Search
   and folders reach the rest.
-- **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
+- **Highlighting knows a fixed list of English forms.** `resilient` lights up
+  "resilience", `run` lights up "ran", `study` lights up "studied". A form
+  outside the suffix rules and the irregular-verb table in `lang/en/irregular.js`
+  stays dark: `decide` does not highlight "decision". Practice (Fill the gap,
+  Speak) still matches the exact word.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
 - **Korean has no dictionary behind it.** There is no krdict key, so `lookup()`
   in `lang/ko/dictionary.js` returns level, pronunciation, definition, senses
