@@ -42,24 +42,44 @@ const VT = {
     return VT.find(word, text, lang).length > 0;
   },
 
-  // The highlighter's lookup table: every written form of every saved word in
-  // an `indexed` pack (English), keyed by its normalised spelling, so a page is
-  // read once instead of once per saved word. Entries the index cannot serve —
-  // other packs, and multi-word keys — come back in `rest` for VT.find.
+  // The token a page is read in: a run of \w-class letters and digits, with
+  // inner hyphens joining one. Shared by the index and the scan, so a saved
+  // phrase is split exactly the way the page text will be.
+  TOKEN: /[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu,
+
+  // The highlighter's lookup table for the saved words of an `indexed` pack
+  // (English), so a page is read once instead of once per saved word:
   //
-  // Two entries can share a form. A saved word's own spelling always beats
-  // another word's derived form — with `see` and the noun `saw` both saved,
-  // "saw" is `saw` — and between two derived forms the first entry wins, in
-  // the order storage hands them back. A page shows one highlight per word.
+  //   index    form → entry, for one-word keys
+  //   phrases  form of the first word → [{ rest, entry }], for multi-word keys
+  //            (`give up` is filed under give, gave, giving, … with rest ['up'])
+  //   rest     entries the index cannot serve — other packs — for VT.find
+  //
+  // Only the first word of a phrase inflects: "gave up" is `give up`, "give
+  // ups" is not. Two entries can share a form. A saved word's own spelling
+  // always beats another word's derived form — with `see` and the noun `saw`
+  // both saved, "saw" is `saw` — and between two derived forms the first entry
+  // wins, in the order storage hands them back. A page shows one highlight
+  // per word.
   wordIndex(entries) {
     const index = new Map();
+    const phrases = new Map();
     const rest = [];
     const indexed = [];
     for (const entry of entries) {
       const pack = LANG.of(entry);
       const word = VT.normaliseWord(entry.word);
-      if (!pack.indexed || /\s/.test(word)) {
+      if (!pack.indexed) {
         rest.push(entry);
+        continue;
+      }
+      const tokens = [...word.matchAll(VT.TOKEN)].map((m) => m[0]);
+      if (tokens.length > 1) {
+        for (const form of pack.forms(tokens[0])) {
+          const key = VT.normaliseWord(form);
+          if (!phrases.has(key)) phrases.set(key, []);
+          phrases.get(key).push({ rest: tokens.slice(1), entry });
+        }
         continue;
       }
       if (!index.has(word)) index.set(word, entry);
@@ -71,21 +91,44 @@ const VT = {
         if (!index.has(key)) index.set(key, entry);
       }
     }
-    return { index, rest };
+    // Longest phrase first, so `give up on` is tried before `give up`.
+    for (const list of phrases.values()) list.sort((a, b) => b.rest.length - a.rest.length);
+    return { index, phrases, rest };
   },
 
   // Every indexed word in `text`, as {index, length, entry} ranges.
   //
-  // A token is a run of \w-class letters and digits, so the result is
-  // word-bounded the way match()'s \b is: "cat" is not in "category" or
-  // "cat5". Inner hyphens join a token, and a compound that is not saved as a
-  // whole falls back to its parts, so "well" still lights up in "well-known".
-  // An apostrophe ends a token, which keeps "cat's" a hit on "cat".
-  indexHits(text, index) {
+  // Word-bounded the way match()'s \b is: "cat" is not in "category" or
+  // "cat5". A hyphenated compound that is not saved as a whole falls back to
+  // its parts, so "well" still lights up in "well-known". An apostrophe ends a
+  // token, which keeps "cat's" a hit on "cat".
+  //
+  // A phrase is tried before the single word at the same token, so with
+  // `give` and `give up` both saved, "gave up" is `give up`. Its words may be
+  // apart by any whitespace, a line break included, but nothing else: "give
+  // it up" is not `give up`. A phrase split across two text nodes ("gave
+  // <b>up</b>") is not found either — the scan reads one node at a time.
+  indexHits(text, index, phrases = new Map()) {
     const out = [];
-    if (!index.size) return out;
-    for (const m of String(text ?? '').matchAll(/[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu)) {
-      const whole = index.get(VT.normaliseWord(m[0]));
+    if (!index.size && !phrases.size) return out;
+    const str = String(text ?? '');
+    const tokens = [...str.matchAll(VT.TOKEN)];
+    const end = (m) => m.index + m[0].length;
+    for (let i = 0; i < tokens.length; i++) {
+      const m = tokens[i];
+      const key = VT.normaliseWord(m[0]);
+      const phrase = phrases.get(key)?.find(({ rest }) => rest.every((word, j) => {
+        const next = tokens[i + j + 1];
+        return next && VT.normaliseWord(next[0]) === word &&
+          /^\s+$/.test(str.slice(end(tokens[i + j]), next.index));
+      }));
+      if (phrase) {
+        const last = tokens[i + phrase.rest.length];
+        out.push({ index: m.index, length: end(last) - m.index, entry: phrase.entry });
+        i += phrase.rest.length;
+        continue;
+      }
+      const whole = index.get(key);
       if (whole) {
         out.push({ index: m.index, length: m[0].length, entry: whole });
         continue;
@@ -105,7 +148,7 @@ const VT = {
   // content script turns into highlight Ranges. Here rather than there so the
   // test page can run and time it without a chrome API.
   highlightHits(root, entries) {
-    const { index, rest } = VT.wordIndex(entries);
+    const { index, phrases, rest } = VT.wordIndex(entries);
     // Grouped by pack, so a node that holds no Hangul or Han skips those packs
     // with one script test instead of one test per saved word.
     const byPack = new Map();
@@ -132,7 +175,7 @@ const VT = {
     let node;
     while ((node = walker.nextNode())) {
       const text = node.nodeValue;
-      for (const hit of VT.indexHits(text, index)) hits.push({ node, ...hit });
+      for (const hit of VT.indexHits(text, index, phrases)) hits.push({ node, ...hit });
       // ponytail: one match() per saved word for packs with no index. Cheap on
       // a page in another script, slow on a long Chinese page with all of HSK
       // saved. Upgrade path is a segment index like English's.

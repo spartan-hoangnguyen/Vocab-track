@@ -54,8 +54,8 @@ check('does not match inside bobcat', !hit('bobcat'));
   eq('index: an empty index finds nothing', VT.indexHits('a cat', new Map()).length, 0);
   check('index: a Korean word is left to match()',
         VT.wordIndex([{ word: '책', lang: 'ko' }]).rest.length === 1);
-  check('index: a multi-word key is left to match()',
-        VT.wordIndex([{ word: 'give up', lang: 'en' }]).rest.length === 1);
+  check('index: a multi-word key is filed under its first word',
+        VT.wordIndex([{ word: 'give up', lang: 'en' }]).phrases.has('gave'));
 
   const doc = document.implementation.createHTMLDocument('');
   doc.body.innerHTML = '<p>a cat and 책을</p><pre>cat</pre><div contenteditable="true">cat</div>';
@@ -73,6 +73,25 @@ check('does not match inside bobcat', !hit('bobcat'));
   check('forms: a saved word\'s own spelling beats a derived form',
         VT.indexHits('a saw', VT.wordIndex([see, saw]).index)[0]?.entry === saw);
   eq('forms: match() still does not stem', VT.find('resilient', 'resilience').length, 0);
+
+  const giveUp = { word: 'give up', lang: 'en' };
+  const give = { word: 'give', lang: 'en' };
+  const giveUpOn = { word: 'give up on', lang: 'en' };
+  const ph = (text, entries = [giveUp]) => {
+    const { index, phrases } = VT.wordIndex(entries);
+    return VT.indexHits(text, index, phrases);
+  };
+  const gaveUp = ph('She gave up.')[0];
+  check('phrase: "gave up" is the saved give up', gaveUp?.entry === giveUp);
+  eq('phrase: one range covers both words', 'She gave up.'.slice(gaveUp?.index, gaveUp?.index + gaveUp?.length), 'gave up');
+  check('phrase: "giving up" and "gives up" hit', ph('giving up').length === 1 && ph('gives up').length === 1);
+  eq('phrase: "give it up" is not a hit (a separated object)', ph('give it up').length, 0);
+  eq('phrase: only the first word inflects', ph('give ups').length, 0);
+  check('phrase: a line break between the words still counts', ph('gave\n  up')[0]?.entry === giveUp);
+  check('phrase: beats the single word at the same token', ph('gave up', [give, giveUp])[0]?.entry === giveUp);
+  check('phrase: the longest saved phrase wins',
+        ph('gave up on it', [giveUp, giveUpOn])[0]?.entry === giveUpOn);
+  check('phrase: the single word still hits alone', ph('gave it away', [give, giveUp])[0]?.entry === give);
 }
 
 eq('finds every occurrence', VT.find('cat', 'cat, Cat and CAT').length, 3);

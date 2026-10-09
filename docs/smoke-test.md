@@ -39,6 +39,9 @@ While iterating: reload the card after changing `manifest.json` or
    "resilience" and "ran", both are highlighted. Click "resilience": the panel
    quizzes `resilient`. With `accelerate` saved, "accelerator" is not
    highlighted.
+   **Phrasal verbs.** Import `data/phrasal-verbs.json`. On a page that says
+   "she gave up", "gave up" is one highlight. Click it: the panel quizzes
+   `give up`. "give it up" is not highlighted.
 
 3. **Unknown word.** Look up `zzqqxwv`. The panel must say it is not in the
    dictionary and save nothing. If it saves an entry whose play button

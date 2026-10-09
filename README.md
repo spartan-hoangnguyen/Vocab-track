@@ -318,8 +318,10 @@ with a cache in `/tmp/vocab-track-phrasal`. Cambridge gives each sense of a phra
 verb its own entry block, so the parse page folds them into one, easiest band
 first — otherwise `give up` would teach "to stop guessing".
 
-A phrasal verb is a multi-word key, so it reviews like any word but is not
-highlighted on pages or offered as a lookup — those match single words only.
+A phrasal verb is a multi-word key. It reviews like any word and is
+highlighted on pages, with its first word in any form: `give up` lights up
+"gave up" and "giving up". It is not offered as a lookup, because a lookup
+takes one word.
 
 ### Korean
 
@@ -514,6 +516,9 @@ manual checklist for it.
   outside the suffix rules and the irregular-verb table in `lang/en/irregular.js`
   stays dark: `decide` does not highlight "decision". Practice (Fill the gap,
   Speak) still matches the exact word.
+- **A phrasal verb split by its object is not highlighted.** `give up` lights
+  up "gave up" but not "give it up". A phrase that a link or bold text cuts in
+  two ("gave **up**") is not found either.
 - **Highlights paint once at page load**, so infinite-scroll content is missed.
 - **Korean has no dictionary behind it.** There is no krdict key, so `lookup()`
   in `lang/ko/dictionary.js` returns level, pronunciation, definition, senses
