@@ -11,8 +11,9 @@ from a bundled word list, because no lookup carries it. There is no IPA and no
 recorded audio from this source. The play button speaks the word with the system
 voice, and the **Wiktionary ↗** link opens the full entry.
 Cambridge put a bot wall in front of its pages that a background request cannot
-pass, so the lookup moved to a keyless source. Saved words are highlighted when
-you revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
+pass, so the lookup moved to a keyless source. Saved words are highlighted on
+every page you read, not only the one you saved them from, and reviewed as
+flashcards on a spaced-repetition schedule.
 
 Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, with no dictionary behind it yet. See

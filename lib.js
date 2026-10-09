@@ -42,6 +42,105 @@ const VT = {
     return VT.find(word, text, lang).length > 0;
   },
 
+  // The highlighter's lookup table: every written form of every saved word in
+  // an `indexed` pack (English), keyed by its normalised spelling, so a page is
+  // read once instead of once per saved word. Entries the index cannot serve —
+  // other packs, and multi-word keys — come back in `rest` for VT.find.
+  //
+  // Two entries can share a form. The first one wins, which is the order
+  // storage hands them back in: a page shows one highlight per word, not two.
+  wordIndex(entries) {
+    const index = new Map();
+    const rest = [];
+    for (const entry of entries) {
+      const pack = LANG.of(entry);
+      const word = VT.normaliseWord(entry.word);
+      if (!pack.indexed || /\s/.test(word)) {
+        rest.push(entry);
+        continue;
+      }
+      for (const form of pack.forms(word)) {
+        const key = VT.normaliseWord(form);
+        if (!index.has(key)) index.set(key, entry);
+      }
+    }
+    return { index, rest };
+  },
+
+  // Every indexed word in `text`, as {index, length, entry} ranges.
+  //
+  // A token is a run of \w-class letters and digits, so the result is
+  // word-bounded the way match()'s \b is: "cat" is not in "category" or
+  // "cat5". Inner hyphens join a token, and a compound that is not saved as a
+  // whole falls back to its parts, so "well" still lights up in "well-known".
+  // An apostrophe ends a token, which keeps "cat's" a hit on "cat".
+  indexHits(text, index) {
+    const out = [];
+    if (!index.size) return out;
+    for (const m of String(text ?? '').matchAll(/[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu)) {
+      const whole = index.get(VT.normaliseWord(m[0]));
+      if (whole) {
+        out.push({ index: m.index, length: m[0].length, entry: whole });
+        continue;
+      }
+      if (!m[0].includes('-')) continue;
+      let at = m.index;
+      for (const part of m[0].split('-')) {
+        const entry = index.get(VT.normaliseWord(part));
+        if (entry) out.push({ index: at, length: part.length, entry });
+        at += part.length + 1;
+      }
+    }
+    return out;
+  },
+
+  // Every saved word under `root`, as {node, index, length, entry} — what the
+  // content script turns into highlight Ranges. Here rather than there so the
+  // test page can run and time it without a chrome API.
+  highlightHits(root, entries) {
+    const { index, rest } = VT.wordIndex(entries);
+    // Grouped by pack, so a node that holds no Hangul or Han skips those packs
+    // with one script test instead of one test per saved word.
+    const byPack = new Map();
+    for (const entry of rest) {
+      const pack = LANG.of(entry);
+      if (!byPack.has(pack)) byPack.set(pack, []);
+      byPack.get(pack).push(entry);
+    }
+    const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        // closest(), not parentElement.tagName: a highlighted code block nests
+        // spans inside <pre><code>, so the immediate parent is not the CODE.
+        if (!parent || parent.closest('script, style, code, pre, textarea') ||
+            parent.isContentEditable) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+
+    const hits = [];
+    let node;
+    while ((node = walker.nextNode())) {
+      const text = node.nodeValue;
+      for (const hit of VT.indexHits(text, index)) hits.push({ node, ...hit });
+      // ponytail: one match() per saved word for packs with no index. Cheap on
+      // a page in another script, slow on a long Chinese page with all of HSK
+      // saved. Upgrade path is a segment index like English's.
+      for (const [pack, list] of byPack) {
+        if (pack.script && !pack.script.test(text)) continue;
+        for (const entry of list) {
+          for (const hit of VT.find(entry.word, text, entry.lang)) {
+            hits.push({ node, ...hit, entry });
+          }
+        }
+      }
+    }
+    return hits;
+  },
+
   // A text and its ranges as alternating pieces: [{ text, hit }]. Four places
   // mark a word inside its own sentence — the panel, the words view, the
   // review prompt and Fill the gap — and each used to walk the regex itself.

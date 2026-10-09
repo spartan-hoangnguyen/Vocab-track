@@ -42,6 +42,11 @@ LANG.register('en', {
     return out;
   },
 
+  // English words are separated tokens, so the highlighter reads a page once
+  // and looks each token up (VT.indexHits) instead of running match() once
+  // per saved word.
+  indexed: true,
+
   // A selection worth offering a lookup for: one word, letters and inner
   // hyphens only, 2 to 40 characters. Deliberately rejects digits and
   // punctuation so the button does not appear on code, prices or dates.

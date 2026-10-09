@@ -147,53 +147,30 @@ function highlightStyle() {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 
+// The saved entry each painted range stands for. A range's text is what the
+// page wrote, which stops being the saved word once forms are matched.
+const rangeEntry = new WeakMap();
+
 // Takes entries, not strings: each word is matched by the rules of its own
 // language, so `lang` has to travel with it. A bare { word } is fine — VT.find
 // falls back to detecting the script.
 function rangesFor(entries) {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      const parent = node.parentElement;
-      // closest(), not parentElement.tagName: a highlighted code block nests
-      // spans inside <pre><code>, so the immediate parent is not the CODE.
-      if (!parent || parent.closest('script, style, code, pre, textarea') ||
-          parent.isContentEditable) {
-        return NodeFilter.FILTER_REJECT;
-      }
-      return NodeFilter.FILTER_ACCEPT;
-    }
+  return VT.highlightHits(document.body, entries).map(({ node, index, length, entry }) => {
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + length);
+    rangeEntry.set(range, entry);
+    return range;
   });
-
-  const ranges = [];
-  let node;
-  while ((node = walker.nextNode())) {
-    for (const entry of entries) {
-      // Each word is matched by the rules of its own language, so an English
-      // and a Korean word saved from the same page both light up.
-      for (const hit of VT.find(entry.word, node.nodeValue, entry.lang)) {
-        const range = document.createRange();
-        range.setStart(node, hit.index);
-        range.setEnd(node, hit.index + hit.length);
-        ranges.push(range);
-      }
-    }
-  }
-  return ranges;
 }
 
 async function applyHighlights() {
   const { words } = await chrome.storage.local.get('words');
   if (!words) return;
 
-  // Per-page, not per-URL: a word saved from a video carries the moment it was
-  // said, so no two sources for one video are string-equal.
-  const key = VT.pageKey(location.href);
-  const here = Object.values(words)
-    .filter((entry) => entry.sources?.some((source) => VT.pageKey(source) === key));
-  if (!here.length) return;
-
-  const ranges = rangesFor(here);
+  // Every saved word, on every page: the point is to meet a word again away
+  // from where you saved it, and an imported list has no page at all.
+  const ranges = rangesFor(Object.values(words));
   if (!ranges.length) return;
 
   highlightStyle();

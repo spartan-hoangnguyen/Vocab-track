@@ -38,6 +38,31 @@ check('matches possessive stem', hit("the cat's bowl"));
 check('does not match inside category', !hit('category'));
 check('does not match inside concatenate', !hit('concatenate'));
 check('does not match inside bobcat', !hit('bobcat'));
+
+// --- VT.indexHits / VT.highlightHits  (the page highlighter's one-pass scan)
+{
+  const cat = { word: 'cat', lang: 'en' };
+  const { index } = VT.wordIndex([cat, { word: 'well', lang: 'en' }]);
+  const ih = (text) => VT.indexHits(text, index);
+  eq('index: finds a saved word', ih('a cat sat').length, 1);
+  eq('index: a hit points at the word', ih('a cat sat')[0].index, 2);
+  check('index: returns the saved entry', ih('a cat sat')[0].entry === cat);
+  eq('index: is word-bounded', ih('category bobcat cat5').length, 0);
+  eq('index: is case-insensitive', ih('Cat and CAT').length, 2);
+  eq('index: keeps the possessive a hit', ih("the cat's bowl").length, 1);
+  eq('index: a hyphen part still hits', ih('a well-known fact')[0]?.length, 4);
+  eq('index: an empty index finds nothing', VT.indexHits('a cat', new Map()).length, 0);
+  check('index: a Korean word is left to match()',
+        VT.wordIndex([{ word: '책', lang: 'ko' }]).rest.length === 1);
+  check('index: a multi-word key is left to match()',
+        VT.wordIndex([{ word: 'give up', lang: 'en' }]).rest.length === 1);
+
+  const doc = document.implementation.createHTMLDocument('');
+  doc.body.innerHTML = '<p>a cat and 책을</p><pre>cat</pre><div contenteditable="true">cat</div>';
+  const hh = VT.highlightHits(doc.body, [cat, { word: '책', lang: 'ko' }]);
+  eq('highlight: English and Korean both light up, code and editors do not', hh.length, 2);
+}
+
 eq('finds every occurrence', VT.find('cat', 'cat, Cat and CAT').length, 3);
 eq('a range points at the word',
    VT.find('cat', 'a cat sat')[0].index, 2);

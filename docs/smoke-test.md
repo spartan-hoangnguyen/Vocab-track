@@ -33,6 +33,8 @@ While iterating: reload the card after changing `manifest.json` or
    likely cause is the isolated-world stylesheet not being adopted by the page
    document; the fallback is a `<style>` element, which the spec deliberately
    avoided. Also try a page that assigns `document.adoptedStyleSheets` itself.
+   Then open a different page that uses the same word: it is highlighted there
+   too, because every saved word is looked for on every page.
 
 3. **Unknown word.** Look up `zzqqxwv`. The panel must say it is not in the
    dictionary and save nothing. If it saves an entry whose play button
