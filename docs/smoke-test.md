@@ -698,6 +698,24 @@ words, then fill this in.
 - Date: ______  Chrome version: ______  macOS: ______
 - Result: ______ (items that failed, with what you saw)
 
+## Highlighting: last full run
+
+Run step 2 (highlighting, forms, phrasal verbs, late content) in a real Chrome
+profile with every bundled list imported (IELTS, phrasal verbs, HSK, the
+Korean starter list), on one news article, one infinite feed and one SPA.
+Also scroll a feed until a post says "gave up" with `give up` saved: it is
+highlighted, and a click quizzes `give up`. Then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Pages: ______ (article, feed, SPA)
+- Result: ______ (items that failed, with what you saw; any visible delay)
+
+`bash test/run.sh` covers the same scenarios on stub pages, and passes on
+2026-10-09 in headless Chrome 154.0.8037.98: `test/highlight-probe.html`
+(2,000 words plus the phrasal-verb list over 5,000 nodes in under 200 ms) and
+`test/repaint-probe.html` (late posts, own UI, editors, dropped ranges, and
+"gave up" in a late post as the saved `give up`).
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture

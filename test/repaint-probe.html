@@ -77,6 +77,22 @@ const feed = document.getElementById('feed');
   await wait(50);
   check('a newly saved word lights up on the page at once', lit().length === 98, lit().length);
 
+  // All three R004 scenarios at once: a phrasal verb, in an inflected form, in
+  // a post that arrives after load — and the click goes to the saved entry.
+  STORE.words['give up'] = { word: 'give up', lang: 'en' };
+  onChanged.forEach((listener) => listener({ words: { newValue: STORE.words } }, 'local'));
+  await wait(50);
+  const late = document.createElement('p');
+  late.textContent = 'Late post: she never gave up on the resilience of her community.';
+  feed.append(late);
+  await settle();
+  const inLate = lit().filter((range) => late.contains(range.startContainer));
+  const texts = inLate.map((range) => range.toString()).sort().join(', ');
+  check('a late post lights up "gave up", "resilience" and "community"',
+        texts === 'community, gave up, resilience', texts);
+  check('and "gave up" belongs to the saved give up',
+        inLate.some((range) => range.toString() === 'gave up' && rangeEntry.get(range)?.word === 'give up'));
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 })();
