@@ -1,0 +1,83 @@
+<!doctype html><meta charset="utf-8"><title>repaint probe</title>
+<!-- The real content-script.js against a stubbed chrome API, on a page that
+     changes after load the way a feed does. Checks what the unit tests cannot
+     reach: that late content is highlighted, that the extension's own UI and
+     editors are left alone, and that the Highlight sheds ranges whose text
+     left the page. Output goes in a <pre>, which the highlighter skips. -->
+<body>
+<main id="feed"><p>She stayed resilient through it all.</p></main>
+<pre id="out">running…</pre>
+
+<script>
+const STORE = { words: { resilient: { word: 'resilient', lang: 'en' } } };
+const onChanged = [];
+window.chrome = {
+  runtime: { id: 'probe', sendMessage() {}, onMessage: { addListener() {} } },
+  storage: {
+    local: { get: async () => ({ words: STORE.words }) },
+    onChanged: { addListener: (fn) => onChanged.push(fn) }
+  }
+};
+</script>
+<script src="../lib.js"></script>
+<script src="../lang/lang.js"></script>
+<script src="../lang/en/irregular.js"></script>
+<script src="../lang/en/index.js"></script>
+<script src="../lang/ko/index.js"></script>
+<script src="../lang/zh/index.js"></script>
+<script src="../content-script.js"></script>
+<script>
+const log = [];
+let failures = 0;
+function check(name, ok, detail) {
+  if (!ok) failures++;
+  log.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : `  -> ${detail}`}`);
+}
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// One debounce window and some slack: the observer fires, then repaint runs.
+const settle = () => wait(REPAINT_DELAY_MS + 200);
+const lit = () => [...(CSS.highlights.get('vocab-track') ?? [])];
+const feed = document.getElementById('feed');
+
+(async () => {
+  await wait(50);
+  check('the first paint covers the page', lit().length === 1, lit().length);
+
+  for (let i = 0; i < 50; i++) {
+    const post = document.createElement('p');
+    post.textContent = `Post ${i}: a resilient community.`;
+    feed.append(post);
+  }
+  await settle();
+  check('50 posts appended after load light up without a reload', lit().length === 51, lit().length);
+
+  const ui = document.createElement('div');
+  ui.setAttribute(OWN_UI, '');
+  ui.textContent = 'resilient';
+  document.body.append(ui);
+  const editor = document.createElement('div');
+  editor.contentEditable = 'true';
+  editor.textContent = 'draft';
+  document.body.append(editor);
+  editor.firstChild.data = 'resilient';
+  await settle();
+  check('the extension\'s own UI and an editor are not highlighted', lit().length === 51, lit().length);
+
+  feed.lastElementChild.remove();
+  feed.append(document.createElement('hr'));
+  await settle();
+  check('a removed post\'s range is dropped', lit().length === 50, lit().length);
+
+  feed.firstElementChild.firstChild.data = 'She gave in.';
+  await settle();
+  check('an edited text node loses its stale range', lit().length === 49, lit().length);
+
+  STORE.words.community = { word: 'community', lang: 'en' };
+  onChanged.forEach((listener) => listener({ words: { newValue: STORE.words } }, 'local'));
+  await wait(50);
+  check('a newly saved word lights up on the page at once', lit().length === 98, lit().length);
+
+  document.getElementById('out').textContent =
+    log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+})();
+</script>

@@ -76,6 +76,12 @@ HIGHLIGHT=$("$CHROME" --headless --disable-gpu --virtual-time-budget=5000 \
             --dump-dom "http://localhost:$PORT/test/highlight-probe.html" 2>/dev/null \
             | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
 
+# The real content script on a page that changes after load: late content,
+# the extension's own UI, editors, and ranges whose text left the page.
+REPAINT=$("$CHROME" --headless --disable-gpu --virtual-time-budget=10000 \
+          --dump-dom "http://localhost:$PORT/test/repaint-probe.html" 2>/dev/null \
+          | sed -n '/<pre id="out">/,/<\/pre>/p' | sed 's/<[^>]*>//g')
+
 echo "$OUT"
 echo "$PROBE"
 echo "$READER"
@@ -84,6 +90,7 @@ echo "$WRITER"
 echo "$PANEL"
 echo "$PRACTICE"
 echo "$HIGHLIGHT"
+echo "$REPAINT"
 echo "$OUT"   | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PROBE"  | grep -qE '^0 failure\(s\)' || exit 1
 echo "$READER" | grep -qE '^0 failure\(s\)' || exit 1
@@ -92,4 +99,5 @@ echo "$WRITER" | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PANEL"  | grep -qE '^0 failure\(s\)' || exit 1
 echo "$PRACTICE" | grep -qE '^0 failure\(s\)' || exit 1
 echo "$HIGHLIGHT" | grep -qE '^0 failure\(s\)' || exit 1
+echo "$REPAINT" | grep -qE '^0 failure\(s\)' || exit 1
 exit 0

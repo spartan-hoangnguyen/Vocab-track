@@ -42,6 +42,12 @@ While iterating: reload the card after changing `manifest.json` or
    **Phrasal verbs.** Import `data/phrasal-verbs.json`. On a page that says
    "she gave up", "gave up" is one highlight. Click it: the panel quizzes
    `give up`. "give it up" is not highlighted.
+   **Late content.** On an infinite feed (Reddit, X, a news site's "load
+   more"), scroll until new posts load: the saved words in them are
+   highlighted with no reload. Move to another view in an SPA (GitHub, for
+   example) without reloading: the new view is highlighted. Save a word with
+   the 📘 button: its other occurrences on the page light up at once. Type a
+   saved word into a comment box: it is not highlighted.
 
 3. **Unknown word.** Look up `zzqqxwv`. The panel must say it is not in the
    dictionary and save nothing. If it saves an entry whose play button

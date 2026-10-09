@@ -15,6 +15,7 @@ function sendLookup(message) {
 
 function staleNotice() {
   const note = document.createElement('div');
+  note.setAttribute(OWN_UI, '');
   note.setAttribute('role', 'status');
   note.textContent = 'Vocab-track was updated — reload this page to look words up again.';
   note.style.cssText = [
@@ -35,6 +36,7 @@ function removeButton() {
 function showButton(word, rect, context) {
   removeButton();
   button = document.createElement('button');
+  button.setAttribute(OWN_UI, '');
   button.textContent = '📘';
   button.title = `Look up "${word}"`;
   // Inline styles with a maximum z-index: the button must survive whatever
@@ -151,11 +153,8 @@ function highlightStyle() {
 // page wrote, which stops being the saved word once forms are matched.
 const rangeEntry = new WeakMap();
 
-// Takes entries, not strings: each word is matched by the rules of its own
-// language, so `lang` has to travel with it. A bare { word } is fine — VT.find
-// falls back to detecting the script.
-function rangesFor(entries) {
-  return VT.highlightHits(document.body, entries).map(({ node, index, length, entry }) => {
+function toRanges(hits) {
+  return hits.map(({ node, index, length, entry }) => {
     const range = document.createRange();
     range.setStart(node, index);
     range.setEnd(node, index + length);
@@ -164,23 +163,103 @@ function rangesFor(entries) {
   });
 }
 
+// Takes entries, not strings: each word is matched by the rules of its own
+// language, so `lang` has to travel with it. A bare { word } is fine — VT.find
+// falls back to detecting the script.
+function rangesFor(entries) {
+  return toRanges(VT.highlightHits(document.body, entries));
+}
+
+// The index of every saved word, built once per change to `words` and kept,
+// so content the page adds later is scanned without rebuilding it.
+let pageIndex = null;
+
 async function applyHighlights() {
   const { words } = await chrome.storage.local.get('words');
-  if (!words) return;
-
   // Every saved word, on every page: the point is to meet a word again away
   // from where you saved it, and an imported list has no page at all.
-  const ranges = rangesFor(Object.values(words));
-  if (!ranges.length) return;
-
+  pageIndex = words ? VT.wordIndex(Object.values(words)) : null;
+  if (!pageIndex) {
+    CSS.highlights.delete(HIGHLIGHT_NAME);
+    return;
+  }
   highlightStyle();
-  // ponytail: highlights are painted once, at document_idle. Content added
-  // later by infinite scroll is not covered. Upgrade path is a debounced
-  // MutationObserver calling applyHighlights again.
-  CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...ranges));
+  // Set even when empty: a repaint adds its ranges to this one Highlight.
+  CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...toRanges(VT.scanHits(document.body, pageIndex))));
 }
 
 applyHighlights();
+
+// A saved, retired or deleted word repaints the whole page: the index itself
+// changed, so every range may be stale.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.words) applyHighlights();
+});
+
+
+/* ---------- content the page adds later ---------- */
+
+
+// Infinite scroll, "load more" and an SPA's route change all arrive as new
+// nodes. They are collected and scanned once the page is quiet for this long,
+// so a feed that appends twenty posts in a burst costs one scan, not twenty.
+const REPAINT_DELAY_MS = 300;
+const pendingNodes = new Set();
+let repaintTimer = null;
+
+// The extension's own UI — the 📘 button, the stale notice, the reader — is
+// marked with this attribute. VT.scanHits skips it on a full paint; here it
+// keeps the button's own mutations from scheduling a repaint at all.
+const OWN_UI = 'data-vocab-track';
+
+function skipMutation(node) {
+  const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  // A keystroke in an editor is a characterData mutation; scanHits would skip
+  // the node anyway, and scheduling a repaint per key is the cost to avoid.
+  return !element || element.closest(`[${OWN_UI}]`) || element.isContentEditable;
+}
+
+function repaint() {
+  repaintTimer = null;
+  const highlight = CSS.highlights.get(HIGHLIGHT_NAME);
+  const nodes = [...pendingNodes];
+  pendingNodes.clear();
+  if (!pageIndex || !highlight) return;
+
+  // Ranges whose text left the page, or whose text node changed, go: a long
+  // feed that recycles its posts would otherwise grow the Highlight forever,
+  // and an edited node is scanned again below. A live Range whose text is
+  // removed collapses onto the parent, which is still connected, so
+  // `collapsed` is the test that catches a removed post.
+  const edited = new Set(nodes.filter((node) => node.nodeType === Node.TEXT_NODE));
+  for (const range of highlight) {
+    if (range.collapsed || !range.startContainer.isConnected || edited.has(range.startContainer)) {
+      highlight.delete(range);
+    }
+  }
+  // A node inside another pending node is covered by that node's scan.
+  const queued = new Set(nodes);
+  const roots = nodes.filter((node) => {
+    if (!node.isConnected) return false;
+    for (let up = node.parentNode; up; up = up.parentNode) {
+      if (queued.has(up)) return false;
+    }
+    return true;
+  });
+  for (const root of roots) {
+    for (const range of toRanges(VT.scanHits(root, pageIndex))) highlight.add(range);
+  }
+}
+
+new MutationObserver((records) => {
+  for (const record of records) {
+    const added = record.type === 'characterData' ? [record.target] : record.addedNodes;
+    for (const node of added) {
+      if (!skipMutation(node)) pendingNodes.add(node);
+    }
+  }
+  if (pendingNodes.size && !repaintTimer) repaintTimer = setTimeout(repaint, REPAINT_DELAY_MS);
+}).observe(document.body, { childList: true, subtree: true, characterData: true });
 
 
 /* ---------- click a highlighted word to be quizzed on it ---------- */

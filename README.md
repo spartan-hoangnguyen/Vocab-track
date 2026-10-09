@@ -519,7 +519,9 @@ manual checklist for it.
 - **A phrasal verb split by its object is not highlighted.** `give up` lights
   up "gave up" but not "give it up". A phrase that a link or bold text cuts in
   two ("gave **up**") is not found either.
-- **Highlights paint once at page load**, so infinite-scroll content is missed.
+- **Highlighting reaches the page's own DOM only.** Content that loads later
+  (infinite scroll, "load more", an SPA route change) is highlighted within a
+  third of a second, but text inside Shadow DOM or a cross-origin iframe is not.
 - **Korean has no dictionary behind it.** There is no krdict key, so `lookup()`
   in `lang/ko/dictionary.js` returns level, pronunciation, definition, senses
   and audio as `null` for every Korean word, and the card carries the

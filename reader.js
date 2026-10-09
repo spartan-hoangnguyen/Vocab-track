@@ -224,6 +224,9 @@ async function buildReader() {
 
   const stored = await chrome.storage.local.get('rsvpWpm');
   const host = document.createElement('dialog');
+  // content-script.js's OWN_UI, spelled out because test/reader-probe.html
+  // loads this file alone: the highlighter's repaint never scans the reader.
+  host.setAttribute('data-vocab-track', '');
   // 'all' first, for the reason content-script.js already documents. Then
   // !important on every declaration: an inline style without it LOSES to a
   // page rule like `div{display:none!important}`, which would leave the reader

@@ -148,7 +148,18 @@ const VT = {
   // content script turns into highlight Ranges. Here rather than there so the
   // test page can run and time it without a chrome API.
   highlightHits(root, entries) {
-    const { index, phrases, rest } = VT.wordIndex(entries);
+    return VT.scanHits(root, VT.wordIndex(entries));
+  },
+
+  // The same, against an index built once by VT.wordIndex: the content script
+  // keeps one between repaints and scans only what a page adds. `root` may be
+  // an element or a single text node.
+  //
+  // Code, scripts, form fields and editable regions are skipped: a word saved
+  // from prose should not light up in a code sample or under the caret. So is
+  // the extension's own UI (the 📘 button, the stale notice, the reader),
+  // marked with [data-vocab-track].
+  scanHits(root, { index, phrases, rest }) {
     // Grouped by pack, so a node that holds no Hangul or Han skips those packs
     // with one script test instead of one test per saved word.
     const byPack = new Map();
@@ -157,23 +168,27 @@ const VT = {
       if (!byPack.has(pack)) byPack.set(pack, []);
       byPack.get(pack).push(entry);
     }
-    const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        const parent = node.parentElement;
-        // closest(), not parentElement.tagName: a highlighted code block nests
-        // spans inside <pre><code>, so the immediate parent is not the CODE.
-        if (!parent || parent.closest('script, style, code, pre, textarea') ||
-            parent.isContentEditable) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
-      }
-    });
+    const accept = (node) => {
+      if (!node.nodeValue.trim()) return false;
+      const parent = node.parentElement;
+      // closest(), not parentElement.tagName: a highlighted code block nests
+      // spans inside <pre><code>, so the immediate parent is not the CODE.
+      return Boolean(parent) && !parent.closest('script, style, code, pre, textarea, [data-vocab-track]') &&
+        !parent.isContentEditable;
+    };
+    const nodes = [];
+    if (root.nodeType === Node.TEXT_NODE) {
+      if (accept(root)) nodes.push(root);
+    } else {
+      const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (accept(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
+      });
+      let node;
+      while ((node = walker.nextNode())) nodes.push(node);
+    }
 
     const hits = [];
-    let node;
-    while ((node = walker.nextNode())) {
+    for (const node of nodes) {
       const text = node.nodeValue;
       for (const hit of VT.indexHits(text, index, phrases)) hits.push({ node, ...hit });
       // ponytail: one match() per saved word for packs with no index. Cheap on
