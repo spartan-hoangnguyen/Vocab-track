@@ -123,8 +123,10 @@ only real one. The extension now names the voice it wants instead of letting
 Chrome pick among the nine, but it can only pick from what is installed:
 **System Settings → Accessibility → Spoken Content → System Voice → Manage
 Voices → Korean → Yuna (Enhanced)** is the download that makes the difference.
-Then pick it in **Review → Speaker** with Korean active, so ▶ uses it on
-purpose rather than because the automatic pick happened to land on it.
+Then pick it in **Review → Speaker** with Korean active (the ▶ beside the
+select plays a sample first), so ▶ uses it on purpose rather than because the
+automatic pick happened to land on it. The choice is per language and holds
+on every surface: the review card, practice and the side panel.
 An enhanced recording is preferred over the system default automatically once
 it is there.
 On other systems the voice comes from elsewhere: **Windows** — Settings →

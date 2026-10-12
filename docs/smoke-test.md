@@ -722,6 +722,31 @@ highlighted, and a click quizzes `give up`. Then fill this in.
 `test/repaint-probe.html` (late posts, own UI, editors, dropped ranges, and
 "gave up" in a late post as the saved `give up`).
 
+## Voices: last full run
+
+Run items 89 and 101 on a Mac, then the combined checks below, then fill this
+in.
+
+- Choose **Yuna (Enhanced)** for Korean in Review → Speaker. ▶ on a review
+  card, in Practice → Listening and in the side panel all speak with it.
+- Remove every Korean voice. The preferences, the review ▶ and the side panel ▶
+  all say "No Korean voice is installed." with the macOS path.
+- On Windows or Linux, if one is available: the same S2 check, with the path
+  that was shown.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Voices installed: ______
+- Result (Mac): ______ (items that failed, with what you saw)
+- Result (Windows / Linux): not run
+
+`bash test/run.sh` covers the same scenarios with hand-made voice lists, and
+passes on 2026-10-12 in headless Chrome 154.0.8037.98: `test/dashboard-probe.html` (the
+Speaker list per language, the stored choice reaching `speak()` and
+`pronounce()`, an uninstalled choice falling back to Automatic, the preview,
+the no-voice line and its return on `voiceschanged`) and
+`test/sidepanel-probe.html` (`voicesFor()`, `installPath()` per OS, the quiz
+hint).
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture
