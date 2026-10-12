@@ -1654,8 +1654,15 @@ function renderPrefs() {
   // Not the accent's hide rule: Korean has one pack voice and many OS voices.
   // A stored URI for a voice since uninstalled has no option and reads as
   // Automatic, which is also what speak() falls back to.
-  const os = voicesFor(voices[0].bcp47, globalThis.speechSynthesis?.getVoices() ?? [], voices[0].exact);
+  const installed = globalThis.speechSynthesis?.getVoices() ?? [];
+  const os = voicesFor(voices[0].bcp47, installed, voices[0].exact);
   const speaker = $('rv-speaker');
+  // Voices, but none for this language: say so where the select was. An empty
+  // list is not that — it may still be filling in — so it keeps Automatic.
+  const none = installed.length > 0 && !os.length;
+  speaker.parentElement.hidden = none;
+  $('rv-speaker-none').hidden = !none;
+  $('rv-speaker-none').textContent = none ? voiceHint(LANG.get(activeLang)) : '';
   speaker.replaceChildren(new Option('Automatic', ''), ...os.map((v) => new Option(v.name, v.voiceURI)));
   const stored = prefs.voices?.[activeLang];
   speaker.value = os.some((v) => v.voiceURI === stored) ? stored : '';

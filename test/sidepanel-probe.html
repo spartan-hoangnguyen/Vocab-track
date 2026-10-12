@@ -346,6 +346,34 @@ ready.then(() => setTimeout(async () => {
           && zhSaid.length === 0,
         document.getElementById('entry-prons').textContent);
   check('and labels the pinyin', /Pinyin: xuésheng/.test(document.getElementById('entry-prons').textContent));
+
+  /* ---- where to install a voice, per OS ---- */
+  const paths = ['macOS', 'Windows', 'Chrome OS', 'Linux'].map(installPath);
+  check('installPath gives macOS, Windows, ChromeOS and Linux their own path',
+        /System Settings → Accessibility → Spoken Content/.test(paths[0])
+        && /Time & language → Speech → Manage voices/.test(paths[1])
+        && /Text-to-Speech → Speech engine settings/.test(paths[2])
+        && /speech-dispatcher/.test(paths[3]) && new Set(paths).size === 4, paths.join(' | '));
+  check('and the older navigator.platform names land on the same paths',
+        installPath('MacIntel') === paths[0] && installPath('Win32') === paths[1]
+        && installPath('CrOS') === paths[2]);
+  check('an unknown platform gets the Linux/other text',
+        installPath('Plan 9') === paths[3] && installPath(undefined) === paths[3]);
+  check('voiceHint keeps its opening and adds this OS’s path',
+        voiceHint(LANG.get('ko')) === `No Korean voice is installed. ${installPath(navigator.userAgentData?.platform || navigator.platform)}`,
+        voiceHint(LANG.get('ko')));
+  // English voices only: the quiz's ▶ says no Korean voice, in the same words.
+  speechSynthesis.getVoices = () => [V('Alex', 'en-US', { default: true })];
+  quizEntry = { word: '책', lang: 'ko', audio: null };
+  quizAnswered = false;
+  const quizButton = document.createElement('button');
+  quizButton.dataset.correct = '1';
+  document.getElementById('quiz-options').replaceChildren(quizButton);
+  answerQuiz(true, quizButton);
+  check('the quiz shows the same sentence when there is no Korean voice',
+        !document.getElementById('quiz-voice-hint').hidden
+        && document.getElementById('quiz-voice-hint').textContent === voiceHint(LANG.get('ko')),
+        document.getElementById('quiz-voice-hint').textContent);
   speechSynthesis.getVoices = realGetVoices;
   speechSynthesis.speak = realSay;
   window.SpeechSynthesisUtterance = RealUtterance;

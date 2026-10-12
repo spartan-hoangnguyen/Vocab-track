@@ -128,6 +128,9 @@
           <select id="rv-speaker"></select>
           <button class="rvopt" id="rv-speaker-play" aria-label="Preview this voice">▶</button>
         </label>
+        <!-- In the Speaker label's place when the OS has voices but none for
+             this language. Not for an empty list: that may still be loading. -->
+        <p class="rvhint" id="rv-speaker-none" role="status" hidden></p>
       </div>
     </div>
 

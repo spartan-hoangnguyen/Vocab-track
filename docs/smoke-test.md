@@ -583,6 +583,12 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     System Voice → Manage Voices → Korean) and press ▶ again: it should switch
     to the enhanced recording without any setting being touched.
 
+    **The preferences say when there is no Korean voice.** Remove Yuna and
+    Yuna (Enhanced) in Manage Voices, reload the dashboard and open Review with
+    Korean active. Where the Speaker select was, a line reads "No Korean voice
+    is installed." followed by the macOS path. Install Yuna again and reload:
+    the Speaker select is back with Yuna in it.
+
 ## Chinese: lookup
 
 90. **Double-click segmentation.** Open a Simplified Chinese article

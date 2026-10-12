@@ -475,6 +475,10 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
        border:1px solid var(--rule);border-radius:10px;background:var(--card);
        font:500 13px Inter;color:var(--ink2);cursor:pointer}
 .rvopt:hover{color:var(--ink)}
+/* display:inline-flex outranks the UA's [hidden], so a hidden picker stayed drawn. */
+.rvopt[hidden]{display:none}
+/* The "no voice installed" line in the Speaker select's place. */
+.rvhint{margin:0;align-self:center;font:500 13px/1.4 Inter;color:var(--ink2)}
 .rvopt[aria-pressed="true"]{color:var(--ink);border-color:var(--ink);
        box-shadow:inset 0 0 0 1px var(--ink)}
 .rvopt select{border:0;background:transparent;font:500 13px Inter;color:var(--ink);

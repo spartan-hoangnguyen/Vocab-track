@@ -742,6 +742,32 @@ ready.then(() => setTimeout(async () => {
   for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
   speakWord(koEntry);
   check('and ▶ is Automatic again', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  // Voices, but none for Korean: the line takes the select's place.
+  const noneLine = document.getElementById('rv-speaker-none');
+  speechSynthesis.getVoices = () => osList.filter((v) => v.lang === 'en-US');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('with only English voices, Korean says no voice is installed and where to add one',
+        noneLine.checkVisibility() && noneLine.textContent === voiceHint(LANG.get('ko'))
+        && /^No Korean voice is installed\. Add one in|^No Korean voice is installed\. Install/.test(noneLine.textContent),
+        noneLine.textContent);
+  check('and shows no Speaker select or preview',
+        !speaker.checkVisibility() && !preview.checkVisibility());
+  const hint = document.getElementById('voice-hint');
+  hint.hidden = true;
+  speakWord(koEntry);
+  check('▶ on a Korean card shows the same sentence at the bottom of the window',
+        !hint.hidden && hint.textContent === noneLine.textContent, hint.textContent);
+  speechSynthesis.getVoices = () => [];
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('an empty list shows the select with only Automatic and no warning',
+        speaker.checkVisibility() && optionNames() === 'Automatic' && !noneLine.checkVisibility());
+  speechSynthesis.getVoices = () => osList.filter((v) => v.lang === 'en-US');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('a Korean voice arriving brings the select back and the warning goes',
+        speaker.checkVisibility() && preview.checkVisibility() && !noneLine.checkVisibility()
+        && optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
   await setLang('en');
   speechSynthesis.getVoices = realGetVoices;
   speechSynthesis.speak = realSpeak;

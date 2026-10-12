@@ -127,6 +127,12 @@ Then pick it in **Review → Speaker** with Korean active, so ▶ uses it on
 purpose rather than because the automatic pick happened to land on it.
 An enhanced recording is preferred over the system default automatically once
 it is there.
+On other systems the voice comes from elsewhere: **Windows** — Settings →
+Time & language → Speech → Manage voices → Add voices; **ChromeOS** —
+Settings → Accessibility → Text-to-Speech → Speech engine settings; **Linux** —
+a speech-dispatcher voice for the language (espeak-ng, for example), then
+restart Chrome. With no voice for the language, the Speaker select is replaced
+by a line that says so and gives this path for the OS you are on.
 
 **Folders belong to a language too.** The toggle filters the folder grid, not
 just the words in it, so *IELTS C1* is not sitting empty in your Korean
@@ -619,12 +625,12 @@ manual checklist for it.
   banner naming the reason and saying to look the word up again, while an
   endpoint that answers with nothing stays quiet, because that is a real answer
   about the word.
-- **Nothing tells you the OS has no voice for a language.** Chrome neither
-  throws nor reports it — it simply stays silent, and a Mac ships no Korean
-  voice until one is downloaded. Listening checks and hides the word rather
-  than playing nothing, but a machine with a genuinely empty voice list is
-  indistinguishable from one still filling it in, so on those the card is still
-  offered. The review card's play button has no such check and is just quiet.
+- **An empty voice list stays quiet.** When the OS has voices but none for
+  the language, every ▶ and the review preferences say so and name where to
+  install one. A machine whose voice list is genuinely empty cannot be told
+  apart from one still filling it in, so there ▶ still speaks and lets Chrome
+  choose, the preferences offer only *Automatic*, and Listening still offers
+  the card.
 - **A Listening card you could not hear still counts as a miss.** The verdict
   names the missing voice instead of blaming you, but the practice loop records
   every answer and a mode has no way to opt out.

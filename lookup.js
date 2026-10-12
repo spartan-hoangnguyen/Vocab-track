@@ -184,10 +184,27 @@ function pronounce(entry, accent = 'uk') {
   return speak(entry.word, accent, entry.lang);
 }
 
+// Where this OS adds a speech voice. Pure, so the probe can ask for each OS:
+// `platform` is navigator.userAgentData.platform ('macOS', 'Windows',
+// 'Chrome OS', 'Linux') or the older navigator.platform ('MacIntel', 'Win32').
+// Anything else is a Linux-like desktop, where Chrome speaks through
+// speech-dispatcher.
+function installPath(platform) {
+  const p = String(platform ?? '').toLowerCase();
+  if (p.startsWith('mac')) {
+    return 'Add one in System Settings → Accessibility → Spoken Content → System Voice → Manage Voices.';
+  }
+  if (p.startsWith('win')) return 'Add one in Settings → Time & language → Speech → Manage voices → Add voices.';
+  if (/chrome ?os|cros/.test(p)) {
+    return 'Add one in Settings → Accessibility → Text-to-Speech → Speech engine settings.';
+  }
+  return 'Install a speech-dispatcher voice for it (espeak-ng, for example), then restart Chrome.';
+}
+
 // What a caller with a surface shows when pronounce() answers false.
 function voiceHint(pack) {
-  return `No ${pack.name} voice is installed. Add one in System Settings → `
-    + 'Accessibility → Spoken Content → System Voice → Manage Voices.';
+  const nav = globalThis.navigator;
+  return `No ${pack.name} voice is installed. ${installPath(nav?.userAgentData?.platform || nav?.platform)}`;
 }
 
 // `lang` is a pack id, and optional for a different reason than `accent` is.
