@@ -19,6 +19,8 @@ let activeLang = LANG.FALLBACK;
 // is what compares the two.
 let queueLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
+// The last HISTORY_DAYS of grades, every language; render() filters it.
+let reviewLog = [];
 let pins = [];
 // The GIPHY key, mirrored here only so renderCard can decide whether to offer a
 // Find GIF button without an async read per card. giphy.js re-reads storage for
@@ -71,9 +73,9 @@ async function getGiphyKey() {
 }
 
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey] = await Promise.all(
+  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, reviewLog] = await Promise.all(
     [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-     getLang(), getGiphyKey()]);
+     getLang(), getGiphyKey(), getHistory()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -346,7 +348,8 @@ function renderWords(all) {
   const shown = (term
     ? scope.filter((e) => e.word.includes(term) || (e.vi ?? '').toLowerCase().includes(term))
     : scope
-  ).sort((a, b) => b.added - a.added);
+  // An exact match first: searching "cat" should open cat, not category.
+  ).sort((a, b) => (b.word === term) - (a.word === term) || b.added - a.added);
 
   // An imported word list runs to thousands of entries, and a card is 16
   // elements: 1,900 words measured at 30,578 of them, rebuilt on every
@@ -1420,6 +1423,8 @@ async function applyGrade(entry, quality) {
   Object.assign(entry, patch);
   await putWord(entry.word, patch);
   recordReview(entry.word, quality, patch.lastReview);
+  // Mirrored here so Statistics moves without a reload, as `words` does.
+  reviewLog.push({ word: entry.word, quality, at: patch.lastReview });
   words[entry.word] = entry;
   return patch;
 }
@@ -1863,9 +1868,9 @@ PRACTICE.hooks.flashcard = () => {
 
 function dayKey(ts) { return new Date(ts).toDateString(); }
 
-function plotSeries(node, series, caption) {
+// `max` pins the scale (100 for a percentage); by default it is the tallest bar.
+function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) => s.n))) {
   node.replaceChildren();
-  const max = Math.max(1, ...series.map((s) => s.n));
   for (const point of series) {
     const col = document.createElement('span');
     col.className = 'col';
@@ -1891,6 +1896,9 @@ function plotSeries(node, series, caption) {
 }
 
 function renderStats(all) {
+  renderWeak(all);
+  renderRetention(all);
+  renderTime(all);
   $('st-sub').textContent = all.length
     ? `${all.length} words · first saved ${new Date(Math.min(...all.map((e) => e.added)))
         .toLocaleDateString()}`
@@ -1934,40 +1942,170 @@ function renderStats(all) {
   plotSeries($('st-levels'), levelSeries, true);
   $('st-levels-axis').textContent = '';
 
-  // where they came from
+  renderSources(all);
+  renderFolderProgress(all);
+}
+
+// Where they came from, and how many of each site's words you have learned.
+function renderSources(all) {
   const hosts = new Map();
   for (const entry of all) {
     // Deduped by page key: a word clicked twice in one video has two sources
     // that differ only by their timestamp, and that is one place it was met.
+    // Once per host too: two pages of one site are one place it came from.
     const seen = new Set();
+    const met = new Set();
     for (const url of entry.sources ?? []) {
       if (!url || seen.has(VT.pageKey(url))) continue;
       seen.add(VT.pageKey(url));
       let host;
       try { host = new URL(url).hostname.replace(/^www\./, ''); }
       catch { continue; }   // a saved entry may carry a non-URL source
-      hosts.set(host, (hosts.get(host) ?? 0) + 1);
+      if (met.has(host)) continue;
+      met.add(host);
+      const was = hosts.get(host) ?? { n: 0, learned: 0 };
+      was.n++;
+      if (VT.isLearnable(entry) && VT.isMastered(entry)) was.learned++;
+      hosts.set(host, was);
     }
   }
   const list = $('st-sources');
   list.replaceChildren();
-  const ranked = [...hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const ranked = [...hosts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   if (!ranked.length) {
     const li = document.createElement('li');
     li.textContent = 'No pages recorded yet.';
     list.appendChild(li);
   }
-  for (const [host, n] of ranked) {
+  for (const [host, { n, learned }] of ranked) {
     const li = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'host';
     name.textContent = host;
     const count = document.createElement('span');
     count.className = 'n';
-    count.textContent = `${n} word${n === 1 ? '' : 's'}`;
+    count.textContent = `${n} word${n === 1 ? '' : 's'} · ${learned} learned`;
     li.append(name, count);
     list.appendChild(li);
   }
+}
+
+// Each folder with words in this language: how many of them are learned,
+// best share first. Skipped words count in neither number (VT.progressOf).
+const FOLDERS_SHOWN = 8;
+
+function renderFolderProgress(all) {
+  const members = {};
+  for (const entry of all) {
+    for (const id of VT.foldersOf(entry)) {
+      if (folders[id]) (members[id] ??= []).push(entry);
+    }
+  }
+  const rows = Object.entries(members).map(([id, entries]) => {
+    const { learned, learning, fresh } = VT.progressOf(entries);
+    return { folder: folders[id], learned, total: learned + learning + fresh };
+  }).filter((r) => r.total)
+    .sort((a, b) => b.learned / b.total - a.learned / a.total || b.total - a.total)
+    .slice(0, FOLDERS_SHOWN);
+  const list = $('st-folders');
+  list.replaceChildren();
+  if (!rows.length) {
+    const li = document.createElement('li');
+    li.textContent = 'No folders with words yet.';
+    list.appendChild(li);
+  }
+  for (const { folder, learned, total } of rows) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = `${folder.icon ?? ''} ${folder.name}`.trim();
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `${learned} of ${total} learned`;
+    li.append(name, count);
+    list.appendChild(li);
+  }
+}
+
+// Words forgotten most often in the window, each one a way back to its card.
+function renderWeak(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const weak = VT.weakWords(reviewLog.filter((row) => mine.has(row.word)));
+  const list = $('st-weak');
+  list.replaceChildren();
+  if (!weak.length) {
+    const li = document.createElement('li');
+    li.textContent = 'Nothing forgotten in the last 13 weeks.';
+    list.appendChild(li);
+  }
+  for (const { word, lapses, last } of weak) {
+    const li = document.createElement('li');
+    const open = document.createElement('button');
+    open.type = 'button';
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = word;
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `forgot ${lapses}× · ${relative(last)}`;
+    open.append(name, count);
+    open.addEventListener('click', () => {
+      $('q').value = word;
+      activeFolder = null;
+      showView('words');
+      render();
+    });
+    li.appendChild(open);
+    list.appendChild(li);
+  }
+}
+
+// Retention per week, from the same first-of-day grades as the weak list.
+const RETENTION_WEEKS = 13;
+const FSRS_TARGET = 90;   // the recall VT.schedule aims at
+
+function renderRetention(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const weeks = VT.weeklyRetention(reviewLog.filter((row) => mine.has(row.word)), RETENTION_WEEKS);
+  const pct = (rate) => Math.round(rate * 100);
+  plotSeries($('st-retention'), weeks.map(({ start, reviews, passed, rate }) => {
+    const label = new Date(start).toLocaleDateString();
+    return { label, n: rate == null ? 0 : pct(rate),
+             title: reviews ? `${label}: ${pct(rate)}% · ${passed} of ${reviews} remembered`
+                            : `${label}: no reviews` };
+  }), false, 100);
+  $('st-retention-from').textContent = new Date(weeks[0].start).toLocaleDateString();
+  const seen = weeks.map((w, i) => ({ ...w, ago: weeks.length - 1 - i })).filter((w) => w.reviews);
+  const when = (ago) => (ago === 0 ? 'This week' : ago === 1 ? 'Last week' : `${ago} weeks ago`);
+  const [first, last] = [seen[0], seen[seen.length - 1]];
+  $('st-retention-sum').textContent = seen.length >= 2
+    ? `${when(last.ago)} ${pct(last.rate)}% · ${when(first.ago).toLowerCase()} ${pct(first.rate)}% · ` +
+      `FSRS aims for ${FSRS_TARGET}%`
+    : 'Review for a few weeks to see a trend.';
+}
+
+// Minutes a day spent reviewing, last 30 days, estimated from grade gaps.
+function renderTime(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const minutes = VT.reviewMinutes(reviewLog.filter((row) => mine.has(row.word)));
+  const series = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString();
+    // At least a minute on a day with any review, so a short one is not "none".
+    const raw = minutes.get(VT.dayKey(d.getTime())) ?? 0;
+    const n = raw ? Math.max(1, Math.round(raw)) : 0;
+    series.push({ label, n, title: `${label}: ${n} min` });
+  }
+  plotSeries($('st-time'), series, false);
+  const from = new Date(); from.setDate(from.getDate() - 29);
+  $('st-time-from').textContent = from.toLocaleDateString();
+  const total = series.reduce((sum, d) => sum + d.n, 0);
+  const span = total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} min` : `${total} min`;
+  $('st-time-sum').textContent = total
+    ? `${total < series.length ? 'Under a minute' : `About ${Math.round(total / series.length)} min`} a day`
+      + ` · ${span} in 30 days`
+    : 'No reviews in the last 30 days.';
 }
 
 /* ---------- writing ---------- */

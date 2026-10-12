@@ -517,6 +517,82 @@ async function parserTests() {
     eq('dayKey is the local date', VT.dayKey(new Date(2026, 0, 5, 23, 59).getTime()), '2026-01-05');
   }
 
+  // --- weak words: first grade per word per day, most lapses first
+  {
+    const D = 24 * 60 * 60 * 1000;
+    const t0 = new Date(2026, 0, 5, 9).getTime();
+    const rows = [
+      { word: 'a', quality: 0, at: t0 },
+      { word: 'a', quality: 0, at: t0 + 60000 },          // same-day re-show
+      { word: 'b', quality: 4, at: t0 },
+      { word: 'b', quality: 0, at: t0 + 60000 },          // a lapse after a pass: not first
+      { word: 'c', quality: 1, at: t0 + D },
+      { word: 'a', quality: 4, at: t0 + 2 * D },
+      { word: 'd', quality: 0, at: t0 + 3 * D }
+    ];
+    eq('dailyFirsts: one row per word per day', VT.dailyFirsts(rows).length, 5);
+    eq('dailyFirsts: keeps the first of the day', VT.dailyFirsts(rows)[1].quality, 4);
+    eq('dailyFirsts: empty input', VT.dailyFirsts([]).length, 0);
+    const weak = VT.weakWords([...rows, { word: 'c', quality: 0, at: t0 + 4 * D }]);
+    eq('weakWords: most lapses first', weak[0].word + weak[0].lapses, 'c2');
+    eq('weakWords: ties go to the latest lapse', weak.slice(1).map((w) => w.word).join(), 'd,a');
+    eq('weakWords: last is the latest lapse', weak[0].last, t0 + 4 * D);
+    check('weakWords: a word with only passing first grades is left out', !weak.some((w) => w.word === 'b'));
+    eq('weakWords: limit', VT.weakWords(rows, 1).length, 1);
+    eq('weakWords: empty input', VT.weakWords([]).length, 0);
+  }
+
+  // --- weekly retention: first-of-day grades, Monday weeks, oldest first
+  {
+    const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
+    // Wednesday 2026-11-04; US DST ends Sunday 2026-11-01, EU 2026-10-25.
+    const now = at(2026, 10, 4);
+    const rows = [];
+    const week = (y, m, d, pass, total) => {
+      for (let i = 0; i < total; i++) rows.push({ word: 'w' + i, quality: i < pass ? 4 : 0, at: at(y, m, d) });
+    };
+    week(2026, 9, 20, 7, 10);   // two weeks ago: 70%
+    week(2026, 9, 27, 8, 10);   // last week: 80%
+    week(2026, 10, 3, 9, 10);   // this week: 90%
+    rows.push({ word: 'w9', quality: 4, at: at(2026, 10, 3, 13) });   // re-show the same day
+    const ret = VT.weeklyRetention(rows, 13, now);
+    eq('weeklyRetention: 13 weeks', ret.length, 13);
+    eq('weeklyRetention: oldest first, rates per week',
+       ret.slice(-3).map((w) => Math.round(w.rate * 100)).join(), '70,80,90');
+    eq('weeklyRetention: a same-day re-grade does not count', ret[12].reviews, 10);
+    eq('weeklyRetention: an empty week has a null rate', ret[0].rate, null);
+    eq('weeklyRetention: weeks start on Monday', new Date(ret[12].start).getDay(), 1);
+    const edge = VT.weeklyRetention([
+      { word: 'sun', quality: 4, at: new Date(2026, 10, 1, 23, 30).getTime() },
+      { word: 'mon', quality: 0, at: new Date(2026, 10, 2, 0, 30).getTime() },
+      { word: 'eu', quality: 4, at: new Date(2026, 9, 25, 23, 30).getTime() },
+      { word: 'eu2', quality: 4, at: new Date(2026, 9, 26, 0, 30).getTime() }
+    ], 3, now);
+    eq('weeklyRetention: Sunday night and Monday morning fall either side of a DST week boundary',
+       edge.map((w) => w.reviews).join(), '1,2,1');
+    eq('weeklyRetention: the Monday after the change is a midnight',
+       new Date(edge[2].start).getHours() + ':' + new Date(edge[1].start).getHours(), '0:0');
+    check('weeklyRetention: no history, every week empty',
+          VT.weeklyRetention([], 13, now).every((w) => w.reviews === 0 && w.rate === null));
+  }
+
+  // --- review minutes: estimated from the gaps between grades
+  {
+    const t0 = new Date(2026, 0, 5, 9).getTime();
+    const ten = Array.from({ length: 10 }, (_, i) => ({ word: 'w' + i, quality: 4, at: t0 + i * 20000 }));
+    eq('reviewMinutes: ten grades 20 s apart are 9 × 20 s + 30 s',
+       VT.reviewMinutes(ten).get('2026-01-05'), 3.5);
+    eq('reviewMinutes: two grades 2 h apart are two sessions',
+       VT.reviewMinutes([{ word: 'a', quality: 4, at: t0 }, { word: 'b', quality: 0, at: t0 + 2 * 3600000 }])
+         .get('2026-01-05'), 1);
+    eq('reviewMinutes: a long pause inside a session counts a minute at most',
+       VT.reviewMinutes([{ word: 'a', quality: 4, at: t0 }, { word: 'b', quality: 4, at: t0 + 4 * 60000 }])
+         .get('2026-01-05'), 1.5);
+    eq('reviewMinutes: unsorted input is sorted first',
+       VT.reviewMinutes([...ten].reverse()).get('2026-01-05'), 3.5);
+    eq('reviewMinutes: no history, no days', VT.reviewMinutes([]).size, 0);
+  }
+
   // --- forecast: every return inside the window counts, not just the next one
   {
     const D = 24 * 60 * 60 * 1000;

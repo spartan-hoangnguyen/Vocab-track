@@ -342,6 +342,11 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .sources li:last-child{border-bottom:0}
 .sources .host{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sources .n{color:var(--ink2);font-variant-numeric:tabular-nums;flex:none}
+.weak li{padding:0}
+.weak button{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;
+             gap:14px;width:100%;padding:9px 0;cursor:pointer}
+.weak button:hover .host{text-decoration:underline}
+.weak button:focus-visible{outline:2px solid var(--ink2);outline-offset:2px}
 
 /* The sentence the word was met in — the strongest recall cue there is. */
 .rvseen{max-width:46ch;margin:22px auto 0;padding:11px 14px;text-align:left;

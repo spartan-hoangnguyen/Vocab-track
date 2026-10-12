@@ -140,7 +140,24 @@ Open it from **Open dashboard →** in the side panel.
 
 18. **Statistics.** With only a few days of data the charts will be mostly empty;
     that is correct, not a bug. Confirm "Review load" folds everything overdue
-    into today rather than spreading it backwards.
+    into today rather than spreading it backwards. "Keeps slipping" comes first:
+    grade a word Blank in Review (twice, if it comes back), then open Statistics
+    in the same tab → it is listed as "forgot 1×", once per day however often
+    you missed it. Click it → the Words view opens on that word's card. On a
+    profile with no lapses it reads "Nothing forgotten in the last 13 weeks."
+    "Retention" has 13 weekly bars, this week last: hover one → "<date>: 87% ·
+    41 of 47 remembered", or "no reviews". The note compares the newest and
+    oldest weeks with reviews and names FSRS's 90%; with under two such weeks
+    it says "Review for a few weeks to see a trend." Flip the language toggle →
+    the chart redraws from that language's reviews only. "Time reviewing" has
+    30 daily bars, estimated from the gaps between grades: review 10 cards →
+    today shows a few minutes. Leave the review open for 10 minutes, grade one
+    more → today grows by under a minute. With no reviews the note reads "No
+    reviews in the last 30 days." "Where they came from" reads "<site> · 24
+    words · 9 learned", a word counted once per site however many of its pages
+    you met it on. "Learned by folder" lists folders as "<icon> <name> · 9 of
+    24 learned", best share first; skipped words count in neither number, and
+    words in no folder sit under "From reading".
 
 19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
     word in them. The video must pause on that click, the panel must open with
