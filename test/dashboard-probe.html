@@ -1019,6 +1019,91 @@ ready.then(() => setTimeout(async () => {
   STORE.folders = progFolders;
   if (progFolders === undefined) delete STORE.folders;
   await refresh();
+
+  /* ---- R007 end to end: every insight on one realistic profile ----
+     13 weeks of history in two languages. English retention climbs from 60%
+     to 90%; "slip" and "slide" keep lapsing; one English word is mastered.
+     Korean has its own, smaller history. */
+  const e2eSaved = STORE.words;
+  STORE.words = {};
+  const enWords = Array.from({ length: 10 }, (_, i) => 'en' + i);
+  for (const w of [...enWords, 'slip', 'slide'])
+    STORE.words[w] = mk(w, { folders: ['reading'], due: Date.now() + 1e9, sources: ['https://news.example/' + w] });
+  Object.assign(STORE.words.en0, { reps: 4, interval: 40 });
+  for (const w of ['책', '물'])
+    STORE.words[w] = mk(w, { lang: 'ko', vi: 'x', folders: ['reading'], due: Date.now() + 1e9, sources: ['https://ko.example/' + w] });
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  // Each day's rows sit in the past: today's start ten minutes ago, older
+  // days at noon. A row stamped after now falls outside every week.
+  const base = (daysAgo) => {
+    const d = new Date(histAt(daysAgo));
+    if (daysAgo) { d.setHours(12, 0, 0, 0); return d.getTime(); }
+    return Date.now() - 10 * 60000;
+  };
+  for (let week = 12; week >= 0; week--) {
+    const daysAgo = week * 7;
+    const pass = 6 + Math.floor((12 - week) / 4);   // 6 → 9 of the ten
+    // Which of the ten fail rotates, so no ordinary word piles up lapses.
+    const rows = enWords.map((w, i) => [w, (i + week) % 10 < pass ? 4 : 1, base(daysAgo) + i * 20000]);
+    rows.push(['slip', 0, base(daysAgo) + 220000], ['slide', 0, base(daysAgo) + 240000]);
+    if (week % 6 === 0) rows.push(['slip', 0, base(daysAgo) + 260000]);   // same day: counts once
+    if (week < 2) rows.push(['책', 0, base(daysAgo) + 280000], ['물', 4, base(daysAgo) + 300000]);
+    STORE[histKey(daysAgo)] = rows;
+  }
+  await refresh();
+  showView('stats');
+  const e2e = () => ({
+    weak: weakRows(),
+    ret: document.getElementById('st-retention-sum').textContent,
+    retBars: retBars().filter((b) => !b.classList.contains('none')).length,
+    time: timeSum(),
+    sources: listRows('st-sources').join(' | '),
+    folders: listRows('st-folders').join(' | ')
+  });
+  const en = e2e();
+  check('R007: the two slipping words come first',
+        en.weak.slice(0, 2).map((t) => t.replace(/forgot.*/, '')).sort().join() === 'slide,slip'
+        && en.weak.slice(0, 2).every((t) => /forgot 13× /.test(t)), en.weak.join(' | '));
+  check('R007: the retention note shows the climb',
+        /^This week 75% · 12 weeks ago 50% · FSRS aims for 90%$/.test(en.ret), en.ret);
+  check('R007: time and learned counts fill in on the same profile',
+        /in 30 days$/.test(en.time) && en.folders === '📖 From reading1 of 12 learned'
+        && en.sources === 'news.example12 words · 1 learned', `${en.time} / ${en.folders} / ${en.sources}`);
+  const noScroll = () => {
+    const view = document.getElementById('view-stats');
+    const right = view.getBoundingClientRect().right + 1;
+    return document.documentElement.scrollWidth <= document.documentElement.clientWidth
+      && [...view.querySelectorAll('*')].every((el) => el.getBoundingClientRect().right <= right);
+  };
+  check('R007: Statistics has no horizontal scroll at 1400 px', noScroll());
+  document.body.style.width = '900px';
+  render();
+  check('R007: and none at 900 px', noScroll());
+  document.body.style.width = '';
+  const slipping = en.weak[0].replace(/forgot.*/, '');
+  document.querySelector('#st-weak button').click();
+  await tick();
+  const firstCard = document.querySelector('#w-cards > *')?.textContent ?? '';
+  check('R007: clicking a slipping word opens its card',
+        !document.getElementById('view-words').hidden && document.getElementById('q').value === slipping
+        && firstCard.includes(slipping) && !firstCard.includes(slipping === 'slip' ? 'slide' : 'slip'),
+        `${slipping}: ${firstCard.slice(0, 40)}`);
+  document.getElementById('q').value = '';
+  STORE.lang = 'ko';
+  await refresh();
+  showView('stats');
+  const ko = e2e();
+  check('R007: switching language changes every insight together',
+        ko.weak.length === 1 && ko.weak[0].startsWith('책forgot 2×')
+        && ko.retBars === 2 && ko.ret === 'This week 50% · last week 50% · FSRS aims for 90%'
+        && ko.time !== en.time && ko.sources.startsWith('ko.example')
+        && ko.folders === '📖 From reading0 of 2 learned',
+        JSON.stringify(ko));
+  delete STORE.lang;
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  STORE[histKey(0)] = [];
+  STORE.words = e2eSaved;
+  await refresh();
   showView('overview');
 
   /* ---- a Korean card, reviewable on the MT gloss alone ----

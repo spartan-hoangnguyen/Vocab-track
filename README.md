@@ -52,6 +52,11 @@ Built for one person. No accounts, no sync, no server.
   in place; click one for the fix. The dashboard's *Writing* view keeps a count
   of the rules you break most often, which is the part a grammar checker does
   not normally tell you. See *Writing* below.
+- **See what keeps slipping.** The dashboard's *Statistics* lists the words
+  you forgot most often in the last 13 weeks (click one for its card), charts
+  your retention week by week against FSRS's 90% target, estimates the minutes
+  you spent reviewing each day, and counts the words learned per site and per
+  folder — all for the language the dropdown is on.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
 - **Review by typing.** The card shows the meaning and you type the word back
