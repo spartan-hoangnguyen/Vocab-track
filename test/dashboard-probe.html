@@ -980,6 +980,45 @@ ready.then(() => setTimeout(async () => {
   check('with no history every retention bar is empty and the note asks for weeks',
         retBars().every((b) => b.classList.contains('none'))
         && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.');
+
+  /* ---- statistics: learned by source and by folder ---- */
+  const progSaved = STORE.words;
+  const progFolders = STORE.folders;
+  STORE.folders = { ...(STORE.folders ?? {}),
+    fx: { id: 'fx', name: 'Exam', icon: '📝', color: 'sage', auto: false, added: 1 } };
+  const learned = { reps: 3, interval: 30, due: Date.now() + 1e9 };
+  STORE.words = {
+    p1: mk('p1', { folders: ['fx'], ...learned,
+      sources: ['https://a.example/one', 'https://a.example/two', 'https://b.example/x'] }),
+    p2: mk('p2', { folders: ['fx'], skipped: true, ...learned, sources: ['https://a.example/one'] }),
+    p3: mk('p3', { folders: ['fx'], due: Date.now() + 1e9, sources: ['https://a.example/three'] }),
+    p4: mk('p4', { folders: ['fx'], due: Date.now() + 1e9 }),
+    p5: mk('p5', { due: Date.now() + 1e9 }),
+    '책': mk('책', { lang: 'ko', vi: 'sách', folders: ['fx'], ...learned, sources: ['https://ko.example/'] })
+  };
+  await refresh();
+  const listRows = (id) => [...document.querySelectorAll(`#${id} li`)].map((li) => li.textContent);
+  check('a site row gives its words, once per site, and how many are learned',
+        listRows('st-sources').join(' | ') === 'a.example3 words · 1 learned | b.example1 word · 1 learned',
+        listRows('st-sources').join(' | '));
+  check('a folder reads "N of M learned", skipped words left out, and wordless ones read as From reading',
+        listRows('st-folders').join(' | ') === '📝 Exam1 of 3 learned | 📖 From reading0 of 1 learned',
+        listRows('st-folders').join(' | '));
+  STORE.lang = 'ko';
+  await refresh();
+  check('the language toggle limits both lists to that language',
+        listRows('st-sources').join() === 'ko.example1 word · 1 learned'
+        && listRows('st-folders').join() === '📝 Exam1 of 1 learned',
+        listRows('st-sources').join() + ' / ' + listRows('st-folders').join());
+  delete STORE.lang;
+  STORE.words = {};
+  await refresh();
+  check('with no words the folder list says so',
+        listRows('st-folders').join() === 'No folders with words yet.', listRows('st-folders').join());
+  STORE.words = progSaved;
+  STORE.folders = progFolders;
+  if (progFolders === undefined) delete STORE.folders;
+  await refresh();
   showView('overview');
 
   /* ---- a Korean card, reviewable on the MT gloss alone ----

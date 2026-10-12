@@ -153,7 +153,11 @@ Open it from **Open dashboard →** in the side panel.
     30 daily bars, estimated from the gaps between grades: review 10 cards →
     today shows a few minutes. Leave the review open for 10 minutes, grade one
     more → today grows by under a minute. With no reviews the note reads "No
-    reviews in the last 30 days."
+    reviews in the last 30 days." "Where they came from" reads "<site> · 24
+    words · 9 learned", a word counted once per site however many of its pages
+    you met it on. "Learned by folder" lists folders as "<icon> <name> · 9 of
+    24 learned", best share first; skipped words count in neither number, and
+    words in no folder sit under "From reading".
 
 19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
     word in them. The video must pause on that click, the panel must open with

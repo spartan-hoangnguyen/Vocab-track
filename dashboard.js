@@ -1904,37 +1904,86 @@ function renderStats(all) {
   plotSeries($('st-levels'), levelSeries, true);
   $('st-levels-axis').textContent = '';
 
-  // where they came from
+  renderSources(all);
+  renderFolderProgress(all);
+}
+
+// Where they came from, and how many of each site's words you have learned.
+function renderSources(all) {
   const hosts = new Map();
   for (const entry of all) {
     // Deduped by page key: a word clicked twice in one video has two sources
     // that differ only by their timestamp, and that is one place it was met.
+    // Once per host too: two pages of one site are one place it came from.
     const seen = new Set();
+    const met = new Set();
     for (const url of entry.sources ?? []) {
       if (!url || seen.has(VT.pageKey(url))) continue;
       seen.add(VT.pageKey(url));
       let host;
       try { host = new URL(url).hostname.replace(/^www\./, ''); }
       catch { continue; }   // a saved entry may carry a non-URL source
-      hosts.set(host, (hosts.get(host) ?? 0) + 1);
+      if (met.has(host)) continue;
+      met.add(host);
+      const was = hosts.get(host) ?? { n: 0, learned: 0 };
+      was.n++;
+      if (VT.isLearnable(entry) && VT.isMastered(entry)) was.learned++;
+      hosts.set(host, was);
     }
   }
   const list = $('st-sources');
   list.replaceChildren();
-  const ranked = [...hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const ranked = [...hosts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   if (!ranked.length) {
     const li = document.createElement('li');
     li.textContent = 'No pages recorded yet.';
     list.appendChild(li);
   }
-  for (const [host, n] of ranked) {
+  for (const [host, { n, learned }] of ranked) {
     const li = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'host';
     name.textContent = host;
     const count = document.createElement('span');
     count.className = 'n';
-    count.textContent = `${n} word${n === 1 ? '' : 's'}`;
+    count.textContent = `${n} word${n === 1 ? '' : 's'} · ${learned} learned`;
+    li.append(name, count);
+    list.appendChild(li);
+  }
+}
+
+// Each folder with words in this language: how many of them are learned,
+// best share first. Skipped words count in neither number (VT.progressOf).
+const FOLDERS_SHOWN = 8;
+
+function renderFolderProgress(all) {
+  const members = {};
+  for (const entry of all) {
+    for (const id of VT.foldersOf(entry)) {
+      if (folders[id]) (members[id] ??= []).push(entry);
+    }
+  }
+  const rows = Object.entries(members).map(([id, entries]) => {
+    const { learned, learning, fresh } = VT.progressOf(entries);
+    return { folder: folders[id], learned, total: learned + learning + fresh };
+  }).filter((r) => r.total)
+    .sort((a, b) => b.learned / b.total - a.learned / a.total || b.total - a.total)
+    .slice(0, FOLDERS_SHOWN);
+  const list = $('st-folders');
+  list.replaceChildren();
+  if (!rows.length) {
+    const li = document.createElement('li');
+    li.textContent = 'No folders with words yet.';
+    list.appendChild(li);
+  }
+  for (const { folder, learned, total } of rows) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = `${folder.icon ?? ''} ${folder.name}`.trim();
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `${learned} of ${total} learned`;
     li.append(name, count);
     list.appendChild(li);
   }
