@@ -1,0 +1,54 @@
+<!doctype html><meta charset="utf-8"><title>highlight probe</title>
+<!-- The every-page budget: every saved word is looked for on every
+     page, so the scan has to stay fast with a whole imported list saved. Its
+     own page, so a timing check is not measured inside the unit page's
+     async lookups. -->
+<pre id="out">running…</pre>
+<script src="../lib.js"></script>
+<script src="../lang/lang.js"></script>
+<script src="../lang/en/irregular.js"></script>
+<script src="../lang/en/index.js"></script>
+<script src="../lang/ko/index.js"></script>
+<script src="../lang/zh/index.js"></script>
+<script>
+const log = [];
+let failures = 0;
+function check(name, ok, detail) {
+  if (!ok) failures++;
+  log.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || !detail ? '' : `  -> ${detail}`}`);
+}
+
+// Distinct letter-only words that no English prose contains: a, b, … → azq, bzq, …
+const word = (n) => {
+  let s = '';
+  do { s = String.fromCharCode(97 + n % 26) + s; n = Math.floor(n / 26); } while (n);
+  return `${s}zq`;
+};
+const saved = Array.from({ length: 2000 }, (_, i) => ({ word: word(i), lang: 'en' }));
+// Half the paragraphs hold a saved word, so 4,000 of 5,000 are hits (i % 2500 < 2000).
+const page = document.implementation.createHTMLDocument('');
+page.body.innerHTML = Array.from({ length: 5000 }, (_, i) =>
+  `<p>Paragraph ${i} of prose with ${word(i % 2500)} somewhere in its middle, and more words after it.</p>`).join('');
+
+(async () => {
+  // The real phrasal-verb list on top, which is what an import adds: 1,058
+  // multi-word keys filed under every form of their first word.
+  const { words } = await (await fetch('../data/phrasal-verbs.json')).json();
+  const phrasal = Object.values(words).map((entry) => ({ word: entry.word, lang: 'en' }));
+  const gaveUp = page.createElement('p');
+  gaveUp.textContent = 'In the end she gave up and went home.';
+  page.body.append(gaveUp);
+
+  const t0 = performance.now();
+  const hits = VT.highlightHits(page.body, [...saved, ...phrasal]);
+  const ms = performance.now() - t0;
+  check('finds every saved word on the page',
+        hits.filter((hit) => hit.entry.word.endsWith('zq')).length === 4000, `${hits.length}`);
+  check('an imported phrasal verb lights up in its past form',
+        hits.some((hit) => hit.entry.word === 'give up' && hit.node.nodeValue.slice(hit.index, hit.index + hit.length) === 'gave up'));
+  check('2,000 words and the phrasal-verb list over 5,000 nodes in under 200 ms', ms < 200, `${ms.toFixed(0)} ms`);
+
+  document.getElementById('out').textContent =
+    log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
+})();
+</script>

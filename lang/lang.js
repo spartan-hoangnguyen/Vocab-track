@@ -46,6 +46,11 @@ const LANG = (() => {
       // add (lang/en/index.js); for a language that does not inflect the word it
       // is looking for, the word is the word.
       inflections: (word) => [word],
+      // The written forms the page highlighter looks for. Only read when the
+      // pack is `indexed`: VT.wordIndex then finds them by lookup, not by
+      // match(), so a pack without a token scan leaves both alone.
+      forms: (word) => [word],
+      indexed: false,
       ...pack
     });
   }

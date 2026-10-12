@@ -156,10 +156,14 @@ function setWordFolders(word, ids) {
 // whole history. Rows are [word, quality, time].
 // ponytail: nothing prunes it; at ~40 bytes a row the 10MB quota is about a
 // quarter-million reviews away. Prune or add unlimitedStorage before then.
+const HISTORY_PREFIX = 'history:';
+// How far back the insights read: 13 weeks, so one read is at most 91 keys.
+const HISTORY_DAYS = 91;
+
 function recordReview(word, quality, at = Date.now()) {
   writeQueue = writeQueue.then(async () => {
     try {
-      const key = 'history:' + VT.dayKey(at);
+      const key = HISTORY_PREFIX + VT.dayKey(at);
       const { [key]: rows } = await chrome.storage.local.get(key);
       await chrome.storage.local.set({ [key]: [...(rows ?? []), [word, quality, at]] });
     } catch (err) {
@@ -167,6 +171,16 @@ function recordReview(word, quality, at = Date.now()) {
     }
   });
   return writeQueue;
+}
+
+// The last `days` local days of grades as { word, quality, at }, oldest
+// first. Named keys, never get(null): that would load every word too.
+async function getHistory(days = HISTORY_DAYS) {
+  const DAY = 24 * 60 * 60 * 1000;
+  const keys = [];
+  for (let i = days - 1; i >= 0; i--) keys.push(HISTORY_PREFIX + VT.dayKey(Date.now() - i * DAY));
+  const got = await chrome.storage.local.get(keys);
+  return keys.flatMap((key) => (got[key] ?? []).map(([word, quality, at]) => ({ word, quality, at })));
 }
 
 // Practice's own books, kept beside the schedule rather than instead of it:

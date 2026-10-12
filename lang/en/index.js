@@ -42,6 +42,50 @@ LANG.register('en', {
     return out;
   },
 
+  // English words are separated tokens, so the highlighter reads a page once
+  // and looks each token up (VT.indexHits) instead of running match() once
+  // per saved word.
+  indexed: true,
+
+  // The forms the page highlighter looks for: inflections() and then the
+  // spellings it deliberately leaves out — y→ies/ied, a doubled final
+  // consonant, the irregular verbs in lang/en/irregular.js, and a short list
+  // of derivations (resilient → resilience). Wider than inflections() because
+  // a false highlight costs a glance, while a false Speak pass costs a grade.
+  //
+  // Every rule grows the SAVED word, keyed on the ending it already has, so a
+  // rule that misfires makes a spelling no page contains ("visitted"), not a
+  // neighbouring word: "accelerate" never reaches "accelerator".
+  //
+  // ponytail: a fixed suffix list. decide → decision and other stem changes do
+  // not highlight; a lemmatiser is the upgrade if that gap shows in use.
+  forms(word) {
+    const w = String(word ?? '').trim().toLowerCase();
+    if (!w) return [];
+    const out = new Set(this.inflections(w));
+    const add = (...forms) => forms.forEach((form) => out.add(form));
+    const stem = (n) => w.slice(0, -n);
+
+    if (/[^aeiou]y$/.test(w)) {
+      add(`${stem(1)}ies`, `${stem(1)}ied`, `${stem(1)}ily`, `${stem(1)}iness`);
+    }
+    if (w.endsWith('ie')) add(`${stem(2)}ying`);
+    // Consonant–vowel–consonant: stop → stopped, run → running.
+    if (/[^aeiou][aeiou][b-df-hj-np-tvz]$/.test(w)) {
+      add(`${w}${w.at(-1)}ed`, `${w}${w.at(-1)}ing`);
+    }
+    add(...(EN_IRREGULAR[w] ?? []));
+
+    if (/[ae]nt$/.test(w)) add(`${stem(1)}ce`, `${stem(1)}cy`);
+    if (/[ae]nc[ey]$/.test(w)) add(`${stem(2)}t`);
+    if (w.endsWith('ate')) add(`${stem(1)}ion`, `${stem(1)}ions`);
+    if (w.endsWith('ble')) add(`${stem(3)}bility`, `${stem(1)}y`);
+    if (w.endsWith('ic')) add(`${w}ally`);
+    // Short words stay out: ear → early and on → only are different words.
+    if (w.length >= 4 && !/(y|le)$/.test(w)) add(`${w}ly`, `${w}ness`);
+    return [...out];
+  },
+
   // A selection worth offering a lookup for: one word, letters and inner
   // hyphens only, 2 to 40 characters. Deliberately rejects digits and
   // punctuation so the button does not appear on code, prices or dates.
@@ -91,7 +135,14 @@ LANG.register('en', {
       ['a regex metacharacter is literal', m('a.b', 'axb').length === 0],
       ['accepts a plain word', LANG.get('en').isCandidate('resilient')],
       ['rejects digits', !LANG.get('en').isCandidate('covid19')],
-      ['lemma is the identity', LANG.get('en').lemma('running') === 'running']
+      ['lemma is the identity', LANG.get('en').lemma('running') === 'running'],
+      ...[['resilient', 'resilience'], ['run', 'ran'], ['run', 'running'], ['study', 'studied'],
+          ['stop', 'stopped'], ['give', 'gave'], ['happy', 'happiness'], ['able', 'ability'],
+          ['resilience', 'resilient'], ['accelerate', 'acceleration']]
+        .map(([w, form]) => [`forms: ${w} reaches ${form}`, LANG.get('en').forms(w).includes(form)]),
+      ...[['accelerate', 'accelerator'], ['cat', 'category'], ['pass', 'passage'], ['ear', 'early']]
+        .map(([w, form]) => [`forms: ${w} does not reach ${form}`, !LANG.get('en').forms(w).includes(form)]),
+      ['forms leave inflections() alone', !LANG.get('en').inflections('run').includes('ran')]
     ];
   }
 });

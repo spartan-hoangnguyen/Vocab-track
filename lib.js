@@ -42,6 +42,170 @@ const VT = {
     return VT.find(word, text, lang).length > 0;
   },
 
+  // The token a page is read in: a run of \w-class letters and digits, with
+  // inner hyphens joining one. Shared by the index and the scan, so a saved
+  // phrase is split exactly the way the page text will be.
+  TOKEN: /[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu,
+
+  // The highlighter's lookup table for the saved words of an `indexed` pack
+  // (English), so a page is read once instead of once per saved word:
+  //
+  //   index    form → entry, for one-word keys
+  //   phrases  form of the first word → [{ rest, entry }], for multi-word keys
+  //            (`give up` is filed under give, gave, giving, … with rest ['up'])
+  //   rest     entries the index cannot serve — other packs — for VT.find
+  //
+  // Only the first word of a phrase inflects: "gave up" is `give up`, "give
+  // ups" is not. Two entries can share a form. A saved word's own spelling
+  // always beats another word's derived form — with `see` and the noun `saw`
+  // both saved, "saw" is `saw` — and between two derived forms the first entry
+  // wins, in the order storage hands them back. A page shows one highlight
+  // per word.
+  wordIndex(entries) {
+    const index = new Map();
+    const phrases = new Map();
+    const rest = [];
+    const indexed = [];
+    for (const entry of entries) {
+      const pack = LANG.of(entry);
+      const word = VT.normaliseWord(entry.word);
+      if (!pack.indexed) {
+        rest.push(entry);
+        continue;
+      }
+      const tokens = [...word.matchAll(VT.TOKEN)].map((m) => m[0]);
+      if (tokens.length > 1) {
+        for (const form of pack.forms(tokens[0])) {
+          const key = VT.normaliseWord(form);
+          if (!phrases.has(key)) phrases.set(key, []);
+          phrases.get(key).push({ rest: tokens.slice(1), entry });
+        }
+        continue;
+      }
+      if (!index.has(word)) index.set(word, entry);
+      indexed.push([pack, word, entry]);
+    }
+    for (const [pack, word, entry] of indexed) {
+      for (const form of pack.forms(word)) {
+        const key = VT.normaliseWord(form);
+        if (!index.has(key)) index.set(key, entry);
+      }
+    }
+    // Longest phrase first, so `give up on` is tried before `give up`.
+    for (const list of phrases.values()) list.sort((a, b) => b.rest.length - a.rest.length);
+    return { index, phrases, rest };
+  },
+
+  // Every indexed word in `text`, as {index, length, entry} ranges.
+  //
+  // Word-bounded the way match()'s \b is: "cat" is not in "category" or
+  // "cat5". A hyphenated compound that is not saved as a whole falls back to
+  // its parts, so "well" still lights up in "well-known". An apostrophe ends a
+  // token, which keeps "cat's" a hit on "cat".
+  //
+  // A phrase is tried before the single word at the same token, so with
+  // `give` and `give up` both saved, "gave up" is `give up`. Its words may be
+  // apart by any whitespace, a line break included, but nothing else: "give
+  // it up" is not `give up`. A phrase split across two text nodes ("gave
+  // <b>up</b>") is not found either — the scan reads one node at a time.
+  indexHits(text, index, phrases = new Map()) {
+    const out = [];
+    if (!index.size && !phrases.size) return out;
+    const str = String(text ?? '');
+    const tokens = [...str.matchAll(VT.TOKEN)];
+    const end = (m) => m.index + m[0].length;
+    for (let i = 0; i < tokens.length; i++) {
+      const m = tokens[i];
+      const key = VT.normaliseWord(m[0]);
+      const phrase = phrases.get(key)?.find(({ rest }) => rest.every((word, j) => {
+        const next = tokens[i + j + 1];
+        return next && VT.normaliseWord(next[0]) === word &&
+          /^\s+$/.test(str.slice(end(tokens[i + j]), next.index));
+      }));
+      if (phrase) {
+        const last = tokens[i + phrase.rest.length];
+        out.push({ index: m.index, length: end(last) - m.index, entry: phrase.entry });
+        i += phrase.rest.length;
+        continue;
+      }
+      const whole = index.get(key);
+      if (whole) {
+        out.push({ index: m.index, length: m[0].length, entry: whole });
+        continue;
+      }
+      if (!m[0].includes('-')) continue;
+      let at = m.index;
+      for (const part of m[0].split('-')) {
+        const entry = index.get(VT.normaliseWord(part));
+        if (entry) out.push({ index: at, length: part.length, entry });
+        at += part.length + 1;
+      }
+    }
+    return out;
+  },
+
+  // Every saved word under `root`, as {node, index, length, entry} — what the
+  // content script turns into highlight Ranges. Here rather than there so the
+  // test page can run and time it without a chrome API.
+  highlightHits(root, entries) {
+    return VT.scanHits(root, VT.wordIndex(entries));
+  },
+
+  // The same, against an index built once by VT.wordIndex: the content script
+  // keeps one between repaints and scans only what a page adds. `root` may be
+  // an element or a single text node.
+  //
+  // Code, scripts, form fields and editable regions are skipped: a word saved
+  // from prose should not light up in a code sample or under the caret. So is
+  // the extension's own UI (the 📘 button, the stale notice, the reader),
+  // marked with [data-vocab-track].
+  scanHits(root, { index, phrases, rest }) {
+    // Grouped by pack, so a node that holds no Hangul or Han skips those packs
+    // with one script test instead of one test per saved word.
+    const byPack = new Map();
+    for (const entry of rest) {
+      const pack = LANG.of(entry);
+      if (!byPack.has(pack)) byPack.set(pack, []);
+      byPack.get(pack).push(entry);
+    }
+    const accept = (node) => {
+      if (!node.nodeValue.trim()) return false;
+      const parent = node.parentElement;
+      // closest(), not parentElement.tagName: a highlighted code block nests
+      // spans inside <pre><code>, so the immediate parent is not the CODE.
+      return Boolean(parent) && !parent.closest('script, style, code, pre, textarea, [data-vocab-track]') &&
+        !parent.isContentEditable;
+    };
+    const nodes = [];
+    if (root.nodeType === Node.TEXT_NODE) {
+      if (accept(root)) nodes.push(root);
+    } else {
+      const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (accept(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
+      });
+      let node;
+      while ((node = walker.nextNode())) nodes.push(node);
+    }
+
+    const hits = [];
+    for (const node of nodes) {
+      const text = node.nodeValue;
+      for (const hit of VT.indexHits(text, index, phrases)) hits.push({ node, ...hit });
+      // ponytail: one match() per saved word for packs with no index. Cheap on
+      // a page in another script, slow on a long Chinese page with all of HSK
+      // saved. Upgrade path is a segment index like English's.
+      for (const [pack, list] of byPack) {
+        if (pack.script && !pack.script.test(text)) continue;
+        for (const entry of list) {
+          for (const hit of VT.find(entry.word, text, entry.lang)) {
+            hits.push({ node, ...hit, entry });
+          }
+        }
+      }
+    }
+    return hits;
+  },
+
   // A text and its ranges as alternating pieces: [{ text, hit }]. Four places
   // mark a word inside its own sentence — the panel, the words view, the
   // review prompt and Fill the gap — and each used to walk the regex itself.
@@ -436,6 +600,79 @@ const VT = {
     return out;
   },
 
+  // The first grade of each word on each local day. A lapse comes back in the
+  // same session and is graded again; counting that re-show would make one
+  // bad day look like two. Rows are { word, quality, at }, oldest first.
+  dailyFirsts(rows) {
+    const seen = new Set();
+    return rows.filter((row) => {
+      const key = row.word + '\u0000' + VT.dayKey(row.at);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  // The words forgotten most (a first grade below 3), with the time of the
+  // latest lapse, which also breaks ties. Words never forgotten are left out.
+  weakWords(rows, limit = 10) {
+    const by = new Map();
+    for (const { word, quality, at } of VT.dailyFirsts(rows)) {
+      if (quality >= 3) continue;
+      const was = by.get(word) ?? { word, lapses: 0, last: 0 };
+      by.set(word, { word, lapses: was.lapses + 1, last: Math.max(was.last, at) });
+    }
+    return [...by.values()].sort((a, b) => b.lapses - a.lapses || b.last - a.last).slice(0, limit);
+  },
+
+  // Share of first-of-day grades passed (3 or more), per local week from
+  // Monday, oldest first, the current partial week last. Weeks are stepped
+  // with setDate so a DST change cannot move a boundary by an hour.
+  weeklyRetention(rows, weeks, now = Date.now()) {
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const starts = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+      const d = new Date(monday);
+      d.setDate(d.getDate() - 7 * i);
+      starts.push(d.getTime());
+    }
+    const out = starts.map((start) => ({ start, reviews: 0, passed: 0, rate: null }));
+    for (const { quality, at } of VT.dailyFirsts(rows)) {
+      if (at < starts[0] || at > now) continue;
+      let i = starts.length - 1;
+      while (at < starts[i]) i--;
+      out[i].reviews++;
+      if (quality >= 3) out[i].passed++;
+    }
+    for (const week of out) if (week.reviews) week.rate = week.passed / week.reviews;
+    return out;
+  },
+
+  // ponytail: an estimate from the gaps between grades, not a timer. A gap
+  // over SESSION_GAP_MS starts a new session, a gap counts up to CARD_CAP_MS,
+  // and a session's first card counts half a cap. Real time per card needs a
+  // start time recorded per card.
+  SESSION_GAP_MS: 5 * 60 * 1000,
+  CARD_CAP_MS: 60 * 1000,
+
+  // Minutes spent reviewing per local day (VT.dayKey), every grade counted:
+  // this is effort, so a same-day re-show is time spent too.
+  reviewMinutes(rows) {
+    const out = new Map();
+    let prev = null;
+    for (const { at } of [...rows].sort((a, b) => a.at - b.at)) {
+      const gap = prev == null ? Infinity : at - prev;
+      const ms = gap > VT.SESSION_GAP_MS ? VT.CARD_CAP_MS / 2 : Math.min(gap, VT.CARD_CAP_MS);
+      const day = VT.dayKey(at);
+      out.set(day, (out.get(day) ?? 0) + ms);
+      prev = at;
+    }
+    for (const [day, ms] of out) out.set(day, ms / 60000);
+    return out;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];
@@ -739,8 +976,10 @@ const VT = {
 
   // `lang` is the pack the word belongs to. Detected from the script when not
   // given, so a caller that predates languages — tools/ielts-parse.html, the
-  // tests — keeps producing exactly what it did before.
-  newEntry(word, parsed, vi, url, lang) {
+  // tests — keeps producing exactly what it did before. `viSource` is the id of
+  // the translation source that gave `vi` (lookup.js GLOSS.sources), kept with
+  // the word because it describes the stored gloss, not one lookup.
+  newEntry(word, parsed, vi, url, lang, viSource) {
     return {
       word,
       lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
@@ -758,6 +997,7 @@ const VT = {
       related: parsed.related ?? [],
       context: null,
       vi,
+      viSource: viSource ?? null,
       sources: [url],
       added: Date.now(),
       interval: 0,

@@ -38,6 +38,62 @@ check('matches possessive stem', hit("the cat's bowl"));
 check('does not match inside category', !hit('category'));
 check('does not match inside concatenate', !hit('concatenate'));
 check('does not match inside bobcat', !hit('bobcat'));
+
+// --- VT.indexHits / VT.highlightHits  (the page highlighter's one-pass scan)
+{
+  const cat = { word: 'cat', lang: 'en' };
+  const { index } = VT.wordIndex([cat, { word: 'well', lang: 'en' }]);
+  const ih = (text) => VT.indexHits(text, index);
+  eq('index: finds a saved word', ih('a cat sat').length, 1);
+  eq('index: a hit points at the word', ih('a cat sat')[0].index, 2);
+  check('index: returns the saved entry', ih('a cat sat')[0].entry === cat);
+  eq('index: is word-bounded', ih('category bobcat cat5').length, 0);
+  eq('index: is case-insensitive', ih('Cat and CAT').length, 2);
+  eq('index: keeps the possessive a hit', ih("the cat's bowl").length, 1);
+  eq('index: a hyphen part still hits', ih('a well-known fact')[0]?.length, 4);
+  eq('index: an empty index finds nothing', VT.indexHits('a cat', new Map()).length, 0);
+  check('index: a Korean word is left to match()',
+        VT.wordIndex([{ word: '책', lang: 'ko' }]).rest.length === 1);
+  check('index: a multi-word key is filed under its first word',
+        VT.wordIndex([{ word: 'give up', lang: 'en' }]).phrases.has('gave'));
+
+  const doc = document.implementation.createHTMLDocument('');
+  doc.body.innerHTML = '<p>a cat and 책을</p><pre>cat</pre><div contenteditable="true">cat</div>';
+  const hh = VT.highlightHits(doc.body, [cat, { word: '책', lang: 'ko' }]);
+  eq('highlight: English and Korean both light up, code and editors do not', hh.length, 2);
+
+  const resilient = { word: 'resilient', lang: 'en' };
+  const formHit = VT.indexHits('Resilience matters.', VT.wordIndex([resilient]).index)[0];
+  check('forms: "Resilience" highlights as the saved resilient', formHit?.entry === resilient);
+  eq('forms: the range covers the page\'s spelling', formHit?.length, 10);
+  eq('forms: "accelerator" stays dark with accelerate saved',
+     VT.indexHits('the accelerator', VT.wordIndex([{ word: 'accelerate', lang: 'en' }]).index).length, 0);
+  const see = { word: 'see', lang: 'en' };
+  const saw = { word: 'saw', lang: 'en' };
+  check('forms: a saved word\'s own spelling beats a derived form',
+        VT.indexHits('a saw', VT.wordIndex([see, saw]).index)[0]?.entry === saw);
+  eq('forms: match() still does not stem', VT.find('resilient', 'resilience').length, 0);
+
+  const giveUp = { word: 'give up', lang: 'en' };
+  const give = { word: 'give', lang: 'en' };
+  const giveUpOn = { word: 'give up on', lang: 'en' };
+  const ph = (text, entries = [giveUp]) => {
+    const { index, phrases } = VT.wordIndex(entries);
+    return VT.indexHits(text, index, phrases);
+  };
+  const gaveUp = ph('She gave up.')[0];
+  check('phrase: "gave up" is the saved give up', gaveUp?.entry === giveUp);
+  eq('phrase: one range covers both words', 'She gave up.'.slice(gaveUp?.index, gaveUp?.index + gaveUp?.length), 'gave up');
+  check('phrase: "giving up" and "gives up" hit', ph('giving up').length === 1 && ph('gives up').length === 1);
+  eq('phrase: "give it up" is not a hit (a separated object)', ph('give it up').length, 0);
+  eq('phrase: only the first word inflects', ph('give ups').length, 0);
+  check('phrase: a line break between the words still counts', ph('gave\n  up')[0]?.entry === giveUp);
+  check('phrase: beats the single word at the same token', ph('gave up', [give, giveUp])[0]?.entry === giveUp);
+  check('phrase: the longest saved phrase wins',
+        ph('gave up on it', [giveUp, giveUpOn])[0]?.entry === giveUpOn);
+  check('phrase: the single word still hits alone', ph('gave it away', [give, giveUp])[0]?.entry === give);
+}
+
 eq('finds every occurrence', VT.find('cat', 'cat, Cat and CAT').length, 3);
 eq('a range points at the word',
    VT.find('cat', 'a cat sat')[0].index, 2);
@@ -461,6 +517,82 @@ async function parserTests() {
     eq('dayKey is the local date', VT.dayKey(new Date(2026, 0, 5, 23, 59).getTime()), '2026-01-05');
   }
 
+  // --- weak words: first grade per word per day, most lapses first
+  {
+    const D = 24 * 60 * 60 * 1000;
+    const t0 = new Date(2026, 0, 5, 9).getTime();
+    const rows = [
+      { word: 'a', quality: 0, at: t0 },
+      { word: 'a', quality: 0, at: t0 + 60000 },          // same-day re-show
+      { word: 'b', quality: 4, at: t0 },
+      { word: 'b', quality: 0, at: t0 + 60000 },          // a lapse after a pass: not first
+      { word: 'c', quality: 1, at: t0 + D },
+      { word: 'a', quality: 4, at: t0 + 2 * D },
+      { word: 'd', quality: 0, at: t0 + 3 * D }
+    ];
+    eq('dailyFirsts: one row per word per day', VT.dailyFirsts(rows).length, 5);
+    eq('dailyFirsts: keeps the first of the day', VT.dailyFirsts(rows)[1].quality, 4);
+    eq('dailyFirsts: empty input', VT.dailyFirsts([]).length, 0);
+    const weak = VT.weakWords([...rows, { word: 'c', quality: 0, at: t0 + 4 * D }]);
+    eq('weakWords: most lapses first', weak[0].word + weak[0].lapses, 'c2');
+    eq('weakWords: ties go to the latest lapse', weak.slice(1).map((w) => w.word).join(), 'd,a');
+    eq('weakWords: last is the latest lapse', weak[0].last, t0 + 4 * D);
+    check('weakWords: a word with only passing first grades is left out', !weak.some((w) => w.word === 'b'));
+    eq('weakWords: limit', VT.weakWords(rows, 1).length, 1);
+    eq('weakWords: empty input', VT.weakWords([]).length, 0);
+  }
+
+  // --- weekly retention: first-of-day grades, Monday weeks, oldest first
+  {
+    const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
+    // Wednesday 2026-11-04; US DST ends Sunday 2026-11-01, EU 2026-10-25.
+    const now = at(2026, 10, 4);
+    const rows = [];
+    const week = (y, m, d, pass, total) => {
+      for (let i = 0; i < total; i++) rows.push({ word: 'w' + i, quality: i < pass ? 4 : 0, at: at(y, m, d) });
+    };
+    week(2026, 9, 20, 7, 10);   // two weeks ago: 70%
+    week(2026, 9, 27, 8, 10);   // last week: 80%
+    week(2026, 10, 3, 9, 10);   // this week: 90%
+    rows.push({ word: 'w9', quality: 4, at: at(2026, 10, 3, 13) });   // re-show the same day
+    const ret = VT.weeklyRetention(rows, 13, now);
+    eq('weeklyRetention: 13 weeks', ret.length, 13);
+    eq('weeklyRetention: oldest first, rates per week',
+       ret.slice(-3).map((w) => Math.round(w.rate * 100)).join(), '70,80,90');
+    eq('weeklyRetention: a same-day re-grade does not count', ret[12].reviews, 10);
+    eq('weeklyRetention: an empty week has a null rate', ret[0].rate, null);
+    eq('weeklyRetention: weeks start on Monday', new Date(ret[12].start).getDay(), 1);
+    const edge = VT.weeklyRetention([
+      { word: 'sun', quality: 4, at: new Date(2026, 10, 1, 23, 30).getTime() },
+      { word: 'mon', quality: 0, at: new Date(2026, 10, 2, 0, 30).getTime() },
+      { word: 'eu', quality: 4, at: new Date(2026, 9, 25, 23, 30).getTime() },
+      { word: 'eu2', quality: 4, at: new Date(2026, 9, 26, 0, 30).getTime() }
+    ], 3, now);
+    eq('weeklyRetention: Sunday night and Monday morning fall either side of a DST week boundary',
+       edge.map((w) => w.reviews).join(), '1,2,1');
+    eq('weeklyRetention: the Monday after the change is a midnight',
+       new Date(edge[2].start).getHours() + ':' + new Date(edge[1].start).getHours(), '0:0');
+    check('weeklyRetention: no history, every week empty',
+          VT.weeklyRetention([], 13, now).every((w) => w.reviews === 0 && w.rate === null));
+  }
+
+  // --- review minutes: estimated from the gaps between grades
+  {
+    const t0 = new Date(2026, 0, 5, 9).getTime();
+    const ten = Array.from({ length: 10 }, (_, i) => ({ word: 'w' + i, quality: 4, at: t0 + i * 20000 }));
+    eq('reviewMinutes: ten grades 20 s apart are 9 × 20 s + 30 s',
+       VT.reviewMinutes(ten).get('2026-01-05'), 3.5);
+    eq('reviewMinutes: two grades 2 h apart are two sessions',
+       VT.reviewMinutes([{ word: 'a', quality: 4, at: t0 }, { word: 'b', quality: 0, at: t0 + 2 * 3600000 }])
+         .get('2026-01-05'), 1);
+    eq('reviewMinutes: a long pause inside a session counts a minute at most',
+       VT.reviewMinutes([{ word: 'a', quality: 4, at: t0 }, { word: 'b', quality: 4, at: t0 + 4 * 60000 }])
+         .get('2026-01-05'), 1.5);
+    eq('reviewMinutes: unsorted input is sorted first',
+       VT.reviewMinutes([...ten].reverse()).get('2026-01-05'), 3.5);
+    eq('reviewMinutes: no history, no days', VT.reviewMinutes([]).size, 0);
+  }
+
   // --- forecast: every return inside the window counts, not just the next one
   {
     const D = 24 * 60 * 60 * 1000;
@@ -487,6 +619,10 @@ async function parserTests() {
   eq('entry sources', entry.sources.length, 1);
   eq('entry starts at reps 0', entry.reps, 0);
   check('entry is due immediately', entry.due <= Date.now());
+  eq('newEntry records the gloss source',
+     VT.newEntry('book', { level: null, ipa: null, def: null, audio: null }, 'sách', 'u', 'en', 'mymemory').viSource,
+     'mymemory');
+  eq('and an older call without it stores null', entry.viSource, null);
 
   // --- folders: membership lives on the word, and pre-folder entries have none
   eq('foldersOf defaults to reading', VT.foldersOf({ word: 'old' })[0], VT.READING);
@@ -870,6 +1006,155 @@ async function parserTests() {
         giphyPick(gjson, () => 0.99) !== 'https://evil.test/c.gif');
   eq('giphyPick returns null on no results', giphyPick({ data: [] }), null);
   eq('giphyPick returns null on a junk response', giphyPick(null), null);
+
+  // --- the translation chain (lookup.js): Google first, MyMemory when it fails.
+  // fetch is stubbed per host from a script, so the order and the call log are
+  // the test; the real network is never touched.
+  const gUrl = new URL(googleUrl('学生', 'zh'));
+  eq('googleUrl asks from zh-CN, not the pack id', gUrl.searchParams.get('sl'), 'zh-CN');
+  eq('googleUrl translates into vietnamese', gUrl.searchParams.get('tl'), 'vi');
+  const mmUrl = new URL(myMemoryUrl('책', 'ko'));
+  eq('myMemoryUrl pairs ko with vi', mmUrl.searchParams.get('langpair'), 'ko|vi');
+  eq('myMemoryUrl encodes the word', mmUrl.searchParams.get('q'), '책');
+  eq('myMemoryUrl asks from zh-CN too', new URL(myMemoryUrl('学生', 'zh')).searchParams.get('langpair'), 'zh-CN|vi');
+
+  const mmBody = (over = {}) => JSON.stringify({
+    responseData: { translatedText: 'sách; ghi chép', match: 1 }, quotaFinished: false,
+    responseDetails: '', responseStatus: 200, matches: [], ...over
+  });
+  const realFetch = window.fetch;
+  const realError = console.error;
+  const calls = [];
+  // `script` maps a host to a function returning that host's Response (or throwing).
+  const stubFetch = (script) => {
+    window.fetch = async (url) => {
+      const host = new URL(url).host;
+      calls.push(host);
+      return script[host]();
+    };
+  };
+  const resetChain = () => {
+    calls.length = 0;
+    for (const src of GLOSS.sources) src.pausedUntil = 0;
+  };
+  const G = 'translate.googleapis.com';
+  const GC = 'translation.googleapis.com';
+  const MM = 'api.mymemory.translated.net';
+  // No chrome.storage on this page: the key is read through translateKey,
+  // replaced here. '' is the reader who never set one.
+  const realKey = window.translateKey;
+  window.translateKey = async () => '';
+  console.error = () => {};  // every failure below is deliberate
+  try {
+    // S1: Google rate-limits, MyMemory answers.
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [MM]: () => new Response(mmBody()) });
+    const s1 = await glossFor('book', 'en');
+    eq('a google 429 falls through to mymemory', s1.vi, 'sách; ghi chép');
+    eq('and names mymemory as the source', s1.source, 'mymemory');
+    eq('and reports no failure', s1.failed, null);
+    calls.length = 0;
+    const s1b = await glossFor('book', 'en');
+    check('within the pause google is not asked again', !calls.includes(G), calls.join(','));
+    eq('and mymemory still answers', s1b.vi, 'sách; ghi chép');
+
+    // Google answers: MyMemory is never asked.
+    resetChain();
+    stubFetch({ [G]: () => new Response(JSON.stringify([[['sách', 'book']]])), [MM]: () => new Response(mmBody()) });
+    const ok = await glossFor('book', 'en');
+    eq('google answering wins', ok.vi, 'sách');
+    eq('as source google', ok.source, 'google');
+    check('and mymemory is not fetched', !calls.includes(MM), calls.join(','));
+
+    // S2: both fail, and the sentence names both.
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [MM]: () => new Response('', { status: 503 }) });
+    const s2 = await glossFor('book', 'en');
+    eq('every source failing leaves no gloss', s2.vi, null);
+    eq('and no source', s2.source, null);
+    check('the failure names google and its pause',
+          /Google Translate is rate-limiting.*\d+ minutes?/.test(s2.failed ?? ''), s2.failed);
+    check('and mymemory and its status', /MyMemory: HTTP 503/.test(s2.failed ?? ''), s2.failed);
+
+    // A network error reads as one too.
+    resetChain();
+    stubFetch({ [G]: () => { throw new TypeError('Failed to fetch'); }, [MM]: () => { throw new TypeError('Failed to fetch'); } });
+    const off = await glossFor('book', 'en');
+    check('offline names each source with the error',
+          /Google Translate: TypeError: Failed to fetch; MyMemory: TypeError: Failed to fetch/.test(off.failed ?? ''), off.failed);
+
+    // A used-up quota in a 200 is a failure, never a gloss, and pauses MyMemory.
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 500 }),
+                [MM]: () => new Response(mmBody({ quotaFinished: true, responseStatus: 429,
+                  responseData: { translatedText: 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS' } })) });
+    const quota = await glossFor('book', 'en');
+    eq('a quotaFinished body is not saved as a gloss', quota.vi, null);
+    check('it is reported as mymemory rate-limiting', /MyMemory is rate-limiting/.test(quota.failed ?? ''), quota.failed);
+    check('and pauses mymemory', GLOSS.sources.find((s) => s.id === 'mymemory').pausedUntil > Date.now());
+
+    // Google answering "nothing" still asks MyMemory.
+    resetChain();
+    stubFetch({ [G]: () => new Response(JSON.stringify([])), [MM]: () => new Response(mmBody()) });
+    const empty = await glossFor('book', 'en');
+    check('google with nothing asks mymemory next', calls.includes(MM), calls.join(','));
+    eq('and takes its gloss', empty.vi, 'sách; ghi chép');
+
+    // Both answer nothing: no gloss, and no failure either — a real answer.
+    resetChain();
+    stubFetch({ [G]: () => new Response(JSON.stringify([])),
+                [MM]: () => new Response(mmBody({ responseData: { translatedText: 'book' } })) });
+    const none = await glossFor('book', 'en');
+    eq('mymemory echoing the word is no gloss', none.vi, null);
+    eq('and every source answering nothing is not a failure', none.failed, null);
+
+    // The optional keyed source, between Google and MyMemory.
+    const gcUrl = new URL(googleCloudUrl('K1', '学生', 'zh'));
+    eq('googleCloudUrl asks from zh-CN', gcUrl.searchParams.get('source'), 'zh-CN');
+    eq('into vietnamese', gcUrl.searchParams.get('target'), 'vi');
+    eq('with the key', gcUrl.searchParams.get('key'), 'K1');
+
+    const gcOk = () => new Response(JSON.stringify({ data: { translations: [{ translatedText: 'sách (cloud)' }] } }));
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: gcOk, [MM]: () => new Response(mmBody()) });
+    await glossFor('book', 'en');
+    check('with no key the keyed host is never fetched', !calls.includes(GC), calls.join(','));
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: gcOk, [MM]: () => new Response('', { status: 503 }) });
+    const noKey = await glossFor('book', 'en');
+    check('and it is not named when the rest fail', !/Cloud/.test(noKey.failed ?? ''), noKey.failed);
+
+    window.translateKey = async () => 'K1';
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: gcOk, [MM]: () => new Response(mmBody()) });
+    const keyed = await glossFor('book', 'en');
+    eq('with a key, a google 429 is answered by the cloud api', keyed.vi, 'sách (cloud)');
+    eq('as source google-cloud', keyed.source, 'google-cloud');
+    check('and mymemory is not fetched', !calls.includes(MM), calls.join(','));
+    eq('the source has a display name', glossSourceName('google-cloud'), 'Google Cloud Translation');
+
+    resetChain();
+    const badKey = () => new Response(JSON.stringify({ error: { code: 400, message: 'API key not valid. Please pass a valid API key.' } }), { status: 400 });
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: badKey, [MM]: () => new Response(mmBody()) });
+    const rejected = await glossFor('book', 'en');
+    eq('a rejected key falls through to mymemory', rejected.source, 'mymemory');
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: badKey, [MM]: () => new Response('', { status: 503 }) });
+    const allOut = await glossFor('book', 'en');
+    check('and when mymemory fails too, the banner says the key was rejected',
+          /Google Cloud Translation: the key was rejected — check it in settings/.test(allOut.failed ?? ''), allOut.failed);
+  } finally {
+    window.translateKey = realKey;
+    window.fetch = realFetch;
+    console.error = realError;
+    resetChain();
+  }
+
+  // --- source guard: each source's host is pinned, like the dictionary above.
+  const lookupCode = (await (await fetch('../lookup.js?t=' + Date.now())).text()).replace(/^\s*\/\/.*$/gm, '');
+  check('the gloss chain asks google', /translate\.googleapis\.com\/translate_a\/single/.test(lookupCode));
+  check('and falls back to mymemory', /api\.mymemory\.translated\.net\/get/.test(lookupCode));
+  check('and, with a key, the cloud api', /translation\.googleapis\.com\/language\/translate\/v2/.test(lookupCode));
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
