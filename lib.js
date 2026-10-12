@@ -644,6 +644,33 @@ const VT = {
     return patch;
   },
 
+  // The automatic backup's path under Downloads: one file per local day.
+  backupFileName(now = Date.now()) {
+    return `vocab-track/backup-${VT.dayKey(now)}.json`;
+  },
+
+  // Which backup downloads to clean up, from chrome.downloads.search items.
+  // `remove`: every item of a day older than the newest `keep` days (delete the
+  // file and its entry). `erase`: older entries of a kept day — overwriting
+  // today's file adds a download entry each time, and they all name the same
+  // file, so only the entry may go, never the file.
+  backupsToPrune(items, keep = 7) {
+    const dayOf = (item) => /backup-(\d{4}-\d{2}-\d{2})\.json$/.exec(item.filename ?? '')?.[1];
+    const dated = items.filter(dayOf).sort((a, b) => b.id - a.id);
+    const days = [...new Set(dated.map(dayOf))].sort().reverse();
+    const kept = new Set(days.slice(0, keep));
+    const remove = [];
+    const erase = [];
+    const seen = new Set();
+    for (const item of dated) {
+      const day = dayOf(item);
+      if (!kept.has(day)) remove.push(item.id);
+      else if (seen.has(day)) erase.push(item.id);
+      seen.add(day);
+    }
+    return { remove, erase };
+  },
+
   // One day's review rows ([word, quality, at]) from two sides, deduped.
   mergeHistory(a = [], b = []) {
     const seen = new Map();

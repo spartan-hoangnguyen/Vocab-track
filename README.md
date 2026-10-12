@@ -420,7 +420,10 @@ the same licence.
 ## Privacy
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`
-on your own machine and are never uploaded anywhere.
+on your own machine and are never uploaded anywhere. The automatic backup is a
+file in your own Downloads folder (`Downloads/vocab-track/backup-<date>.json`),
+written by the extension a minute after you change your words; nothing is sent
+anywhere.
 
 Five things leave your browser, each only when you do something that needs it:
 
@@ -442,6 +445,12 @@ Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes
 no third-party request at all — the fonts are vendored under `fonts/`.
 
+The automatic backup needs four permissions: **`downloads`** writes the file
+(and deletes this extension's own backups older than seven days),
+**`downloads.ui`** hides the download bubble for that one file, **`alarms`**
+waits a minute after your last change, and **`offscreen`** turns the store into
+a file the download can take — a service worker cannot make one itself.
+
 Two permissions look broader than they are:
 
 - **`<all_urls>`** — the content script has to be on the page you are reading
@@ -462,7 +471,7 @@ Two permissions look broader than they are:
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
-| `service-worker.js` | Opens the panel and the dashboard, hands words over |
+| `service-worker.js` | Opens the panel and the dashboard, hands words over, writes the automatic backup (`offscreen.*` makes its file) |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
 
@@ -637,7 +646,9 @@ manual checklist for it.
   no Korean at all, and it checks the prose you type into someone else's
   textarea — third-party text, not your word store — so the dashboard's
   language toggle deliberately does not govern it.
-- **Storage is local to this Chrome profile.** Export is the only backup.
+- **Storage is local to this Chrome profile.** The backup is a file per day
+  in `Downloads/vocab-track/`, the last seven days kept; restore one with
+  **Import**. Nothing syncs between machines on its own — carry the file.
 - **A folder's language is inferred from the words in it**, not stored, for
   every folder made before folders had a language — which is why nothing had
   to be migrated. The cost is that a folder holding both languages shows in

@@ -878,6 +878,14 @@ $('import-file').addEventListener('change', async (event) => {
   }
 });
 
+// Written by the service worker's automatic backup (service-worker.js).
+function showBackup(last) {
+  $('backup-status').textContent = last
+    ? `Last automatic backup: ${new Date(last.at).toLocaleString()} \u2014 Downloads/${last.file}`
+    : 'No automatic backup yet.';
+}
+chrome.storage.local.get('lastBackup').then(({ lastBackup }) => showBackup(lastBackup));
+
 /* ---------- search & shortcuts ---------- */
 
 $('q').addEventListener('input', () => {
@@ -992,6 +1000,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // only way this page ever sees the counts move.
   // Another dashboard tab flipped the theme: follow it.
   if (changes.theme) applyTheme(changes.theme.newValue);
+  if (changes.lastBackup) showBackup(changes.lastBackup.newValue);
   // `lang` for the same reason as the theme, and with more at stake: it governs
   // six views, so a second dashboard tab left on the other language would keep
   // writing words into a list this one is filtering out.

@@ -311,6 +311,21 @@ async function fixtureJson(name) {
   const h = VT.mergeHistory([['a', 4, 3], ['b', 3, 1]], [['b', 3, 1], ['c', 5, 2]]);
   eq('mergeHistory dedupes and sorts', JSON.stringify(h), '[["b",3,1],["c",5,2],["a",4,3]]');
   eq('mergeHistory with one side missing', VT.mergeHistory(undefined, [['a', 4, 1]]).length, 1);
+
+  eq('backupFileName is a dated file under vocab-track',
+     VT.backupFileName(new Date(2026, 9, 5, 23, 59).getTime()), 'vocab-track/backup-2026-10-05.json');
+  const dl = (id, day) => ({ id, filename: `/Users/me/Downloads/vocab-track/backup-2026-10-${day}.json` });
+  const nine = ['01', '02', '03', '04', '05', '06', '07', '08', '09'].map((d, i) => dl(i + 1, d));
+  const pr = VT.backupsToPrune(nine, 7);
+  eq('backupsToPrune removes the two oldest of nine days', pr.remove.sort().join(), '1,2');
+  eq('backupsToPrune erases nothing else', pr.erase.length, 0);
+  const today = [dl(10, '09'), dl(11, '09'), dl(12, '09'), dl(3, '01')];
+  const pt = VT.backupsToPrune(today, 7);
+  eq('backupsToPrune erases older entries of the same day, keeping the newest',
+     pt.erase.sort().join(), '10,11');
+  eq('backupsToPrune never deletes a kept day\'s file', pt.remove.length, 0);
+  eq('backupsToPrune ignores other files',
+     VT.backupsToPrune([{ id: 1, filename: '/x/vocab-track/notes.json' }], 0).remove.length, 0);
 }
 
 async function parserTests() {
