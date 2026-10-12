@@ -14,7 +14,8 @@
     "https://api.datamuse.com/*",
     "https://translate.googleapis.com/*",
     "https://api.languagetool.org/*",
-    "https://api.giphy.com/*"
+    "https://api.giphy.com/*",
+    "https://krdict.korean.go.kr/*"
   ],
   "background": {
     "service_worker": "service-worker.js"

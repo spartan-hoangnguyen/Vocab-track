@@ -16,8 +16,8 @@ every page you read, not only the one you saved them from, and reviewed as
 flashcards on a spaced-repetition schedule.
 
 Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
-highlighting and the review schedule, with no dictionary behind it yet. See
-*Languages* below, which says plainly what it does and does not do.
+highlighting and the review schedule, plus krdict's definition, pronunciation
+and level once you paste a free krdict key. See *Languages* below, which says plainly what it does and does not do.
 
 Built for one person. No accounts, no sync, no server.
 
@@ -87,8 +87,8 @@ No build step, and nothing to install first.
    further, from the panel's **Open dashboard →**.
 4. Open the dashboard. The language dropdown sits in the top bar, beside Review. That is
    the whole of the setup — there is nothing to configure per language. Korean
-   is keyless too, in the sense that it works without one; what a krdict key
-   would buy it is under *Known limits*.
+   works without a key too; a free krdict key, pasted under **Import &
+   export → Korean dictionary**, adds a dictionary behind it (see *Languages*).
 
 Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 
@@ -110,14 +110,18 @@ than dropping the word into a list it is filtering out.
 **What Korean gives you today.** The whole review side works: highlighting,
 the sentence you met it in, the typing card, FSRS-6, folders, statistics, and
 every practice mode, plus a shipped starter list of 3,896 graded words — see
-*Word lists*. What it does not have is a dictionary. There is no krdict API
-key, so a Korean word you look up carries **a Vietnamese machine translation
-and nothing else** — no pronunciation, no definition, no senses, no audio file.
-The **krdict ↗** link on the card opens the real entry in a tab; that is the
-substitute until a key exists.
+*Word lists*. Its dictionary is **krdict** (국립국어원 한국어기초사전), and it
+needs a free Open API key: sign up at krdict.korean.go.kr → 오픈 API, then
+paste the key under **Import & export → Korean dictionary** in the dashboard.
+With it, a Korean word you look up carries krdict's Korean definition and
+senses, its pronunciation (in Hangul, shown as **발음: …**) and its
+초급/중급/고급 grade as the level. Without it, a Korean word carries **a
+Vietnamese machine translation and nothing else**, exactly as before. Either
+way the **krdict ↗** link on the card opens the full entry in a tab. Words
+saved before you added a key keep what they were saved with.
 
 **The Korean voice is worth ten minutes of setup.** A Korean word has no
-recording behind it — there is no krdict key — so ▶ is speech synthesis, and
+recording behind it — krdict's API carries none — so ▶ is speech synthesis, and
 macOS ships *eight* novelty voices (Eddy, Rocko, Grandma…) beside Yuna, the
 only real one. The extension now names the voice it wants instead of letting
 Chrome pick among the nine, but it can only pick from what is installed:
@@ -333,8 +337,8 @@ the toggle.
 
 Every card carries a Vietnamese gloss, **2,825 carry a collocation** with the
 word blanked out of it, and 2,476 carry their 漢字. None carries a definition,
-IPA or audio, for the reason the *Languages* section gives: there is no krdict
-key, so a Korean card is a gloss. Twenty a day, 초급 first, so the last card is
+pronunciation or audio: the list was built without a krdict key, and a card
+already saved is not looked up again when you add one. Twenty a day, 초급 first, so the last card is
 due in 194 days. Five of the 3,901 graded words came back with no gloss at all
 and are not in the file: a card with no meaning has nothing to ask you.
 
@@ -418,7 +422,7 @@ the same licence.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Five things leave your browser, each only when you do something that needs it:
+Six things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -427,6 +431,7 @@ Five things leave your browser, each only when you do something that needs it:
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You click a Korean word, with a krdict key saved | `krdict.korean.go.kr` | the word and your key |
 
 GIFs on cards are off until you add your own GIPHY API key. The key field is
 under **Import & export**, in **GIFs on cards**. The key is kept in
@@ -434,8 +439,12 @@ under **Import & export**, in **GIFs on cards**. The key is kept in
 is sent to GIPHY until you press the button on a review card. A found GIF is then
 stored by its URL, so a word is never searched twice.
 
-Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
-click it, and nothing is fetched in the background. Opening the dashboard makes
+Korean sends nothing to krdict until you paste a krdict key under **Import &
+export → Korean dictionary**. With one, looking up a Korean word sends that
+word and your key to `krdict.korean.go.kr`; the key is kept in
+`chrome.storage.local` and is never part of an export. Without one, the
+**krdict ↗** link opens a tab when you click it, and nothing is fetched in the
+background. Opening the dashboard makes
 no third-party request at all — the fonts are vendored under `fonts/`.
 
 Two permissions look broader than they are:
@@ -522,14 +531,15 @@ manual checklist for it.
 - **Highlighting reaches the page's own DOM only.** Content that loads later
   (infinite scroll, "load more", an SPA route change) is highlighted within a
   third of a second, but text inside Shadow DOM or a cross-origin iframe is not.
-- **Korean has no dictionary behind it.** There is no krdict key, so `lookup()`
+- **Korean's dictionary needs your own krdict key.** Without one, `lookup()`
   in `lang/ko/dictionary.js` returns level, pronunciation, definition, senses
-  and audio as `null` for every Korean word, and the card carries the
-  Vietnamese machine translation alone. The review card's `/…/` line is hidden
-  rather than empty, because it assumes IPA; a pack that one day supplies
-  romanisation wants its own delimiters. The **krdict ↗** link is the
-  substitute until a key exists, and krdict goes behind that same function the
-  day one does.
+  and audio as `null`, and the card carries the Vietnamese machine translation
+  alone. With one, it looks the word up by its lemma (책을 → 책) and takes the
+  first krdict headword that matches exactly; a bad or expired key, or
+  krdict's daily limit of 50,000 calls, shows as **krdict lookup failed.**
+  with krdict's reason, and the word still saves with its gloss. krdict's
+  definitions are in Korean, and it has no audio, so ▶ stays speech
+  synthesis.
 - **The 조사 stripper is nouns only, and it over-strips.** It is arithmetic on
   the Hangul syllable block — the 받침 the particle's allomorph agrees with,
   plus a per-particle minimum stem — not a dictionary, so three classes come

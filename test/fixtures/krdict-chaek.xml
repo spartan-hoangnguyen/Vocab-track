@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NOT a live capture: no krdict key was available when this was written.
+     Built to the response schema and the 나무 example on krdict's own guide
+     (krdict.korean.go.kr/kor/openApi/openApiInfo, read 2026-10-12): the same
+     elements, the same whitespace habits. The definitions are illustrative.
+     Replace with a real `api/search?q=책&part=word&method=exact` capture once
+     a key exists; the assertions in test.js only read the structure.
+     The "-책" item comes first on purpose: parse() must skip an item whose
+     word is not the one looked up, and take the first one that is. -->
+<channel>
+	<title>한국어기초사전 개발 지원(Open API) - 사전 검색</title>
+	<link>https://krdict.korean.go.kr</link>
+	<description>한국어기초사전 개발 지원(Open API) - 사전 검색 결과</description>
+	<lastBuildDate>20261012120000</lastBuildDate>
+	<total>3</total>
+	<start>1</start>
+	<num>10</num>
+	<item>
+		<target_code>80001</target_code>
+		<word>-책</word>
+		<sup_no>0</sup_no>
+		<origin>策</origin>
+		<pos>접사</pos>
+		<link>https://krdict.korean.go.kr/dicSearch/SearchView?ParaWordNo=80001</link>
+		<sense>
+			<sense_order>1</sense_order>
+			<definition>‘대책’ 또는 ‘방법’의 뜻을 더하는 접미사.</definition>
+		</sense>
+	</item>
+	<item>
+		<target_code>29223</target_code>
+		<word>책</word>
+		<sup_no>1</sup_no>
+		<origin>冊</origin>
+		<pronunciation>책</pronunciation>
+		<word_grade>초급</word_grade>
+		<pos>명사</pos>
+		<link>https://krdict.korean.go.kr/dicSearch/SearchView?ParaWordNo=29223</link>
+		<sense>
+			<sense_order>1</sense_order>
+			<definition>생각이나 이야기 등을 글이나 그림으로 나타내어 종이를 여러 장 묶어 놓은 것.</definition>
+		</sense>
+		<sense>
+			<sense_order>2</sense_order>
+			<definition>종이를 여러 장 겹쳐서 묶어 놓은 것.</definition>
+		</sense>
+	</item>
+	<item>
+		<target_code>29224</target_code>
+		<word>책</word>
+		<sup_no>2</sup_no>
+		<origin>責</origin>
+		<pronunciation>책</pronunciation>
+		<word_grade></word_grade>
+		<pos>명사</pos>
+		<link>https://krdict.korean.go.kr/dicSearch/SearchView?ParaWordNo=29224</link>
+		<sense>
+			<sense_order>1</sense_order>
+			<definition>맡아서 해야 할 일이나 의무.</definition>
+		</sense>
+	</item>
+</channel>

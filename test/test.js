@@ -303,6 +303,29 @@ async function parserTests() {
   eq('the full-entry link points at krdict', new URL(koHref).origin, ko.base);
   check('and carries the word percent-encoded', koHref.endsWith('=%EC%B1%85'), koHref);
 
+  // --- krdict's parser, against a 책 response shaped to krdict's documented
+  // schema and a live error response (an unregistered key).
+  const krdictXml = async (name) => (await fetch(`fixtures/${name}.xml`)).text();
+  const chaek = ko.parse(await krdictXml('krdict-chaek'), '책');
+  eq('krdict: the grade is the level', chaek.level, '초급');
+  eq('krdict: the Hangul pronunciation is kept as ipa', chaek.ipa, '책');
+  check('krdict: a Korean definition', /[가-힣]/.test(chaek.def ?? ''), chaek.def);
+  eq('krdict: the first matching homograph wins, not the -책 affix before it', chaek.senses.length, 2);
+  eq('krdict: the definition is the first sense', chaek.def, chaek.senses[0]?.def);
+  eq('krdict: and the part of speech comes through', chaek.pos, '명사');
+  check('krdict: a hit is neither failed nor not-found', !chaek.failed && !chaek.notFound);
+  eq('krdict: an ungraded homograph has no level',
+     ko.parse((await krdictXml('krdict-chaek')).replace('<word_grade>초급</word_grade>', '<word_grade></word_grade>'), '책').level, null);
+  const krErr = ko.parse(await krdictXml('krdict-error'), '책');
+  check('krdict: an error payload sets failed, with krdict\'s code',
+        /020/.test(krErr.failed ?? ''), JSON.stringify(krErr.failed));
+  check('krdict: and is neither not-found nor levelled', !krErr.notFound && krErr.level === null);
+  eq('krdict: no item with that headword is not-found',
+     JSON.stringify(ko.parse(await krdictXml('krdict-chaek'), '책상')), '{"notFound":true}');
+  eq('the Korean pack prints krdict\'s Hangul pronunciation under a label',
+     VT.pronText('책', LANG.get('ko')), '발음: 책');
+  eq('while English keeps IPA between slashes', VT.pronText('dɒɡ', LANG.get('en')), '/dɒɡ/');
+
   // --- the Chinese dictionary pack, against a two-word fixture rather than
   // the 8 MB CC-CEDICT the extension ships.
   const zh = LANG.dict('zh');
