@@ -328,6 +328,18 @@
         <input type="text" id="giphy-key" placeholder="GIPHY API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
       </div>
+      <div class="iocard">
+        <h3>Translation key</h3>
+        <p>The free translation endpoint rate-limits after many lookups. Paste a
+           Google Cloud Translation API key and it answers next, before the
+           MyMemory fallback. The free tier is 500,000 characters a month, but
+           the Cloud project needs billing turned on. The key is kept in this
+           browser only and is never part of an export. Create one under
+           <a href="https://console.cloud.google.com/apis/credentials"
+           target="_blank" rel="noreferrer">Cloud Console → Credentials</a>.</p>
+        <input type="text" id="translate-key" placeholder="Google Cloud Translation API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
     </div>
   </section>
 </main>

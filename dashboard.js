@@ -966,6 +966,15 @@ chrome.storage.local.get('giphyKey').then(({ giphyKey: stored }) => {
   $('giphy-key').value = stored ?? '';
 });
 
+// The translation key, the same way. lookup.js reads it on every lookup, so
+// nothing here has to hold a copy.
+$('translate-key').addEventListener('input', (event) => {
+  chrome.storage.local.set({ translateKey: event.target.value.trim() });
+});
+chrome.storage.local.get('translateKey').then(({ translateKey: stored }) => {
+  $('translate-key').value = stored ?? '';
+});
+
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');

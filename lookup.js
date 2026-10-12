@@ -24,7 +24,8 @@ async function fetchEntry(word, lang) {
 // A fetcher returns a gloss, or null when the source answered and had nothing,
 // which is a real answer about the word. It throws when the source could not
 // be asked, which is a fact about the network. They are not the same and must
-// not look the same.
+// not look the same. A keyed source with no key set returns undefined: it was
+// never asked, so it is neither an answer nor a failure.
 
 // Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
 // personal tool; it will break one day, which is why it is not alone.
@@ -46,6 +47,40 @@ async function fetchGoogle(word, lang = 'en') {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return data?.[0]?.[0]?.[0] ?? null;
+}
+
+// Google Cloud Translation, Basic (v2): the official API, with the reader's
+// own key. It does not rate-limit like the keyless endpoint, and its free tier
+// is 500,000 characters a month, on a Cloud project with billing turned on.
+function googleCloudUrl(key, word, lang = 'en') {
+  const sl = LANG.get(lang)?.mt ?? lang;
+  const params = new URLSearchParams({
+    key: String(key ?? ''), q: String(word ?? ''), source: sl, target: 'vi', format: 'text'
+  });
+  return `https://translation.googleapis.com/language/translate/v2?${params}`;
+}
+
+// Read here, on every lookup, rather than passed in: a key saved in the
+// dashboard then counts on the very next side panel lookup, with no reload.
+// Trimmed for the reason dashboard.js trims the GIPHY key. Its own function so
+// a test can replace it without a chrome.storage stub.
+async function translateKey() {
+  const { translateKey: key } = await chrome.storage.local.get('translateKey');
+  return String(key ?? '').trim();
+}
+
+async function fetchGoogleCloud(word, lang = 'en') {
+  const key = await translateKey();
+  if (!key) return undefined;
+  const res = await fetch(googleCloudUrl(key, word, lang), { signal: AbortSignal.timeout(10000) });
+  // A bad key is a 400 ("API key not valid"), not only a 403. Either way the
+  // fix is the reader's, so the reason says where to make it.
+  if (res.status === 400 || res.status === 403) {
+    throw new Error('the key was rejected — check it in settings');
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data?.data?.translations?.[0]?.translatedText ?? null;
 }
 
 // MyMemory: free and keyless, and it answers en→vi, ko→vi and zh-CN→vi with
@@ -92,6 +127,8 @@ const GLOSS = {
   sources: [
     { id: 'google', name: 'Google Translate', pausedUntil: 0,
       ask: (word, lang) => fetchGoogle(word, lang) },
+    { id: 'google-cloud', name: 'Google Cloud Translation', pausedUntil: 0,
+      ask: (word, lang) => fetchGoogleCloud(word, lang) },
     { id: 'mymemory', name: 'MyMemory', pausedUntil: 0,
       ask: (word, lang) => fetchMyMemory(word, lang) }
   ]
@@ -132,7 +169,7 @@ async function glossFor(word, lang) {
     try {
       const vi = await src.ask(word, lang);
       if (vi) return { vi, source: src.id, failed: null };
-      answered = true;
+      if (vi !== undefined) answered = true;
     } catch (err) {
       console.error(`[vocab-track] ${src.name} translation failed for`, word, err);
       if (/\b429\b/.test(String(err.message))) {

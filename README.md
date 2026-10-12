@@ -418,12 +418,13 @@ the same licence.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Six things leave your browser, each only when you do something that needs it:
+Seven things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
 | You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
+| Google Translate fails, and you set a translation key | `translation.googleapis.com` | the word and your key, for the same gloss |
 | Google Translate fails or rate-limits that lookup | `api.mymemory.translated.net` | the word, for the same gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
@@ -434,6 +435,12 @@ under **Import & export**, in **GIFs on cards**. The key is kept in
 `chrome.storage.local` on this machine. It is never part of an export. Nothing
 is sent to GIPHY until you press the button on a review card. A found GIF is then
 stored by its URL, so a word is never searched twice.
+
+The Google Cloud Translation key is optional too. Its field is under **Import &
+export**, in **Translation key**. It is kept in `chrome.storage.local` on this
+machine and is never part of an export. With a key set, the official API
+answers when the free endpoint fails, before MyMemory. Its free tier is 500,000
+characters a month, and the Cloud project needs billing turned on.
 
 Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes
