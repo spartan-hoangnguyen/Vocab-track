@@ -234,6 +234,14 @@ Open it from **Open dashboard →** in the side panel.
     are both null. Its card shows the word with a Show answer button, as it did
     before this change.
 
+105. **Review grading: a synonym, a jamo, a miss.** In one review session:
+     - On an English card whose full entry lists Synonyms (`resilient` →
+       `tough`), type the synonym: it says "tough — a synonym of resilient"
+       in green, and Good is ringed.
+     - On a Korean card for `사과`, type `사고`: `고` is underlined as a whole
+       syllable, it says "almost", and Hard is ringed.
+     - On any card, type an unrelated word: "not this time", Blank is ringed.
+
 ## Practice, and what it does to the schedule
 
 Practice used to be a dialog over the card that never wrote to the schedule.
@@ -715,6 +723,20 @@ highlighted, and a click quizzes `give up`. Then fill this in.
 (2,000 words plus the phrasal-verb list over 5,000 nodes in under 200 ms) and
 `test/repaint-probe.html` (late posts, own UI, editors, dropped ranges, and
 "gave up" in a late post as the saved `give up`).
+
+## Review grading: last full run
+
+Run step 105 in a real Chrome profile with English and Korean words saved,
+then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Words: ______ (the synonym card, the Korean card, the wrong answer)
+- Result: ______ (items that failed, with what you saw)
+
+`bash test/run.sh` covers the same grading on 2026-10-12 in headless Chrome
+154.0.8037.98: `VT.diffWord` / `VT.checkAnswer` in `test/test.js`, and a
+synonym answer graded Good on the real review card in
+`test/dashboard-probe.html`.
 
 ## If something fails
 
