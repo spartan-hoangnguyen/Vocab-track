@@ -1830,9 +1830,9 @@ PRACTICE.hooks.flashcard = () => {
 
 function dayKey(ts) { return new Date(ts).toDateString(); }
 
-function plotSeries(node, series, caption) {
+// `max` pins the scale (100 for a percentage); by default it is the tallest bar.
+function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) => s.n))) {
   node.replaceChildren();
-  const max = Math.max(1, ...series.map((s) => s.n));
   for (const point of series) {
     const col = document.createElement('span');
     col.className = 'col';
@@ -1859,6 +1859,7 @@ function plotSeries(node, series, caption) {
 
 function renderStats(all) {
   renderWeak(all);
+  renderRetention(all);
   $('st-sub').textContent = all.length
     ? `${all.length} words · first saved ${new Date(Math.min(...all.map((e) => e.added)))
         .toLocaleDateString()}`
@@ -1969,6 +1970,30 @@ function renderWeak(all) {
     li.appendChild(open);
     list.appendChild(li);
   }
+}
+
+// Retention per week, from the same first-of-day grades as the weak list.
+const RETENTION_WEEKS = 13;
+const FSRS_TARGET = 90;   // the recall VT.schedule aims at
+
+function renderRetention(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const weeks = VT.weeklyRetention(reviewLog.filter((row) => mine.has(row.word)), RETENTION_WEEKS);
+  const pct = (rate) => Math.round(rate * 100);
+  plotSeries($('st-retention'), weeks.map(({ start, reviews, passed, rate }) => {
+    const label = new Date(start).toLocaleDateString();
+    return { label, n: rate == null ? 0 : pct(rate),
+             title: reviews ? `${label}: ${pct(rate)}% · ${passed} of ${reviews} remembered`
+                            : `${label}: no reviews` };
+  }), false, 100);
+  $('st-retention-from').textContent = new Date(weeks[0].start).toLocaleDateString();
+  const seen = weeks.map((w, i) => ({ ...w, ago: weeks.length - 1 - i })).filter((w) => w.reviews);
+  const when = (ago) => (ago === 0 ? 'This week' : ago === 1 ? 'Last week' : `${ago} weeks ago`);
+  const [first, last] = [seen[0], seen[seen.length - 1]];
+  $('st-retention-sum').textContent = seen.length >= 2
+    ? `${when(last.ago)} ${pct(last.rate)}% · ${when(first.ago).toLowerCase()} ${pct(first.rate)}% · ` +
+      `FSRS aims for ${FSRS_TARGET}%`
+    : 'Review for a few weeks to see a trend.';
 }
 
 /* ---------- writing ---------- */

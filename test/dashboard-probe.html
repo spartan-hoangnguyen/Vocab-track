@@ -927,12 +927,46 @@ ready.then(() => setTimeout(async () => {
   check('the language toggle shows only that language\'s weak words',
         weakRows().length === 1 && weakRows()[0].startsWith('책forgot 1×'), weakRows().join(' | '));
   delete STORE.lang;
+
+  /* ---- statistics: retention by week ---- */
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  // Three weeks back to now, at 70%, 80% and 90% — ten distinct words a week.
+  STORE.words = Object.fromEntries(Array.from({ length: 10 }, (_, i) => ['r' + i,
+    mk('r' + i, { folders: ['reading'], due: Date.now() + 1e9 })]));
+  STORE.words['책'] = mk('책', { lang: 'ko', vi: 'sách', folders: ['reading'], due: Date.now() + 1e9 });
+  [[14, 7], [7, 8], [0, 9]].forEach(([daysAgo, pass]) => {
+    STORE[histKey(daysAgo)] = Array.from({ length: 10 }, (_, i) => ['r' + i, i < pass ? 4 : 0, histAt(daysAgo)]);
+  });
+  STORE[histKey(0)].push(['r9', 5, histAt(0) + 1000], ['책', 0, histAt(0)]);
+  await refresh();
+  const retBars = () => [...document.querySelectorAll('#st-retention i')];
+  const filled = () => retBars().filter((b) => !b.classList.contains('none'));
+  check('the retention chart has 13 weekly bars', retBars().length === 13, retBars().length);
+  check('three weeks of reviews draw three bars, oldest first',
+        filled().map((b) => b.style.height).join() === '70%,80%,90%',
+        filled().map((b) => b.style.height).join());
+  check('a bar says the week, the rate and how many were remembered',
+        /: 90% · 9 of 10 remembered$/.test(filled()[2]?.title ?? ''), filled()[2]?.title);
+  check('the note compares this week with the oldest and names the FSRS target',
+        /^This week 90% · 2 weeks ago 70% · FSRS aims for 90%$/.test(document.getElementById('st-retention-sum').textContent),
+        document.getElementById('st-retention-sum').textContent);
+  check('an empty week says so', retBars()[0].title.endsWith(': no reviews'), retBars()[0].title);
+  STORE.lang = 'ko';
+  await refresh();
+  check('the language toggle redraws retention from that language only',
+        filled().length === 0 && retBars()[12].title.endsWith(': 0% · 0 of 1 remembered')
+        && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.',
+        retBars()[12].title);
+  delete STORE.lang;
   for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
   STORE[histKey(0)] = [];
   STORE.words = weakSaved;
   await refresh();
   check('with nothing forgotten the list says so',
         weakRows().join() === 'Nothing forgotten in the last 13 weeks.', weakRows().join(' | '));
+  check('with no history every retention bar is empty and the note asks for weeks',
+        retBars().every((b) => b.classList.contains('none'))
+        && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.');
   showView('overview');
 
   /* ---- a Korean card, reviewable on the MT gloss alone ----

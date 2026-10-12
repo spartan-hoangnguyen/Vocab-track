@@ -542,6 +542,40 @@ async function parserTests() {
     eq('weakWords: empty input', VT.weakWords([]).length, 0);
   }
 
+  // --- weekly retention: first-of-day grades, Monday weeks, oldest first
+  {
+    const at = (y, m, d, h = 12) => new Date(y, m, d, h).getTime();
+    // Wednesday 2026-11-04; US DST ends Sunday 2026-11-01, EU 2026-10-25.
+    const now = at(2026, 10, 4);
+    const rows = [];
+    const week = (y, m, d, pass, total) => {
+      for (let i = 0; i < total; i++) rows.push({ word: 'w' + i, quality: i < pass ? 4 : 0, at: at(y, m, d) });
+    };
+    week(2026, 9, 20, 7, 10);   // two weeks ago: 70%
+    week(2026, 9, 27, 8, 10);   // last week: 80%
+    week(2026, 10, 3, 9, 10);   // this week: 90%
+    rows.push({ word: 'w9', quality: 4, at: at(2026, 10, 3, 13) });   // re-show the same day
+    const ret = VT.weeklyRetention(rows, 13, now);
+    eq('weeklyRetention: 13 weeks', ret.length, 13);
+    eq('weeklyRetention: oldest first, rates per week',
+       ret.slice(-3).map((w) => Math.round(w.rate * 100)).join(), '70,80,90');
+    eq('weeklyRetention: a same-day re-grade does not count', ret[12].reviews, 10);
+    eq('weeklyRetention: an empty week has a null rate', ret[0].rate, null);
+    eq('weeklyRetention: weeks start on Monday', new Date(ret[12].start).getDay(), 1);
+    const edge = VT.weeklyRetention([
+      { word: 'sun', quality: 4, at: new Date(2026, 10, 1, 23, 30).getTime() },
+      { word: 'mon', quality: 0, at: new Date(2026, 10, 2, 0, 30).getTime() },
+      { word: 'eu', quality: 4, at: new Date(2026, 9, 25, 23, 30).getTime() },
+      { word: 'eu2', quality: 4, at: new Date(2026, 9, 26, 0, 30).getTime() }
+    ], 3, now);
+    eq('weeklyRetention: Sunday night and Monday morning fall either side of a DST week boundary',
+       edge.map((w) => w.reviews).join(), '1,2,1');
+    eq('weeklyRetention: the Monday after the change is a midnight',
+       new Date(edge[2].start).getHours() + ':' + new Date(edge[1].start).getHours(), '0:0');
+    check('weeklyRetention: no history, every week empty',
+          VT.weeklyRetention([], 13, now).every((w) => w.reviews === 0 && w.rate === null));
+  }
+
   // --- forecast: every return inside the window counts, not just the next one
   {
     const D = 24 * 60 * 60 * 1000;

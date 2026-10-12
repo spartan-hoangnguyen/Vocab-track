@@ -625,6 +625,31 @@ const VT = {
     return [...by.values()].sort((a, b) => b.lapses - a.lapses || b.last - a.last).slice(0, limit);
   },
 
+  // Share of first-of-day grades passed (3 or more), per local week from
+  // Monday, oldest first, the current partial week last. Weeks are stepped
+  // with setDate so a DST change cannot move a boundary by an hour.
+  weeklyRetention(rows, weeks, now = Date.now()) {
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const starts = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+      const d = new Date(monday);
+      d.setDate(d.getDate() - 7 * i);
+      starts.push(d.getTime());
+    }
+    const out = starts.map((start) => ({ start, reviews: 0, passed: 0, rate: null }));
+    for (const { quality, at } of VT.dailyFirsts(rows)) {
+      if (at < starts[0] || at > now) continue;
+      let i = starts.length - 1;
+      while (at < starts[i]) i--;
+      out[i].reviews++;
+      if (quality >= 3) out[i].passed++;
+    }
+    for (const week of out) if (week.reviews) week.rate = week.passed / week.reviews;
+    return out;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];
