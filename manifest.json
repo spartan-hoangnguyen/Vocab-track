@@ -10,7 +10,6 @@
     "nativeMessaging"
   ],
   "host_permissions": [
-    "https://dictionary.cambridge.org/*",
     "https://api.datamuse.com/*",
     "https://translate.googleapis.com/*",
     "https://translation.googleapis.com/*",

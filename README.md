@@ -19,7 +19,7 @@ Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, with no dictionary behind it yet. See
 *Languages* below, which says plainly what it does and does not do.
 
-Built for one person. No accounts, no sync, no server.
+No accounts, no sync, no server. Your words stay in your own Chrome profile.
 
 | Side panel | Dashboard |
 |---|---|
@@ -82,6 +82,11 @@ Built for one person. No accounts, no sync, no server.
 - **Own your data.** Export and re-import the whole store as JSON.
 
 ## Install
+
+To use it, follow [INSTALL.md](INSTALL.md): add it from the Chrome Web Store,
+no Developer mode.
+
+### For development
 
 No build step, and nothing to install first.
 
@@ -432,6 +437,8 @@ the same licence.
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
+The policy for the store version, written for someone who did not build it,
+is [PRIVACY.md](PRIVACY.md).
 
 Seven things leave your browser, each only when you do something that needs it:
 
@@ -466,7 +473,8 @@ Two permissions look broader than they are:
 - **`<all_urls>`** — the content script has to be on the page you are reading
   for a click to look a word up, and there is no way to know in advance which
   page that is. It reads the word you clicked. It sends nothing on its own.
-- **`nativeMessaging`** — macOS capture only. It talks to `tools/vocab-host.py`
+- **`nativeMessaging`** — developer install only: `tools/package.sh` drops it
+  from the store build. macOS capture only. It talks to `tools/vocab-host.py`
   on your own machine, which is a queue file the Quick Action writes to. It is
   inert until you run `tools/install-macos.sh`, and nothing leaves the machine.
 
@@ -481,6 +489,7 @@ Two permissions look broader than they are:
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
+| `tools/package.sh` | Builds the Chrome Web Store zip in `dist/`: tracked runtime files only, `nativeMessaging` dropped from the zipped manifest |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
