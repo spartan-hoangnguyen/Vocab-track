@@ -26,7 +26,8 @@ let pins = [];
 let giphyKey = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
-const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
+// `voices` is { [packId]: voiceURI }; a language with no key is Automatic.
+const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10, voices: {} };
 let prefs = { ...REVIEW_DEFAULTS };
 
 function showView(name) {
@@ -1649,6 +1650,22 @@ function renderPrefs() {
   // silently keep the select empty. The options are built first for the same
   // reason: a value with no matching option does not stick.
   voice.value = voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id;
+
+  // Not the accent's hide rule: Korean has one pack voice and many OS voices.
+  // A stored URI for a voice since uninstalled has no option and reads as
+  // Automatic, which is also what speak() falls back to.
+  const installed = globalThis.speechSynthesis?.getVoices() ?? [];
+  const os = voicesFor(voices[0].bcp47, installed, voices[0].exact);
+  const speaker = $('rv-speaker');
+  // Voices, but none for this language: say so where the select was. An empty
+  // list is not that — it may still be filling in — so it keeps Automatic.
+  const none = installed.length > 0 && !os.length;
+  speaker.parentElement.hidden = none;
+  $('rv-speaker-none').hidden = !none;
+  $('rv-speaker-none').textContent = none ? voiceHint(LANG.get(activeLang)) : '';
+  speaker.replaceChildren(new Option('Automatic', ''), ...os.map((v) => new Option(v.name, v.voiceURI)));
+  const stored = prefs.voices?.[activeLang];
+  speaker.value = os.some((v) => v.voiceURI === stored) ? stored : '';
 }
 
 // A click moves focus off the typing box; give it back, or the next letters
@@ -1674,6 +1691,27 @@ $('rv-voice').addEventListener('change', (event) => {
   setReviewPrefs({ accent: event.target.value });
   refocusCard();
 });
+$('rv-speaker').addEventListener('change', (event) => {
+  // Merged, never replaced: the other languages keep their choice.
+  const voices = { ...prefs.voices, [activeLang]: event.target.value };
+  if (!event.target.value) delete voices[activeLang];
+  setReviewPrefs({ voices });
+  refocusCard();
+});
+// Always synthesis, never the mp3: it previews the OS voice. The select's
+// value rather than the stored one, which may not have landed yet. The word
+// on screen when there is a card, else the language's own name.
+$('rv-speaker-play').addEventListener('click', (event) => {
+  event.preventDefault();   // inside the label: a click there would open the select
+  const voices = LANG.get(activeLang).voices;
+  const onCard = queue.length && !$('view-review').hidden;
+  speak(onCard ? queue[0].word : voices[0].label,
+    voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id,
+    activeLang, $('rv-speaker').value);
+  refocusCard();
+});
+// getVoices() is [] on a cold load and fills in later.
+globalThis.speechSynthesis?.addEventListener('voiceschanged', renderPrefs);
 
 function renderStar(entry) {
   const on = VT.foldersOf(entry).includes(VT.STARRED);

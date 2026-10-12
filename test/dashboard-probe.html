@@ -651,6 +651,128 @@ ready.then(() => setTimeout(async () => {
   window.Audio = RealAudio;
   speechSynthesis.speak = realSpeak;
 
+  /* ---- Speaker: which OS voice ▶ uses, chosen per language ----
+     Headless Chrome has no voices, so a hand-made list stands in, and a plain
+     utterance class, because a real one refuses a hand-made voice. */
+  const OV = (name, lang) => ({ name, lang, voiceURI: 'uri:' + name, localService: true, default: false });
+  const osList = [OV('Yuna', 'ko-KR'), OV('Yuna (Enhanced)', 'ko-KR'), OV('Rocko', 'ko-KR'),
+    OV('Alex', 'en-US'), OV('Tingting', 'zh-CN'), OV('Sinji', 'zh-HK'), OV('Meijia', 'zh-TW')];
+  const realGetVoices = speechSynthesis.getVoices;
+  const RealUtterance = window.SpeechSynthesisUtterance;
+  window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const utts = [];
+  speechSynthesis.speak = (u) => utts.push(u);
+  const speaker = document.getElementById('rv-speaker');
+  const optionNames = () => [...speaker.options].map((o) => o.textContent).join('|');
+  speechSynthesis.getVoices = () => [];
+  await setLang('ko');
+  check('on a cold load the Speaker select holds only Automatic', optionNames() === 'Automatic', optionNames());
+  check('and is shown although Korean has one pack voice',
+        !speaker.parentElement.hidden && document.getElementById('rv-voice').parentElement.hidden);
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('voiceschanged fills it with the Korean voices only',
+        optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+  check('and a language nobody chose for reads Automatic', speaker.value === '', speaker.value);
+  speaker.value = 'uri:Yuna';
+  speaker.dispatchEvent(new Event('change'));
+  check('choosing Yuna saves it under the language',
+        STORE.reviewPrefs.voices?.ko === 'uri:Yuna', JSON.stringify(STORE.reviewPrefs.voices));
+  for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
+  const koEntry = { word: '책', lang: 'ko', audio: null };
+  speakWord(koEntry);
+  check('▶ on a Korean card speaks with Yuna, not the Automatic pick',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna'
+        && bestVoice('ko-KR', osList)?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  pronounce(koEntry);
+  check('and pronounce() with one argument, the side panel’s call, does too',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna', utts.at(-1)?.voice?.name);
+  await setLang('en');
+  check('English lists English voices',
+        optionNames() === 'Automatic|Alex' && speaker.value === '', optionNames());
+  check('and the Korean choice is still stored, with English left Automatic',
+        STORE.reviewPrefs.voices.ko === 'uri:Yuna' && !('en' in STORE.reviewPrefs.voices),
+        JSON.stringify(STORE.reviewPrefs.voices));
+  await setLang('zh');
+  check('Chinese lists the zh-CN voice, not Cantonese or Taiwan', optionNames() === 'Automatic|Tingting', optionNames());
+  await setLang('ko');
+  check('back on Korean the choice is selected', speaker.value === 'uri:Yuna', speaker.value);
+  // The preview ▶ beside the select: the select's voice, before storage says so.
+  const preview = document.getElementById('rv-speaker-play');
+  showView('overview');
+  preview.click();
+  check('with no card on screen the preview speaks the language’s own name with the chosen voice',
+        utts.at(-1)?.text === '한국어' && utts.at(-1)?.voice?.voiceURI === 'uri:Yuna',
+        `${utts.at(-1)?.text} / ${utts.at(-1)?.voice?.name}`);
+  speaker.value = 'uri:Rocko';
+  speaker.dispatchEvent(new Event('change'));
+  preview.click();
+  check('straight after a change it previews the new voice, before storage settles',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Rocko' && chosenVoices.ko === 'uri:Yuna',
+        `${utts.at(-1)?.voice?.name} / cache ${chosenVoices.ko}`);
+  queue.unshift({ ...mk('책', { lang: 'ko', due: 0 }), audio: 'ko.mp3' });
+  showView('review');
+  renderCard();
+  window.Audio = function (src) { played.push(src); this.play = () => Promise.resolve(); };
+  const playedBefore = played.length;
+  preview.click();
+  window.Audio = RealAudio;
+  check('with a review card on screen it speaks the card’s word, never its recording',
+        utts.at(-1)?.text === '책' && played.length === playedBefore, utts.at(-1)?.text);
+  preview.focus();
+  for (const key of [' ', 'Enter']) {
+    preview.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  }
+  check('Space or Enter on the preview neither reveals nor grades the card',
+        !revealed && queue[0].word === '책', queue[0].word);
+  queue.shift();
+  speaker.value = 'uri:Yuna';
+  speaker.dispatchEvent(new Event('change'));
+  speechSynthesis.getVoices = () => osList.filter((v) => v.name !== 'Yuna');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('an uninstalled choice reads as Automatic', speaker.value === '', speaker.value);
+  speakWord(koEntry);
+  check('and ▶ falls back to the Automatic pick', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  speaker.value = '';
+  speaker.dispatchEvent(new Event('change'));
+  check('choosing Automatic removes the language’s key',
+        !('ko' in STORE.reviewPrefs.voices), JSON.stringify(STORE.reviewPrefs.voices));
+  for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
+  speakWord(koEntry);
+  check('and ▶ is Automatic again', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  // Voices, but none for Korean: the line takes the select's place.
+  const noneLine = document.getElementById('rv-speaker-none');
+  speechSynthesis.getVoices = () => osList.filter((v) => v.lang === 'en-US');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('with only English voices, Korean says no voice is installed and where to add one',
+        noneLine.checkVisibility() && noneLine.textContent === voiceHint(LANG.get('ko'))
+        && /^No Korean voice is installed\. Add one in|^No Korean voice is installed\. Install/.test(noneLine.textContent),
+        noneLine.textContent);
+  check('and shows no Speaker select or preview',
+        !speaker.checkVisibility() && !preview.checkVisibility());
+  const hint = document.getElementById('voice-hint');
+  hint.hidden = true;
+  speakWord(koEntry);
+  check('▶ on a Korean card shows the same sentence at the bottom of the window',
+        !hint.hidden && hint.textContent === noneLine.textContent, hint.textContent);
+  speechSynthesis.getVoices = () => [];
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('an empty list shows the select with only Automatic and no warning',
+        speaker.checkVisibility() && optionNames() === 'Automatic' && !noneLine.checkVisibility());
+  speechSynthesis.getVoices = () => osList.filter((v) => v.lang === 'en-US');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('a Korean voice arriving brings the select back and the warning goes',
+        speaker.checkVisibility() && preview.checkVisibility() && !noneLine.checkVisibility()
+        && optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+  await setLang('en');
+  speechSynthesis.getVoices = realGetVoices;
+  speechSynthesis.speak = realSpeak;
+  window.SpeechSynthesisUtterance = RealUtterance;
+
   // The document-level review keys must not steal a focused control's own.
   startReview('shuf');
   renderCard();
