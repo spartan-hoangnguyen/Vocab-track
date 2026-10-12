@@ -97,6 +97,12 @@ const GLOSS = {
   ]
 };
 
+// The name a card shows for a stored `viSource`, or null for an id no source
+// has (an entry saved before sources were recorded has none at all).
+function glossSourceName(id) {
+  return GLOSS.sources.find((src) => src.id === id)?.name ?? null;
+}
+
 function rateLimited(src) {
   const mins = Math.max(1, Math.ceil((src.pausedUntil - Date.now()) / 60000));
   return `${src.name} is rate-limiting this network — try again in about `
@@ -188,7 +194,9 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
       glossFailed = gloss.failed;
       if (gloss.vi) {
         known.vi = gloss.vi;
+        known.viSource = gloss.source;
         patch.vi = gloss.vi;
+        patch.viSource = gloss.source;
       }
     }
     if (Object.keys(patch).length) await putWord(word, patch);
@@ -215,7 +223,7 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
     ? { level: null, ipa: null, def: null, audio: null }
     : parsed;
 
-  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id);
+  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id, gloss.source);
   if (context) entry.context = context;
   // Not persisted: it describes this attempt, not the word. Two channels
   // because the two failures want different sentences — a missing definition

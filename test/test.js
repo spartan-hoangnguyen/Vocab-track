@@ -543,6 +543,10 @@ async function parserTests() {
   eq('entry sources', entry.sources.length, 1);
   eq('entry starts at reps 0', entry.reps, 0);
   check('entry is due immediately', entry.due <= Date.now());
+  eq('newEntry records the gloss source',
+     VT.newEntry('book', { level: null, ipa: null, def: null, audio: null }, 'sách', 'u', 'en', 'mymemory').viSource,
+     'mymemory');
+  eq('and an older call without it stores null', entry.viSource, null);
 
   // --- folders: membership lives on the word, and pre-folder entries have none
   eq('foldersOf defaults to reading', VT.foldersOf({ word: 'old' })[0], VT.READING);

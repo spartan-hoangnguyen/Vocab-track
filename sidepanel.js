@@ -31,6 +31,12 @@ function renderEntry(entry, failed) {
   $('entry-pos').textContent = entry.pos ?? '';
   $('entry-gram').textContent = entry.gram ?? '';
   $('entry-vi').textContent = entry.vi ?? DASH;
+  // Where the gloss came from, because a fallback's is often rougher than
+  // Google's. No line for a word with no gloss, or one saved before the
+  // source was recorded.
+  const viSource = entry.vi ? glossSourceName(entry.viSource) : null;
+  $('entry-vi-src').textContent = viSource ? `via ${viSource}` : '';
+  $('entry-vi-src').hidden = !viSource;
 
   renderProns(entry);
   renderContext(entry);

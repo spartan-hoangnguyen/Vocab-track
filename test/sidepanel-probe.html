@@ -374,6 +374,26 @@ ready.then(() => setTimeout(async () => {
   check('and the gloss it has is never overwritten',
         settled.entry.vi === 'Biển Đông', String(settled.entry.vi));
 
+  /* ---- the card says which source gave the gloss ---- */
+  check('a repaired gloss records the source that repaired it',
+        STORE.words['동해상'].viSource === 'google', String(STORE.words['동해상'].viSource));
+  renderEntry(settled.entry, null);
+  await tick();
+  check('and the card names it under the gloss',
+        !$$('entry-vi-src').hidden && $$('entry-vi-src').textContent === 'via Google Translate',
+        $$('entry-vi-src').textContent);
+  renderEntry({ ...settled.entry, viSource: 'mymemory' }, null);
+  await tick();
+  check('a fallback gloss names the fallback', $$('entry-vi-src').textContent === 'via MyMemory',
+        $$('entry-vi-src').textContent);
+  const { viSource: _drop, ...older } = settled.entry;
+  renderEntry(older, null);
+  await tick();
+  check('a word saved before sources were recorded shows no source line', $$('entry-vi-src').hidden);
+  renderEntry({ ...settled.entry, vi: null }, null);
+  await tick();
+  check('and a word with no gloss shows none either', $$('entry-vi-src').hidden);
+
   /* ---- a gloss that COULD NOT be asked for says so ----------------------
      The two were one dash on the card: a rate-limited minute and a word the
      endpoint genuinely has no translation for looked identical, which is why
