@@ -70,6 +70,7 @@ manifest, and no others:
 | `api.languagetool.org` | With the writing check on, a sentence you type into a text box on a page is sent here to be checked. Password, email, URL, phone, number, search and `autocomplete="off"` fields are never read, nor any field under 40 characters. |
 | `api.giphy.com` | Only after you add your own GIPHY API key and press **Find GIF** on a review card: the word, or its Vietnamese gloss, is sent here to find a GIF for the card. |
 | `krdict.korean.go.kr` | Only after you add your own krdict API key: when you click a Korean word, the word and your key are sent here for its definition, pronunciation and level. |
+| `127.0.0.1:8765` | Only when you press **Push to Anki**: the word, its meaning, example and GIF are sent to the AnkiConnect add-on of the Anki app on your own machine. Nothing leaves the machine. |
 
 **Remote code:** No. All JavaScript ships inside the package.
 

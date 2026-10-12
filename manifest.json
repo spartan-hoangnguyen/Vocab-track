@@ -16,7 +16,8 @@
     "https://api.mymemory.translated.net/*",
     "https://api.languagetool.org/*",
     "https://api.giphy.com/*",
-    "https://krdict.korean.go.kr/*"
+    "https://krdict.korean.go.kr/*",
+    "http://127.0.0.1:8765/*"
   ],
   "background": {
     "service_worker": "service-worker.js"

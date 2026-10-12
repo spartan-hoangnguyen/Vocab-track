@@ -431,7 +431,7 @@ async function parserTests() {
   // The level is not in the Datamuse response; it comes from the bundled CEFR
   // list (lang/en/cefr.js), which parse() reads by the word.
   eq('resilient level comes from the CEFR list', resilient.level, 'C1');
-  eq('resilient has no IPA', resilient.ipa, null);
+  eq('resilient IPA is rebuilt from the CMU pronunciation', resilient.ipa, 'rɪˈzɪljənt');
   eq('resilient has no recorded audio', resilient.audio, null);
   eq('nor a second recording', resilient.audioUs, null);
   eq('resilient part of speech is expanded from the tag', resilient.pos, 'adjective');
@@ -491,6 +491,37 @@ async function parserTests() {
   check('and sits in its level folder',
         hskWords.every((e) => e.folders[0] === `zh-hsk${e.level.slice(4)}`));
   eq('学生 is in it at HSK 1', hsk.words['学生']?.level, 'HSK 1');
+
+  // --- ARPAbet (CMU) -> IPA, the pronunciation rebuilt from Datamuse md=r.
+  const ipa = enDict.arpaToIpa;
+  eq('arpaToIpa places stress before the onset', ipa('HH AE1 P IY0'), 'ˈhæpi');
+  eq('arpaToIpa handles a cluster onset', ipa('S T R AE1 T AH0 JH IY0'), 'ˈstrætədʒi');
+  eq('arpaToIpa reduces an unstressed AH to schwa', ipa('R IH0 Z IH1 L Y AH0 N T'), 'rɪˈzɪljənt');
+  eq('arpaToIpa is null on empty input', ipa(''), null);
+  eq('arpaToIpa is null on unknown phonemes', ipa('?? !!'), null);
+
+  // --- the frequency estimate: a level for a word the curated list lacks.
+  const f2l = enDict.freqToLevel;
+  eq('a very frequent word estimates A1', f2l(407), 'A1');
+  eq('a mid word estimates B1', f2l(12), 'B1');
+  eq('a rare word estimates C2', f2l(0.9), 'C2');
+  eq('no frequency is no level', f2l(0), null);
+
+  // A listed word keeps its exact level and is not marked estimated.
+  eq('resilient is exact, not estimated', resilient.levelEst, false);
+  // A word the list lacks takes the frequency estimate, marked estimated.
+  const est = enDict.parse(
+    { word: 'ubiquitous', defs: ['adj\tseeming to be everywhere'], tags: ['adj', 'f:2.7'] }, []);
+  eq('an unlisted word gets a level from frequency', est.level, 'C1');
+  check('and it is marked estimated', est.levelEst === true);
+  const noLvl = enDict.parse({ word: 'zxqwv', defs: ['n\tx'], tags: ['n'] }, []);
+  eq('an unlisted word with no frequency has no level', noLvl.level, null);
+  check('and is not marked estimated', noLvl.levelEst !== true);
+
+  // levelText marks an estimate with a trailing ~, for display only.
+  eq('levelText marks an estimate', VT.levelText({ level: 'C1', levelEst: true }), 'C1~');
+  eq('levelText leaves an exact level bare', VT.levelText({ level: 'B2' }), 'B2');
+  eq('levelText is null with no level', VT.levelText({ level: null }), null);
 
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');
@@ -1228,6 +1259,42 @@ async function parserTests() {
   check('the gloss chain asks google', /translate\.googleapis\.com\/translate_a\/single/.test(lookupCode));
   check('and falls back to mymemory', /api\.mymemory\.translated\.net\/get/.test(lookupCode));
   check('and, with a key, the cloud api', /translation\.googleapis\.com\/language\/translate\/v2/.test(lookupCode));
+
+  // --- push to Anki (anki.js). The pure note builder only; ankiInvoke is
+  // network. Anki renders a field as HTML, so third-party text must be escaped.
+  eq('escapeHtml neutralises angle brackets', escapeHtml('<b>'), '&lt;b&gt;');
+  eq('escapeHtml neutralises ampersand and quotes', escapeHtml('a&"\''), 'a&amp;&quot;&#39;');
+  eq('ankiTag strips spaces', ankiTag('IELTS C1'), 'IELTS_C1');
+
+  const aNote = ankiNote(
+    { word: 'resilient', lang: 'en', ipa: 'rɪˈzɪljənt', vi: 'kiên cường',
+      def: 'able to recover', level: 'C1', senses: [{ example: 'a resilient girl' }] },
+    'Vocab-track::English', ['IELTS C1']);
+  eq('the front is the bare word, for stable dedupe', aNote.fields.Front, 'resilient');
+  eq('the note uses the Basic model', aNote.modelName, 'Basic');
+  eq('and the deck it was given', aNote.deckName, 'Vocab-track::English');
+  check('the back carries the meaning', aNote.fields.Back.includes('kiên cường'));
+  check('the back carries the IPA', aNote.fields.Back.includes('/rɪˈzɪljənt/'));
+  check('the back carries the example', aNote.fields.Back.includes('a resilient girl'));
+  check('a re-push skips duplicates', aNote.options.allowDuplicate === false);
+  check('tags carry the source, language and folder',
+        aNote.tags.includes('vocab-track') && aNote.tags.includes('lang::en')
+        && aNote.tags.includes('IELTS_C1'));
+
+  // The injection path: a gloss or definition from the translator, rendered as
+  // HTML in Anki. It must come out escaped, never as a live tag.
+  const aEvil = ankiNote({ word: 'w', lang: 'en', def: '<img src=x onerror=alert(1)>' }, 'D');
+  check('a definition cannot smuggle a live tag into Anki',
+        !aEvil.fields.Back.includes('<img src=x onerror')
+        && aEvil.fields.Back.includes('&lt;img src=x onerror=alert(1)&gt;'),
+        aEvil.fields.Back);
+
+  // The GIF is the one allowed <img>, and only when VT.giphyOk passes its URL.
+  const aGif = ankiNote({ word: 'w', lang: 'en', gif: 'https://media.giphy.com/media/a/200.gif' }, 'D');
+  check('a valid giphy url becomes an image',
+        aGif.fields.Back.includes('<img src="https://media.giphy.com/media/a/200.gif"'));
+  const aBadGif = ankiNote({ word: 'w', lang: 'en', gif: 'https://evil.test/x.gif' }, 'D');
+  check('an off-giphy gif url is never an image', !aBadGif.fields.Back.includes('<img'));
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

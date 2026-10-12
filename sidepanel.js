@@ -27,7 +27,8 @@ function renderEntry(entry, failed) {
   $('entry').hidden = false;
 
   $('entry-word').textContent = entry.word;
-  $('entry-level').textContent = entry.level ?? DASH;
+  $('entry-level').textContent = VT.levelText(entry) ?? DASH;
+  $('entry-level').title = entry.levelEst ? 'Estimated from word frequency' : '';
   $('entry-pos').textContent = entry.pos ?? '';
   $('entry-gram').textContent = entry.gram ?? '';
   $('entry-vi').textContent = entry.vi ?? DASH;
