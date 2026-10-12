@@ -10,9 +10,12 @@
 // URL, the parsing and the not-found signal; this owns only the fallback for
 // a language that has no dictionary registered — which is a real state while
 // a pack is being built, and must degrade rather than throw.
-async function fetchEntry(word, lang) {
+//
+// `surface` is the word as selected, before the pack's lemma(); a pack whose
+// lemma can be wrong (Korean) retries it on a not-found. en and zh ignore it.
+async function fetchEntry(word, lang, surface) {
   const dict = LANG.dict(lang);
-  if (dict) return dict.lookup(word);
+  if (dict) return dict.lookup(word, { surface });
   return { level: null, ipa: null, def: null, audio: null,
            failed: `no dictionary registered for ${lang}` };
 }
@@ -131,9 +134,15 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
   }
 
   const [parsed, gloss] = await Promise.all([
-    fetchEntry(word, pack.id),
+    fetchEntry(word, pack.id, pack.normalise(rawWord)),
     glossFor(word, pack.id)
   ]);
+  // The dictionary's own translation beats MT when it has one (krdict, keyed).
+  // MT still runs in parallel, so the fallback costs no time — and a failed
+  // gloss is not reported when the dictionary already gave the word its
+  // meaning: there is nothing missing to warn about.
+  const vi = parsed.vi ?? gloss.vi;
+  const glossFailed = parsed.vi ? null : gloss.failed;
   // A dictionary 404 is NOT proof the word is not a word. The Free Dictionary
   // API (English now) and krdict both lack entries for words that plainly
   // exist — "france" 404s on the Free Dictionary — so aborting the save on a
@@ -142,7 +151,7 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
   // dictionary missed still carries a Vietnamese translation, and that plus the
   // sentence is worth keeping. A true non-word (a typo) misses both, and that
   // alone reaches the panel's "Nothing saved."
-  if (parsed.notFound && !gloss.vi) return { notFound: true };
+  if (parsed.notFound && !vi) return { notFound: true };
   // When the dictionary had no entry but the gloss saved it, there is no parsed
   // data to carry: build the entry on the four nulls a keyless Korean word
   // already uses, so the card shows the gloss and blank dictionary fields.
@@ -150,14 +159,14 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
     ? { level: null, ipa: null, def: null, audio: null }
     : parsed;
 
-  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id);
+  const entry = VT.newEntry(word, parsedEntry, vi, url, pack.id);
   if (context) entry.context = context;
   // Not persisted: it describes this attempt, not the word. Two channels
   // because the two failures want different sentences — a missing definition
   // and a missing gloss are different losses, and for Korean only the second
   // one is a loss at all. A clean not-found carries no dict warning: the word
   // was simply absent, which is not a call that failed.
-  const failed = { dict: parsed.notFound ? null : (parsed.failed ?? null), gloss: gloss.failed };
+  const failed = { dict: parsed.notFound ? null : (parsed.failed ?? null), gloss: glossFailed };
   if (folderIds?.length) {
     entry.folders = [...new Set([VT.READING, ...folderIds])];
   }

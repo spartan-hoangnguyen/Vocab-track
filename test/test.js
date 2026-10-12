@@ -322,6 +322,56 @@ async function parserTests() {
   check('krdict: and is neither not-found nor levelled', !krErr.notFound && krErr.level === null);
   eq('krdict: no item with that headword is not-found',
      JSON.stringify(ko.parse(await krdictXml('krdict-chaek'), '책상')), '{"notFound":true}');
+  eq('krdict: its own Vietnamese is the first sense\'s trans_word', chaek.vi, 'sách');
+  eq('krdict: no Vietnamese translation is null, so MT fills in',
+     ko.parse((await krdictXml('krdict-chaek')).replace('<trans_lang>베트남어</trans_lang>', '<trans_lang>영어</trans_lang>'), '책').vi, null);
+
+  // The surface-form retry, with a key and krdict both stubbed: the lemma
+  // (고양) misses, the selected surface (고양이) is asked once more. A failure
+  // on the lemma must not be retried. Real fetch and chrome put back after.
+  {
+    const chaekXml = await krdictXml('krdict-chaek');
+    const errXml = await krdictXml('krdict-error');
+    const empty = '<?xml version="1.0" encoding="UTF-8"?><channel><total>0</total></channel>';
+    const realFetch = globalThis.fetch;
+    const realChrome = globalThis.chrome;
+    const asked = [];
+    let lastUrl = null;
+    let answer = () => empty;
+    globalThis.chrome = { storage: { local: { get: async () => ({ krdictKey: ' k ' }) } } };
+    globalThis.fetch = async (url) => {
+      const q = new URL(url).searchParams;
+      asked.push(q.get('q'));
+      lastUrl = q;
+      return new Response(answer(q.get('q')));
+    };
+    try {
+      answer = (q) => (q === '책' ? chaekXml : empty);
+      const retried = await ko.lookup('채', { surface: '책' });
+      eq('krdict retry: a lemma miss asks the surface form once', asked.join(','), '채,책');
+      eq('krdict retry: and returns the surface form\'s entry', retried.level, '초급');
+      eq('krdict: the request carries the trimmed key', lastUrl?.get('key'), 'k');
+      eq('krdict: and asks for the Vietnamese translation only',
+         `${lastUrl?.get('translated')}/${lastUrl?.get('trans_lang')}`, 'y/7');
+      asked.length = 0;
+      const hit = await ko.lookup('책', { surface: '책을' });
+      eq('krdict retry: a lemma hit asks once', asked.join(','), '책');
+      eq('krdict retry: and keeps the lemma\'s entry', hit.vi, 'sách');
+      asked.length = 0;
+      answer = () => errXml;
+      const failed = await ko.lookup('채', { surface: '책' });
+      eq('krdict retry: a failed lemma lookup is not retried', asked.join(','), '채');
+      check('krdict retry: and reports the failure', /020/.test(failed.failed ?? ''));
+      asked.length = 0;
+      answer = () => empty;
+      const missed = await ko.lookup('책', { surface: '책' });
+      eq('krdict retry: a surface equal to the lemma is not asked twice', asked.join(','), '책');
+      check('krdict retry: and is not-found', missed.notFound === true);
+    } finally {
+      globalThis.fetch = realFetch;
+      globalThis.chrome = realChrome;
+    }
+  }
   eq('the Korean pack prints krdict\'s Hangul pronunciation under a label',
      VT.pronText('책', LANG.get('ko')), '발음: 책');
   eq('while English keeps IPA between slashes', VT.pronText('dɒɡ', LANG.get('en')), '/dɒɡ/');

@@ -39,6 +39,11 @@
 		<sense>
 			<sense_order>1</sense_order>
 			<definition>생각이나 이야기 등을 글이나 그림으로 나타내어 종이를 여러 장 묶어 놓은 것.</definition>
+			<translation>
+				<trans_lang>베트남어</trans_lang>
+				<trans_word>sách</trans_word>
+				<trans_dfn>Thứ được đóng thành tập gồm nhiều tờ giấy, thể hiện suy nghĩ hay câu chuyện bằng chữ hoặc tranh.</trans_dfn>
+			</translation>
 		</sense>
 		<sense>
 			<sense_order>2</sense_order>

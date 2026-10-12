@@ -49,6 +49,16 @@
       .filter((sense) => sense.def)
       .slice(0, VT.MAX_SENSES);
     const grade = text(item, 'word_grade');
+    // krdict's own Vietnamese for the headword: the first sense's trans_word.
+    // The request asks for Vietnamese only (trans_lang=7), and the guide's
+    // example names the language in Korean (영어), so 베트남어 is expected;
+    // the bare code is accepted in case it comes back as the request spelled
+    // it. Anything else is null, and resolveWord falls back to the MT gloss.
+    const firstSense = item.getElementsByTagName('sense')[0];
+    const vi = [...(firstSense?.getElementsByTagName('translation') ?? [])]
+      .filter((tr) => ['베트남어', '7'].includes(text(tr, 'trans_lang')))
+      .map((tr) => text(tr, 'trans_word'))
+      .find(Boolean) ?? null;
     return {
       // Only krdict's three grades; an ungraded entry comes back blank, and
       // anything else would not rank on the pack's scale.
@@ -60,17 +70,30 @@
       pos: text(item, 'pos'),
       gram: null,
       senses,
-      synonyms: [], related: [], opposites: []
+      synonyms: [], related: [], opposites: [],
+      vi
     };
   }
 
-  async function lookup(word) {
+  // `surface` is the word as it was selected, before the 조사 stripper ran.
+  // When krdict has no entry for the lemma (the stripper over-strips 고양이 to
+  // 고양), the surface form is asked once more — only on a not-found, never
+  // on `failed`, where a bad key or a dead network would just fail twice.
+  // A hit is still saved under the lemma: resolveWord owns the key.
+  async function lookup(word, { surface } = {}) {
     // Read here, never at the top level: test/test.html has no `chrome`.
     const stored = await globalThis.chrome?.storage?.local?.get('krdictKey');
     const key = String(stored?.krdictKey ?? '').trim();
     if (!key) return NONE();
+    const first = await search(key, word);
+    if (!first.notFound || !surface || surface === word) return first;
+    return search(key, surface);
+  }
+
+  async function search(key, word) {
     const url = `${KRDICT}/api/search?key=${encodeURIComponent(key)}`
-      + `&q=${encodeURIComponent(word)}&part=word&method=exact`;
+      + `&q=${encodeURIComponent(word)}&part=word&method=exact`
+      + '&translated=y&trans_lang=7';
     try {
       // The same 7s and no retry as the English pack, for its reason.
       const res = await fetch(url, { signal: AbortSignal.timeout(7000) });
