@@ -349,9 +349,14 @@ ready.then(() => setTimeout(async () => {
      returns before any network call — so a word saved during one bad minute
      had no meaning for good, and clicking it again could not help, because
      clicking it again landed there too. 동해상 was the one that showed it. */
-  const realVi = window.fetchVietnamese;
+  // Every source in the chain gets the same stub, so a check below that wants
+  // a failure gets it from all of them rather than from Google alone.
+  const realGoogle = window.fetchGoogle;
+  const realMyMemory = window.fetchMyMemory;
+  const stubGloss = (fn) => { window.fetchGoogle = fn; window.fetchMyMemory = fn; };
+  const unpause = () => { for (const src of GLOSS.sources) src.pausedUntil = 0; };
   let asked = 0;
-  window.fetchVietnamese = async () => { asked++; return 'Biển Đông'; };
+  stubGloss(async () => { asked++; return 'Biển Đông'; });
   const thin = {
     word: '동해상', lang: 'ko', vi: null, level: null, ipa: null, def: null, audio: null,
     senses: [], synonyms: [], related: [], folders: ['reading'], context: null,
@@ -378,7 +383,7 @@ ready.then(() => setTimeout(async () => {
   // very object `thin` names, so spreading it alone would hand the known path
   // a word that already has a gloss and skip the branch under test.
   const thinOf = (word) => ({ ...thin, word, vi: null });
-  window.fetchVietnamese = async () => { throw new TypeError('Failed to fetch'); };
+  stubGloss(async () => { throw new TypeError('Failed to fetch'); });
   STORE.words = { '조치': thinOf('조치') };
   const broke = await resolveWord('조치', null, null, null);
   check('a translation that could not be asked for reports itself',
@@ -393,7 +398,7 @@ ready.then(() => setTimeout(async () => {
   check('and pointing at the way out, which is to look it up again',
         /look the word up again/.test($$('entry-warn').textContent));
 
-  window.fetchVietnamese = async () => null;
+  stubGloss(async () => null);
   STORE.words = { '조치': thinOf('조치') };
   const nothing = await resolveWord('조치', null, null, null);
   check('but an endpoint that answers with nothing is not a failure',
@@ -409,9 +414,9 @@ ready.then(() => setTimeout(async () => {
      afterwards came back HTTP 429. Retrying on each one is useless and is part
      of the problem, so the first 429 pauses the asking and the banner says how
      long for. */
-  GLOSS.pausedUntil = 0;
+  unpause();
   let calls = 0;
-  window.fetchVietnamese = async () => { calls++; throw new Error('HTTP 429'); };
+  stubGloss(async () => { calls++; throw new Error('HTTP 429'); });
   STORE.words = { '조치': thinOf('조치') };
   const limited = await resolveWord('조치', null, null, null);
   check('a 429 is reported in words, not as a status code',
@@ -420,19 +425,21 @@ ready.then(() => setTimeout(async () => {
         /\d+ minutes?\./.test(limited.failed?.gloss ?? ''), String(limited.failed?.gloss));
   STORE.words = { '조치': thinOf('조치') };
   const second = await resolveWord('조치', null, null, null);
+  // Two calls: Google and MyMemory each asked once, each paused by its own 429.
   check('the next lookup does not ask again while the pause holds',
-        calls === 1, `${calls} calls`);
+        calls === 2, `${calls} calls`);
   check('but still says why, rather than going quiet',
         /rate-limiting/.test(second.failed?.gloss ?? ''), String(second.failed?.gloss));
-  GLOSS.pausedUntil = 0;
+  unpause();
   STORE.words = { '조치': thinOf('조치') };
-  window.fetchVietnamese = async () => { calls++; return 'hoạt động'; };
+  stubGloss(async () => { calls++; return 'hoạt động'; });
   const after = await resolveWord('조치', null, null, null);
   check('and once the pause is over the gloss lands',
-        after.entry.vi === 'hoạt động' && calls === 2, `${after.entry.vi} / ${calls} calls`);
+        after.entry.vi === 'hoạt động' && calls === 3, `${after.entry.vi} / ${calls} calls`);
 
-  window.fetchVietnamese = realVi;
-  GLOSS.pausedUntil = 0;
+  window.fetchGoogle = realGoogle;
+  window.fetchMyMemory = realMyMemory;
+  unpause();
 
   /* ---- a Chinese word saves under zh and is glossed from zh-CN ---- */
   const realFetch = window.fetch;

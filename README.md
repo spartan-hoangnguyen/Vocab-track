@@ -418,12 +418,13 @@ the same licence.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Five things leave your browser, each only when you do something that needs it:
+Six things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
 | You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
+| Google Translate fails or rate-limits that lookup | `api.mymemory.translated.net` | the word, for the same gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
@@ -496,7 +497,10 @@ manual checklist for it.
 - **Cambridge is scraped, not an API.** Selector changes will break fields one
   at a time; each degrades to `—` rather than failing the lookup.
 - **The translation endpoint is unofficial** and keyless. It works today and
-  will stop one day; the replacement goes behind one function.
+  will stop one day. When it fails or rate-limits, the gloss comes from
+  MyMemory, a second keyless source. MyMemory has a daily free quota, so on a
+  day both are out the card says why, and looking the word up again later
+  fills the gloss in.
 - **A card with no meaning saved cannot ask you to type.** If the dictionary
   and the translator were both down when the word was saved it has neither a
   definition nor a gloss, so it falls back to showing the word and asking you
