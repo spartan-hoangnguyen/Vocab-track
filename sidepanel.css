@@ -75,6 +75,7 @@ button.chip{cursor:pointer;font-family:inherit}
       background:var(--card);color:var(--ink);font:inherit;font-size:13px}
 
 .vi{font-size:17px;font-weight:600;margin:0 0 10px}
+.vi-src{margin:-8px 0 10px;font-size:12px;color:var(--ink2)}
 #lookup-empty{color:var(--ink2);font-size:13.5px;line-height:1.6}
 
 /* Shown when a lookup came back without dictionary data, so four em dashes are

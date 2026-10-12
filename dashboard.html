@@ -122,6 +122,15 @@
         <label class="rvopt">Voice
           <select id="rv-voice"></select>
         </label>
+        <!-- The OS voice ▶ speaks with when there is no recording, per
+             language. Filled by renderPrefs from getVoices(). -->
+        <label class="rvopt">Speaker
+          <select id="rv-speaker"></select>
+          <button class="rvopt" id="rv-speaker-play" aria-label="Preview this voice">▶</button>
+        </label>
+        <!-- In the Speaker label's place when the OS has voices but none for
+             this language. Not for an empty list: that may still be loading. -->
+        <p class="rvhint" id="rv-speaker-none" role="status" hidden></p>
       </div>
     </div>
 
@@ -249,6 +258,22 @@
     <div class="sub" id="st-sub"></div>
     <div class="charts">
       <figure class="chart">
+        <figcaption>Keeps slipping · last 13 weeks</figcaption>
+        <ul class="sources weak" id="st-weak"></ul>
+      </figure>
+      <figure class="chart">
+        <figcaption>Retention · last 13 weeks</figcaption>
+        <div class="plot" id="st-retention"></div>
+        <div class="axis"><span id="st-retention-from"></span><span>this week</span></div>
+        <p class="chartnote" id="st-retention-sum"></p>
+      </figure>
+      <figure class="chart">
+        <figcaption>Time reviewing · last 30 days</figcaption>
+        <div class="plot" id="st-time"></div>
+        <div class="axis"><span id="st-time-from"></span><span>today</span></div>
+        <p class="chartnote" id="st-time-sum"></p>
+      </figure>
+      <figure class="chart">
         <figcaption>Words added · last 30 days</figcaption>
         <div class="plot" id="st-added"></div>
         <div class="axis"><span id="st-added-from"></span><span>today</span></div>
@@ -267,6 +292,10 @@
       <figure class="chart">
         <figcaption>Where they came from</figcaption>
         <ul class="sources" id="st-sources"></ul>
+      </figure>
+      <figure class="chart">
+        <figcaption>Learned by folder</figcaption>
+        <ul class="sources" id="st-folders"></ul>
       </figure>
     </div>
   </section>
@@ -326,6 +355,18 @@
            at <a href="https://developers.giphy.com/dashboard/" target="_blank"
            rel="noreferrer">developers.giphy.com</a>.</p>
         <input type="text" id="giphy-key" placeholder="GIPHY API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="iocard">
+        <h3>Translation key</h3>
+        <p>The free translation endpoint rate-limits after many lookups. Paste a
+           Google Cloud Translation API key and it answers next, before the
+           MyMemory fallback. The free tier is 500,000 characters a month, but
+           the Cloud project needs billing turned on. The key is kept in this
+           browser only and is never part of an export. Create one under
+           <a href="https://console.cloud.google.com/apis/credentials"
+           target="_blank" rel="noreferrer">Cloud Console → Credentials</a>.</p>
+        <input type="text" id="translate-key" placeholder="Google Cloud Translation API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="iocard">

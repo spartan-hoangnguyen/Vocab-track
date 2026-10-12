@@ -600,6 +600,79 @@ const VT = {
     return out;
   },
 
+  // The first grade of each word on each local day. A lapse comes back in the
+  // same session and is graded again; counting that re-show would make one
+  // bad day look like two. Rows are { word, quality, at }, oldest first.
+  dailyFirsts(rows) {
+    const seen = new Set();
+    return rows.filter((row) => {
+      const key = row.word + '\u0000' + VT.dayKey(row.at);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  // The words forgotten most (a first grade below 3), with the time of the
+  // latest lapse, which also breaks ties. Words never forgotten are left out.
+  weakWords(rows, limit = 10) {
+    const by = new Map();
+    for (const { word, quality, at } of VT.dailyFirsts(rows)) {
+      if (quality >= 3) continue;
+      const was = by.get(word) ?? { word, lapses: 0, last: 0 };
+      by.set(word, { word, lapses: was.lapses + 1, last: Math.max(was.last, at) });
+    }
+    return [...by.values()].sort((a, b) => b.lapses - a.lapses || b.last - a.last).slice(0, limit);
+  },
+
+  // Share of first-of-day grades passed (3 or more), per local week from
+  // Monday, oldest first, the current partial week last. Weeks are stepped
+  // with setDate so a DST change cannot move a boundary by an hour.
+  weeklyRetention(rows, weeks, now = Date.now()) {
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const starts = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+      const d = new Date(monday);
+      d.setDate(d.getDate() - 7 * i);
+      starts.push(d.getTime());
+    }
+    const out = starts.map((start) => ({ start, reviews: 0, passed: 0, rate: null }));
+    for (const { quality, at } of VT.dailyFirsts(rows)) {
+      if (at < starts[0] || at > now) continue;
+      let i = starts.length - 1;
+      while (at < starts[i]) i--;
+      out[i].reviews++;
+      if (quality >= 3) out[i].passed++;
+    }
+    for (const week of out) if (week.reviews) week.rate = week.passed / week.reviews;
+    return out;
+  },
+
+  // ponytail: an estimate from the gaps between grades, not a timer. A gap
+  // over SESSION_GAP_MS starts a new session, a gap counts up to CARD_CAP_MS,
+  // and a session's first card counts half a cap. Real time per card needs a
+  // start time recorded per card.
+  SESSION_GAP_MS: 5 * 60 * 1000,
+  CARD_CAP_MS: 60 * 1000,
+
+  // Minutes spent reviewing per local day (VT.dayKey), every grade counted:
+  // this is effort, so a same-day re-show is time spent too.
+  reviewMinutes(rows) {
+    const out = new Map();
+    let prev = null;
+    for (const { at } of [...rows].sort((a, b) => a.at - b.at)) {
+      const gap = prev == null ? Infinity : at - prev;
+      const ms = gap > VT.SESSION_GAP_MS ? VT.CARD_CAP_MS / 2 : Math.min(gap, VT.CARD_CAP_MS);
+      const day = VT.dayKey(at);
+      out.set(day, (out.get(day) ?? 0) + ms);
+      prev = at;
+    }
+    for (const [day, ms] of out) out.set(day, ms / 60000);
+    return out;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];
@@ -903,8 +976,10 @@ const VT = {
 
   // `lang` is the pack the word belongs to. Detected from the script when not
   // given, so a caller that predates languages — tools/ielts-parse.html, the
-  // tests — keeps producing exactly what it did before.
-  newEntry(word, parsed, vi, url, lang) {
+  // tests — keeps producing exactly what it did before. `viSource` is the id of
+  // the translation source that gave `vi` (lookup.js GLOSS.sources), kept with
+  // the word because it describes the stored gloss, not one lookup.
+  newEntry(word, parsed, vi, url, lang, viSource) {
     return {
       word,
       lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
@@ -922,6 +997,7 @@ const VT = {
       related: parsed.related ?? [],
       context: null,
       vi,
+      viSource: viSource ?? null,
       sources: [url],
       added: Date.now(),
       interval: 0,
