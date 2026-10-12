@@ -462,6 +462,17 @@ async function parserTests() {
   eq('diffWord: an empty answer is not near', blank.near, false);
   eq('diffWord: null is treated as empty', VT.diffWord(null, 'pigeon').typed.length, 0);
 
+  // Hangul is graded in jamo but marked in syllables: 고 for 과 is one jamo out.
+  const jamo = VT.diffWord('사고', '사과');
+  eq('diffWord: one wrong jamo is near', jamo.near, true);
+  eq('diffWord: and not exact', jamo.exact, false);
+  eq('diffWord: the whole wrong syllable is marked on the typed word', shown(jamo.typed), '사[고]');
+  eq('diffWord: and on the answer', shown(jamo.answer), '사[과]');
+  eq('diffWord: a doubled consonant is one jamo out', VT.diffWord('학꾜', '학교').near, true);
+  eq('diffWord: NFD-typed Hangul is still exact', VT.diffWord('책'.normalize('NFD'), '책').exact, true);
+  eq('diffWord: a one-syllable word stays out, like cat/cut', VT.diffWord('착', '책').near, false);
+  eq('diffWord: a different Korean word is not near', VT.diffWord('바나나', '사과').near, false);
+
   // --- schedule (FSRS-6). Expected numbers come from ts-fsrs 's own
   // FSRSAlgorithm.next_state with default parameters, run 2026-09-19.
   {
