@@ -308,13 +308,14 @@
     <div class="iocards">
       <div class="iocard">
         <h3>Export</h3>
-        <p>Downloads every word and folder as one JSON file.</p>
+        <p>Downloads your words, folders, pins, review history and practice
+           misses as one JSON file. Your GIPHY key is never included.</p>
         <button class="btn" id="export-btn">Export JSON</button>
       </div>
       <div class="iocard">
         <h3>Import</h3>
-        <p>Merges by word. Existing entries keep their review schedule;
-           folders are combined. Nothing is overwritten.</p>
+        <p>Merges by word. When both sides have a word, the more recently
+           reviewed schedule wins; folders are combined.</p>
         <input type="file" id="import-file" accept="application/json,.json">
         <div class="note" id="io-note"></div>
       </div>

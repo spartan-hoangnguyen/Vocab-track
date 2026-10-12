@@ -74,7 +74,10 @@ Built for one person. No accounts, no sync, no server.
   Cambridge definitions, pronunciation and an example sentence on every card.
   See *Word lists* below. `data/phrasal-verbs.json` does the same for 1,058
   common phrasal verbs.
-- **Own your data.** Export and re-import the whole store as JSON.
+- **Own your data.** Export downloads one JSON file with your words and their
+  review schedules, folders, pins, review history and practice misses (never
+  your GIPHY key). Import merges it back: when both sides have a word, the more
+  recently reviewed schedule wins, so an old backup never rolls a word back.
 
 ## Install
 
@@ -255,8 +258,9 @@ say the same thing. Both run the same FSRS-6 review as everything else.
 
 The cards do not all arrive at once. Twenty become due a day, C1 first, so the
 file behaves like a course rather than a wall — the last word is due in 97 days,
-and FSRS takes over from there. Importing twice does not reset that: an existing
-word is never overwritten.
+and FSRS takes over from there. Importing twice does not reset that: a list
+carries no review date, so an existing word keeps its schedule (only a backup
+with a newer review moves it).
 
 The countdown starts from the day the file was **built**, not the day you
 import it: a file left for three months arrives with every card already due.

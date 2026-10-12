@@ -798,11 +798,7 @@ $('folder-dlg').addEventListener('close', async () => {
 /* ---------- import / export ---------- */
 
 $('export-btn').addEventListener('click', async () => {
-  const payload = JSON.stringify({
-    exported: new Date().toISOString(),
-    words: await getWords(),
-    folders: (await chrome.storage.local.get('folders')).folders ?? {}
-  }, null, 2);
+  const payload = JSON.stringify(VT.backupPayload(await chrome.storage.local.get(null)), null, 2);
   const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
@@ -828,13 +824,9 @@ $('import-file').addEventListener('change', async (event) => {
     for (const [word, incoming] of Object.entries(data.words)) {
       const existing = current[word];
       if (existing) {
-        // Merge, never overwrite: the local review schedule is the thing you
-        // cannot get back, so ease/interval/reps/due are left untouched and
-        // only membership and sources are unioned.
-        patches[word] = {
-          folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
-          sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
-        };
+        // Merge, never overwrite blindly: the more recently reviewed schedule
+        // wins, so an older backup cannot roll a word back.
+        patches[word] = VT.mergeWord(existing, incoming);
         merged++;
       } else {
         patches[word] = incoming;
@@ -845,6 +837,26 @@ $('import-file').addEventListener('change', async (event) => {
     for (const folder of Object.values(data.folders ?? {})) {
       if (folder.id !== VT.READING && folder.id !== VT.STARRED) await putFolder(folder);
     }
+    // The rest of a v2 backup. Absent in an old export or a shipped list, and
+    // then nothing below writes.
+    const extra = {};
+    if (Array.isArray(data.pins) && data.pins.length) {
+      extra.pins = [...new Set([...(await getPins()), ...data.pins])];
+    }
+    if (data.history && typeof data.history === 'object') {
+      const keys = Object.keys(data.history).map((day) => 'history:' + day);
+      const local = keys.length ? await chrome.storage.local.get(keys) : {};
+      for (const key of keys) extra[key] = VT.mergeHistory(local[key], data.history[key.slice(8)]);
+    }
+    if (data.practiceMisses && typeof data.practiceMisses === 'object') {
+      // Only misses are restored; today's counts belong to this machine.
+      const practice = await getPractice();
+      for (const [word, n] of Object.entries(data.practiceMisses)) {
+        practice.misses[word] = Math.max(practice.misses[word] ?? 0, Number(n) || 0);
+      }
+      extra.practice = practice;
+    }
+    if (Object.keys(extra).length) await chrome.storage.local.set(extra);
     // Name the language when the file lands somewhere this session is not
     // looking. Folders are language-scoped now, so importing the Korean list
     // from an English session puts 3,900 words and three folders on screen

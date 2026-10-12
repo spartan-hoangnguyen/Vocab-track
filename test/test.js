@@ -273,6 +273,46 @@ async function fixtureJson(name) {
   return res.json();
 }
 
+// --- backup: backupPayload / mergeWord / mergeHistory
+{
+  const dump = {
+    words: { cat: { word: 'cat' } }, folders: { f_a: { id: 'f_a' } }, pins: ['f_a'],
+    giphyKey: 'secret', theme: 'night', 'history:2026-10-01': [['cat', 4, 5]],
+    practice: { day: 'x', counts: { quiz: 1 }, misses: { cat: 2 } }
+  };
+  const p = VT.backupPayload(dump, Date.UTC(2026, 9, 12));
+  eq('backup is version 2', p.version, 2);
+  eq('backup keeps the history day', JSON.stringify(p.history), '{"2026-10-01":[["cat",4,5]]}');
+  check('backup drops giphyKey and theme', !('giphyKey' in p) && !('theme' in p)
+        && !JSON.stringify(p).includes('secret'));
+  eq('backup carries pins', p.pins.join(), 'f_a');
+  eq('backup carries only practice misses', JSON.stringify(p.practiceMisses), '{"cat":2}');
+  check('backup keeps v1 keys', p.words.cat && p.folders.f_a && p.exported === '2026-10-12T00:00:00.000Z');
+
+  const local = { folders: ['a'], sources: ['u1'], due: 10, interval: 1, reps: 1,
+                  stability: 1, difficulty: 5, lastReview: 100 };
+  const newer = { folders: ['b'], sources: ['u2'], due: 99, interval: 9, reps: 4,
+                  stability: 9, difficulty: 3, lastReview: 200 };
+  const m1 = VT.mergeWord(local, newer);
+  check('mergeWord takes a newer schedule',
+        VT.SCHEDULE_FIELDS.every((f) => m1[f] === newer[f]));
+  eq('mergeWord unions folders on newer', m1.folders.join(), 'a,b');
+  const m2 = VT.mergeWord(local, { ...newer, lastReview: 50 });
+  check('mergeWord keeps the local schedule against an older one',
+        VT.SCHEDULE_FIELDS.every((f) => !(f in m2)));
+  eq('mergeWord unions sources on older', m2.sources.join(), 'u1,u2');
+  const m3 = VT.mergeWord(local, { folders: ['c'], due: 1, interval: 0, reps: 0 });
+  check('mergeWord keeps the local schedule for a list entry (no lastReview)',
+        VT.SCHEDULE_FIELDS.every((f) => !(f in m3)));
+  eq('mergeWord unions folders for a list entry', m3.folders.join(), 'a,c');
+  eq('mergeWord on a word with no folders keeps From reading',
+     VT.mergeWord({}, { folders: ['x'] }).folders.join(), 'reading,x');
+
+  const h = VT.mergeHistory([['a', 4, 3], ['b', 3, 1]], [['b', 3, 1], ['c', 5, 2]]);
+  eq('mergeHistory dedupes and sorts', JSON.stringify(h), '[["b",3,1],["c",5,2],["a",4,3]]');
+  eq('mergeHistory with one side missing', VT.mergeHistory(undefined, [['a', 4, 1]]).length, 1);
+}
+
 async function parserTests() {
   // --- the Korean dictionary pack. Here rather than at the top level only
   // because lookup() is async and this file is a classic script.

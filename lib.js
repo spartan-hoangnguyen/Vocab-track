@@ -605,6 +605,52 @@ const VT = {
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];
   },
 
+  // The fields VT.schedule() owns. mergeWord is the one place that moves them
+  // between two copies of a word, so the backup and any later sync agree.
+  SCHEDULE_FIELDS: ['interval', 'reps', 'due', 'stability', 'difficulty', 'lastReview'],
+
+  // What Export writes and Import (and the automatic backup) reads, from a
+  // chrome.storage.local.get(null) dump. The v1 keys stay at the top so old
+  // readers still see a word list. Per-machine settings and caches (theme,
+  // lang, giphyKey, ...) are left out on purpose: the GIPHY key never leaves.
+  backupPayload(dump, now = Date.now()) {
+    const history = {};
+    for (const [key, rows] of Object.entries(dump)) {
+      if (key.startsWith('history:') && Array.isArray(rows)) history[key.slice(8)] = rows;
+    }
+    return {
+      version: 2,
+      exported: new Date(now).toISOString(),
+      words: dump.words ?? {},
+      folders: dump.folders ?? {},
+      pins: Array.isArray(dump.pins) ? dump.pins : [],
+      history,
+      practiceMisses: dump.practice?.misses ?? {}
+    };
+  },
+
+  // The patch for a word both sides have. Membership and sources are unioned;
+  // the schedule comes whole from whichever side reviewed it last, so an old
+  // backup never rolls a schedule back. A word list carries no lastReview, so
+  // it never moves a local schedule.
+  mergeWord(existing, incoming) {
+    const patch = {
+      folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
+      sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
+    };
+    if (incoming.lastReview > (existing.lastReview ?? 0)) {
+      for (const f of VT.SCHEDULE_FIELDS) if (f in incoming) patch[f] = incoming[f];
+    }
+    return patch;
+  },
+
+  // One day's review rows ([word, quality, at]) from two sides, deduped.
+  mergeHistory(a = [], b = []) {
+    const seen = new Map();
+    for (const row of [...a, ...b]) seen.set(JSON.stringify(row.slice(0, 3)), row);
+    return [...seen.values()].sort((x, y) => x[2] - y[2]);
+  },
+
   // Folder ids are generated, never derived from the name, so renaming a
   // folder cannot strand the words that point at it.
   newFolder(name, { color = 'sage', icon = '\u{1F4C1}', desc = '', lang = null } = {}) {
