@@ -433,12 +433,14 @@ the same licence.
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
 
-Five things leave your browser, each only when you do something that needs it:
+Seven things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
 | You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
+| Google Translate fails, and you set a translation key | `translation.googleapis.com` | the word and your key, for the same gloss |
+| Google Translate fails or rate-limits that lookup | `api.mymemory.translated.net` | the word, for the same gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
@@ -448,6 +450,12 @@ under **Import & export**, in **GIFs on cards**. The key is kept in
 `chrome.storage.local` on this machine. It is never part of an export. Nothing
 is sent to GIPHY until you press the button on a review card. A found GIF is then
 stored by its URL, so a word is never searched twice.
+
+The Google Cloud Translation key is optional too. Its field is under **Import &
+export**, in **Translation key**. It is kept in `chrome.storage.local` on this
+machine and is never part of an export. With a key set, the official API
+answers when the free endpoint fails, before MyMemory. Its free tier is 500,000
+characters a month, and the Cloud project needs billing turned on.
 
 Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes
@@ -511,7 +519,10 @@ manual checklist for it.
 - **Cambridge is scraped, not an API.** Selector changes will break fields one
   at a time; each degrades to `—` rather than failing the lookup.
 - **The translation endpoint is unofficial** and keyless. It works today and
-  will stop one day; the replacement goes behind one function.
+  will stop one day. When it fails or rate-limits, the gloss comes from
+  MyMemory, a second keyless source. MyMemory has a daily free quota, so on a
+  day both are out the card says why, and looking the word up again later
+  fills the gloss in.
 - **A card with no meaning saved cannot ask you to type.** If the dictionary
   and the translator were both down when the word was saved it has neither a
   definition nor a gloss, so it falls back to showing the word and asking you

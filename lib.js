@@ -976,8 +976,10 @@ const VT = {
 
   // `lang` is the pack the word belongs to. Detected from the script when not
   // given, so a caller that predates languages — tools/ielts-parse.html, the
-  // tests — keeps producing exactly what it did before.
-  newEntry(word, parsed, vi, url, lang) {
+  // tests — keeps producing exactly what it did before. `viSource` is the id of
+  // the translation source that gave `vi` (lookup.js GLOSS.sources), kept with
+  // the word because it describes the stored gloss, not one lookup.
+  newEntry(word, parsed, vi, url, lang, viSource) {
     return {
       word,
       lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
@@ -995,6 +997,7 @@ const VT = {
       related: parsed.related ?? [],
       context: null,
       vi,
+      viSource: viSource ?? null,
       sources: [url],
       added: Date.now(),
       interval: 0,

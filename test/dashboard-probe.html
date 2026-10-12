@@ -1472,6 +1472,28 @@ ready.then(() => setTimeout(async () => {
         !gifEvil.querySelector('.wc-gif img'));
   giphyKey = '';
 
+  /* ---- the translation key is saved, trimmed, and never exported ---- */
+  const tkey = document.getElementById('translate-key');
+  check('the translation key field is under Import & export',
+        !!tkey && !!tkey.closest('.iocard') && /Translation key/.test(tkey.closest('.iocard').textContent));
+  tkey.value = '  K1SECRET  ';
+  tkey.dispatchEvent(new Event('input'));
+  await new Promise((r) => setTimeout(r, 0));
+  check('typing a key saves it trimmed', STORE.translateKey === 'K1SECRET', String(STORE.translateKey));
+  const realBlobUrl = URL.createObjectURL;
+  const realAnchorClick = HTMLAnchorElement.prototype.click;
+  let exported = null;
+  URL.createObjectURL = (blob) => { exported = blob; return 'blob:probe'; };
+  HTMLAnchorElement.prototype.click = () => {};
+  document.getElementById('export-btn').click();
+  for (let i = 0; i < 20 && !exported; i++) await new Promise((r) => setTimeout(r, 10));
+  URL.createObjectURL = realBlobUrl;
+  HTMLAnchorElement.prototype.click = realAnchorClick;
+  const exportedText = exported ? await exported.text() : '';
+  check('and an export does not carry it',
+        !!exportedText && !exportedText.includes('K1SECRET'), exportedText.slice(0, 60));
+  delete STORE.translateKey;
+
   /* ---- the level backfill gives a level to words that lost it ------------
      The English lookup stopped carrying a CEFR level, and Chinese words saved
      before the HSK list had none, so both sit under "—". backfillLevels reads the

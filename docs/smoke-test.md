@@ -581,17 +581,19 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
 87. **A failed translation names itself.** Open DevTools on the side panel,
     Network tab, and set it to **Offline**. Look up a new Korean word. The
     card must carry a red banner reading *Translation failed… look the word
-    up again to retry*, with the browser's own error text on the end — not a
-    bare `—`, which is what a word with no translation looks like. Go back
-    online, look the same word up again: the banner goes and the gloss fills
-    in.
+    up again to retry*, then each translation source with the browser's own
+    error text (*Google Translate: TypeError: Failed to fetch; MyMemory:
+    TypeError: Failed to fetch.*) — not a bare `—`, which is what a word with
+    no translation looks like. Go back online, look the same word up again:
+    the banner goes and the gloss fills in.
 
 88. **A word whose gloss never arrived repairs itself.** Find a Korean word
     saved with **—** where the Vietnamese gloss should be (the translation
     endpoint rate-limits, so one will turn up). Click it again on a page, or
     look it up from the dashboard. The gloss fills in, and DevTools → Network
-    shows exactly one `translate_a/single` request. Click a word that already
-    has a gloss: no request at all, and the gloss does not change.
+    shows exactly one `translate_a/single` request (or, while Google is
+    rate-limiting, one MyMemory request instead; see 105). Click a word that
+    already has a gloss: no request at all, and the gloss does not change.
 
 89. **The Korean voice is the good one.** Press ▶ on a Korean card. It must
     not be a novelty voice — Eddy, Rocko and Grandma are cartoon voices macOS
@@ -717,6 +719,35 @@ limits*.
 
 Run items 90–104 in a real Chrome profile that also has English and Korean
 words, then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Result: ______ (items that failed, with what you saw)
+
+## Translation fallback
+
+Reload the side panel between these steps: a rate-limited source stays paused
+for ten minutes, and only a reload clears it. To make Google fail on purpose,
+open DevTools on the side panel → Network, right-click any request →
+**Block request domain**, and block `translate.googleapis.com`. A real 429
+cannot be produced on demand; the unit tests cover that path.
+
+105. **Google down, a gloss anyway.** With `translate.googleapis.com` blocked,
+     look up a new Korean word. The card shows a Vietnamese gloss with
+     **via MyMemory** under it, and no red banner. Unblock it and look up
+     another new word: **via Google Translate**.
+106. **Every source down names each one.** Set Network to **Offline** and look
+     up a new word. The banner is the one in 87, and it names Google Translate
+     and MyMemory, each with its reason. Go back online and look the same word
+     up again: the banner goes, and the gloss fills in with its source line.
+107. **The key answers before MyMemory.** Dashboard → **Import & export** →
+     **Translation key**: paste a Google Cloud Translation key. Block
+     `translate.googleapis.com` again and look up a new word: **via Google
+     Cloud Translation**. Paste `bad-key` instead and look up another: the
+     gloss is **via MyMemory**, and there is no banner.
+
+## Translation fallback: last full run
+
+Run items 87, 88 and 105–107 in a real Chrome profile, then fill this in.
 
 - Date: ______  Chrome version: ______  macOS: ______
 - Result: ______ (items that failed, with what you saw)

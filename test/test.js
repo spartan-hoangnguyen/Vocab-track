@@ -619,6 +619,10 @@ async function parserTests() {
   eq('entry sources', entry.sources.length, 1);
   eq('entry starts at reps 0', entry.reps, 0);
   check('entry is due immediately', entry.due <= Date.now());
+  eq('newEntry records the gloss source',
+     VT.newEntry('book', { level: null, ipa: null, def: null, audio: null }, 'sách', 'u', 'en', 'mymemory').viSource,
+     'mymemory');
+  eq('and an older call without it stores null', entry.viSource, null);
 
   // --- folders: membership lives on the word, and pre-folder entries have none
   eq('foldersOf defaults to reading', VT.foldersOf({ word: 'old' })[0], VT.READING);
@@ -1002,6 +1006,155 @@ async function parserTests() {
         giphyPick(gjson, () => 0.99) !== 'https://evil.test/c.gif');
   eq('giphyPick returns null on no results', giphyPick({ data: [] }), null);
   eq('giphyPick returns null on a junk response', giphyPick(null), null);
+
+  // --- the translation chain (lookup.js): Google first, MyMemory when it fails.
+  // fetch is stubbed per host from a script, so the order and the call log are
+  // the test; the real network is never touched.
+  const gUrl = new URL(googleUrl('学生', 'zh'));
+  eq('googleUrl asks from zh-CN, not the pack id', gUrl.searchParams.get('sl'), 'zh-CN');
+  eq('googleUrl translates into vietnamese', gUrl.searchParams.get('tl'), 'vi');
+  const mmUrl = new URL(myMemoryUrl('책', 'ko'));
+  eq('myMemoryUrl pairs ko with vi', mmUrl.searchParams.get('langpair'), 'ko|vi');
+  eq('myMemoryUrl encodes the word', mmUrl.searchParams.get('q'), '책');
+  eq('myMemoryUrl asks from zh-CN too', new URL(myMemoryUrl('学生', 'zh')).searchParams.get('langpair'), 'zh-CN|vi');
+
+  const mmBody = (over = {}) => JSON.stringify({
+    responseData: { translatedText: 'sách; ghi chép', match: 1 }, quotaFinished: false,
+    responseDetails: '', responseStatus: 200, matches: [], ...over
+  });
+  const realFetch = window.fetch;
+  const realError = console.error;
+  const calls = [];
+  // `script` maps a host to a function returning that host's Response (or throwing).
+  const stubFetch = (script) => {
+    window.fetch = async (url) => {
+      const host = new URL(url).host;
+      calls.push(host);
+      return script[host]();
+    };
+  };
+  const resetChain = () => {
+    calls.length = 0;
+    for (const src of GLOSS.sources) src.pausedUntil = 0;
+  };
+  const G = 'translate.googleapis.com';
+  const GC = 'translation.googleapis.com';
+  const MM = 'api.mymemory.translated.net';
+  // No chrome.storage on this page: the key is read through translateKey,
+  // replaced here. '' is the reader who never set one.
+  const realKey = window.translateKey;
+  window.translateKey = async () => '';
+  console.error = () => {};  // every failure below is deliberate
+  try {
+    // S1: Google rate-limits, MyMemory answers.
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [MM]: () => new Response(mmBody()) });
+    const s1 = await glossFor('book', 'en');
+    eq('a google 429 falls through to mymemory', s1.vi, 'sách; ghi chép');
+    eq('and names mymemory as the source', s1.source, 'mymemory');
+    eq('and reports no failure', s1.failed, null);
+    calls.length = 0;
+    const s1b = await glossFor('book', 'en');
+    check('within the pause google is not asked again', !calls.includes(G), calls.join(','));
+    eq('and mymemory still answers', s1b.vi, 'sách; ghi chép');
+
+    // Google answers: MyMemory is never asked.
+    resetChain();
+    stubFetch({ [G]: () => new Response(JSON.stringify([[['sách', 'book']]])), [MM]: () => new Response(mmBody()) });
+    const ok = await glossFor('book', 'en');
+    eq('google answering wins', ok.vi, 'sách');
+    eq('as source google', ok.source, 'google');
+    check('and mymemory is not fetched', !calls.includes(MM), calls.join(','));
+
+    // S2: both fail, and the sentence names both.
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [MM]: () => new Response('', { status: 503 }) });
+    const s2 = await glossFor('book', 'en');
+    eq('every source failing leaves no gloss', s2.vi, null);
+    eq('and no source', s2.source, null);
+    check('the failure names google and its pause',
+          /Google Translate is rate-limiting.*\d+ minutes?/.test(s2.failed ?? ''), s2.failed);
+    check('and mymemory and its status', /MyMemory: HTTP 503/.test(s2.failed ?? ''), s2.failed);
+
+    // A network error reads as one too.
+    resetChain();
+    stubFetch({ [G]: () => { throw new TypeError('Failed to fetch'); }, [MM]: () => { throw new TypeError('Failed to fetch'); } });
+    const off = await glossFor('book', 'en');
+    check('offline names each source with the error',
+          /Google Translate: TypeError: Failed to fetch; MyMemory: TypeError: Failed to fetch/.test(off.failed ?? ''), off.failed);
+
+    // A used-up quota in a 200 is a failure, never a gloss, and pauses MyMemory.
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 500 }),
+                [MM]: () => new Response(mmBody({ quotaFinished: true, responseStatus: 429,
+                  responseData: { translatedText: 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS' } })) });
+    const quota = await glossFor('book', 'en');
+    eq('a quotaFinished body is not saved as a gloss', quota.vi, null);
+    check('it is reported as mymemory rate-limiting', /MyMemory is rate-limiting/.test(quota.failed ?? ''), quota.failed);
+    check('and pauses mymemory', GLOSS.sources.find((s) => s.id === 'mymemory').pausedUntil > Date.now());
+
+    // Google answering "nothing" still asks MyMemory.
+    resetChain();
+    stubFetch({ [G]: () => new Response(JSON.stringify([])), [MM]: () => new Response(mmBody()) });
+    const empty = await glossFor('book', 'en');
+    check('google with nothing asks mymemory next', calls.includes(MM), calls.join(','));
+    eq('and takes its gloss', empty.vi, 'sách; ghi chép');
+
+    // Both answer nothing: no gloss, and no failure either — a real answer.
+    resetChain();
+    stubFetch({ [G]: () => new Response(JSON.stringify([])),
+                [MM]: () => new Response(mmBody({ responseData: { translatedText: 'book' } })) });
+    const none = await glossFor('book', 'en');
+    eq('mymemory echoing the word is no gloss', none.vi, null);
+    eq('and every source answering nothing is not a failure', none.failed, null);
+
+    // The optional keyed source, between Google and MyMemory.
+    const gcUrl = new URL(googleCloudUrl('K1', '学生', 'zh'));
+    eq('googleCloudUrl asks from zh-CN', gcUrl.searchParams.get('source'), 'zh-CN');
+    eq('into vietnamese', gcUrl.searchParams.get('target'), 'vi');
+    eq('with the key', gcUrl.searchParams.get('key'), 'K1');
+
+    const gcOk = () => new Response(JSON.stringify({ data: { translations: [{ translatedText: 'sách (cloud)' }] } }));
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: gcOk, [MM]: () => new Response(mmBody()) });
+    await glossFor('book', 'en');
+    check('with no key the keyed host is never fetched', !calls.includes(GC), calls.join(','));
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: gcOk, [MM]: () => new Response('', { status: 503 }) });
+    const noKey = await glossFor('book', 'en');
+    check('and it is not named when the rest fail', !/Cloud/.test(noKey.failed ?? ''), noKey.failed);
+
+    window.translateKey = async () => 'K1';
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: gcOk, [MM]: () => new Response(mmBody()) });
+    const keyed = await glossFor('book', 'en');
+    eq('with a key, a google 429 is answered by the cloud api', keyed.vi, 'sách (cloud)');
+    eq('as source google-cloud', keyed.source, 'google-cloud');
+    check('and mymemory is not fetched', !calls.includes(MM), calls.join(','));
+    eq('the source has a display name', glossSourceName('google-cloud'), 'Google Cloud Translation');
+
+    resetChain();
+    const badKey = () => new Response(JSON.stringify({ error: { code: 400, message: 'API key not valid. Please pass a valid API key.' } }), { status: 400 });
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: badKey, [MM]: () => new Response(mmBody()) });
+    const rejected = await glossFor('book', 'en');
+    eq('a rejected key falls through to mymemory', rejected.source, 'mymemory');
+    resetChain();
+    stubFetch({ [G]: () => new Response('', { status: 429 }), [GC]: badKey, [MM]: () => new Response('', { status: 503 }) });
+    const allOut = await glossFor('book', 'en');
+    check('and when mymemory fails too, the banner says the key was rejected',
+          /Google Cloud Translation: the key was rejected — check it in settings/.test(allOut.failed ?? ''), allOut.failed);
+  } finally {
+    window.translateKey = realKey;
+    window.fetch = realFetch;
+    console.error = realError;
+    resetChain();
+  }
+
+  // --- source guard: each source's host is pinned, like the dictionary above.
+  const lookupCode = (await (await fetch('../lookup.js?t=' + Date.now())).text()).replace(/^\s*\/\/.*$/gm, '');
+  check('the gloss chain asks google', /translate\.googleapis\.com\/translate_a\/single/.test(lookupCode));
+  check('and falls back to mymemory', /api\.mymemory\.translated\.net\/get/.test(lookupCode));
+  check('and, with a key, the cloud api', /translation\.googleapis\.com\/language\/translate\/v2/.test(lookupCode));
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

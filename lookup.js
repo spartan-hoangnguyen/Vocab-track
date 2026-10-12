@@ -17,63 +17,171 @@ async function fetchEntry(word, lang) {
            failed: `no dictionary registered for ${lang}` };
 }
 
-async function fetchVietnamese(word, lang = 'en') {
-  // Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
-  // personal tool; it will break one day, and the replacement goes behind
-  // this same function.
-  //
-  // `sl` is the study language, not always English: the same endpoint answers
-  // for Korean unchanged (verified: sl=ko&tl=vi on 책 returns "sách").
-  // The pack names the code the endpoint wants (zh → zh-CN), not its id.
+// The gloss comes from a chain of keyless sources, asked in order, and the
+// first one with a translation wins (glossFor below). Each source is a URL
+// builder, pure so a test can pin it without the network, and a fetcher.
+//
+// A fetcher returns a gloss, or null when the source answered and had nothing,
+// which is a real answer about the word. It throws when the source could not
+// be asked, which is a fact about the network. They are not the same and must
+// not look the same. A keyed source with no key set returns undefined: it was
+// never asked, so it is neither an answer nor a failure.
+
+// Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
+// personal tool; it will break one day, which is why it is not alone.
+//
+// `sl` is the study language, not always English: the same endpoint answers
+// for Korean unchanged (verified: sl=ko&tl=vi on 책 returns "sách").
+// The pack names the code the endpoint wants (zh → zh-CN), not its id.
+function googleUrl(word, lang = 'en') {
   const sl = LANG.get(lang)?.mt ?? lang;
-  const url = 'https://translate.googleapis.com/translate_a/single'
+  return 'https://translate.googleapis.com/translate_a/single'
     + `?client=dict-chrome-ex&sl=${encodeURIComponent(sl)}&tl=vi`
     + `&dt=t&q=${encodeURIComponent(word)}`;
-  const res = await fetch(url);
+}
+
+async function fetchGoogle(word, lang = 'en') {
+  // A timeout on every source, so one that hangs cannot keep the next one
+  // from being asked.
+  const res = await fetch(googleUrl(word, lang), { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  // Null means the endpoint answered and had nothing, which is a real answer
-  // about the word. Throwing means it could not be asked, which is a fact
-  // about the network. They are not the same and must not look the same.
   return data?.[0]?.[0]?.[0] ?? null;
 }
 
-// 429 is the endpoint saying one IP has asked too much, and it keeps saying it
+// Google Cloud Translation, Basic (v2): the official API, with the reader's
+// own key. It does not rate-limit like the keyless endpoint, and its free tier
+// is 500,000 characters a month, on a Cloud project with billing turned on.
+function googleCloudUrl(key, word, lang = 'en') {
+  const sl = LANG.get(lang)?.mt ?? lang;
+  const params = new URLSearchParams({
+    key: String(key ?? ''), q: String(word ?? ''), source: sl, target: 'vi', format: 'text'
+  });
+  return `https://translation.googleapis.com/language/translate/v2?${params}`;
+}
+
+// Read here, on every lookup, rather than passed in: a key saved in the
+// dashboard then counts on the very next side panel lookup, with no reload.
+// Trimmed for the reason dashboard.js trims the GIPHY key. Its own function so
+// a test can replace it without a chrome.storage stub.
+async function translateKey() {
+  const { translateKey: key } = await chrome.storage.local.get('translateKey');
+  return String(key ?? '').trim();
+}
+
+async function fetchGoogleCloud(word, lang = 'en') {
+  const key = await translateKey();
+  if (!key) return undefined;
+  const res = await fetch(googleCloudUrl(key, word, lang), { signal: AbortSignal.timeout(10000) });
+  // A bad key is a 400 ("API key not valid"), not only a 403. Either way the
+  // fix is the reader's, so the reason says where to make it.
+  if (res.status === 400 || res.status === 403) {
+    throw new Error('the key was rejected — check it in settings');
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data?.data?.translations?.[0]?.translatedText ?? null;
+}
+
+// MyMemory: free and keyless, and it answers en→vi, ko→vi and zh-CN→vi with
+// the same language codes Google takes.
+function myMemoryUrl(word, lang = 'en') {
+  const sl = LANG.get(lang)?.mt ?? lang;
+  const params = new URLSearchParams({ q: String(word ?? ''), langpair: `${sl}|vi` });
+  return `https://api.mymemory.translated.net/get?${params}`;
+}
+
+async function fetchMyMemory(word, lang = 'en') {
+  const res = await fetch(myMemoryUrl(word, lang), { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  // MyMemory reports a used-up daily quota inside a 200: the real status is in
+  // the body, and translatedText holds a "MYMEMORY WARNING" sentence that must
+  // never be saved as a gloss. Thrown as an HTTP status, so a 429 in the body
+  // pauses this source exactly like a 429 on the wire.
+  const status = Number(data?.responseStatus ?? 200);
+  if (data?.quotaFinished === true || status !== 200) {
+    throw new Error(`HTTP ${status === 200 ? 429 : data?.responseStatus}`);
+  }
+  const vi = String(data?.responseData?.translatedText ?? '').trim();
+  // The word handed back unchanged is MyMemory having nothing, not a gloss.
+  if (!vi || vi.toLowerCase() === String(word).toLowerCase()) return null;
+  return vi;
+}
+
+// 429 is a source saying one IP has asked too much, and it keeps saying it
 // for a while. Asking again on every lookup during that window is useless AND
-// part of the problem, so the first 429 stops the asking.
+// part of the problem, so the first 429 stops the asking — of that source
+// only, so a rate-limited Google still leaves MyMemory to answer.
 //
-// An object rather than a bare `let` so a test can put it back; module scope
+// An object rather than bare `let`s so a test can put it back; module scope
 // rather than storage because a panel reload clears it, which is the right
 // failure mode — a stale pause cannot outlive the real limit by much, and
-// nothing has to be migrated.
+// nothing has to be migrated. `ask` looks the fetcher up at call time, so a
+// test can replace one by name.
 //
-// ponytail: a flat ten minutes, because the response carries no Retry-After
-// header to read. Read one if it ever appears.
-const GLOSS = { pausedUntil: 0, PAUSE_MS: 10 * 60 * 1000 };
+// ponytail: a flat ten minutes, because neither response carries a
+// Retry-After header to read. Read one if it ever appears.
+const GLOSS = {
+  PAUSE_MS: 10 * 60 * 1000,
+  sources: [
+    { id: 'google', name: 'Google Translate', pausedUntil: 0,
+      ask: (word, lang) => fetchGoogle(word, lang) },
+    { id: 'google-cloud', name: 'Google Cloud Translation', pausedUntil: 0,
+      ask: (word, lang) => fetchGoogleCloud(word, lang) },
+    { id: 'mymemory', name: 'MyMemory', pausedUntil: 0,
+      ask: (word, lang) => fetchMyMemory(word, lang) }
+  ]
+};
 
-function rateLimited() {
-  const mins = Math.max(1, Math.ceil((GLOSS.pausedUntil - Date.now()) / 60000));
-  return `too many lookups from this network for now — the free translation `
-    + `endpoint is rate-limiting it. Try again in about ${mins} minute`
-    + `${mins === 1 ? '' : 's'}.`;
+// The name a card shows for a stored `viSource`, or null for an id no source
+// has (an entry saved before sources were recorded has none at all).
+function glossSourceName(id) {
+  return GLOSS.sources.find((src) => src.id === id)?.name ?? null;
+}
+
+function rateLimited(src) {
+  const mins = Math.max(1, Math.ceil((src.pausedUntil - Date.now()) / 60000));
+  return `${src.name} is rate-limiting this network — try again in about `
+    + `${mins} minute${mins === 1 ? '' : 's'}`;
 }
 
 // The reason a gloss is missing, kept rather than swallowed. Both were a bare
 // `—` on the card before, so a rate-limited minute and a word the endpoint
 // genuinely cannot translate were indistinguishable on screen — which is what
 // made this take three rounds to pin down.
+//
+// Returns { vi, source, failed }: `source` is the id of the source that
+// answered, null when none gave a gloss. `failed` is set only when EVERY
+// source failed, and names each one with its reason; a source that answered
+// with nothing is a real answer, so it leaves `failed` null.
 async function glossFor(word, lang) {
-  if (Date.now() < GLOSS.pausedUntil) return { vi: null, failed: rateLimited() };
-  try {
-    return { vi: await fetchVietnamese(word, lang), failed: null };
-  } catch (err) {
-    console.error('[vocab-track] translation failed for', word, err);
-    if (/\b429\b/.test(String(err.message))) {
-      GLOSS.pausedUntil = Date.now() + GLOSS.PAUSE_MS;
-      return { vi: null, failed: rateLimited() };
+  const reasons = [];
+  let answered = false;
+  for (const src of GLOSS.sources) {
+    // Checked here, per source, not once before the loop: a pause that stopped
+    // the whole chain would make the fallback unreachable for exactly the ten
+    // minutes it exists for.
+    if (Date.now() < src.pausedUntil) {
+      reasons.push(rateLimited(src));
+      continue;
     }
-    return { vi: null, failed: `${err.name}: ${err.message}` };
+    try {
+      const vi = await src.ask(word, lang);
+      if (vi) return { vi, source: src.id, failed: null };
+      if (vi !== undefined) answered = true;
+    } catch (err) {
+      console.error(`[vocab-track] ${src.name} translation failed for`, word, err);
+      if (/\b429\b/.test(String(err.message))) {
+        src.pausedUntil = Date.now() + GLOSS.PAUSE_MS;
+        reasons.push(rateLimited(src));
+      } else {
+        const why = err.name === 'Error' ? err.message : `${err.name}: ${err.message}`;
+        reasons.push(`${src.name}: ${why}`);
+      }
+    }
   }
+  return { vi: null, source: null, failed: answered ? null : `${reasons.join('; ')}.` };
 }
 
 // The whole save path for one word, with no UI in it: a known word answers
@@ -123,7 +231,9 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
       glossFailed = gloss.failed;
       if (gloss.vi) {
         known.vi = gloss.vi;
+        known.viSource = gloss.source;
         patch.vi = gloss.vi;
+        patch.viSource = gloss.source;
       }
     }
     if (Object.keys(patch).length) await putWord(word, patch);
@@ -150,7 +260,7 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
     ? { level: null, ipa: null, def: null, audio: null }
     : parsed;
 
-  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id);
+  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id, gloss.source);
   if (context) entry.context = context;
   // Not persisted: it describes this attempt, not the word. Two channels
   // because the two failures want different sentences — a missing definition
