@@ -473,6 +473,19 @@ async function parserTests() {
   eq('diffWord: a one-syllable word stays out, like cat/cut', VT.diffWord('착', '책').near, false);
   eq('diffWord: a different Korean word is not near', VT.diffWord('바나나', '사과').near, false);
 
+  // --- checkAnswer: diffWord plus the entry's own synonyms
+  const toughCard = { word: 'resilient', synonyms: ['tough', 'hardy'] };
+  const syn = VT.checkAnswer('Tough ', toughCard);
+  eq('checkAnswer: a saved synonym is matched, as stored', syn.synonym, 'tough');
+  eq('checkAnswer: and is not exact', syn.exact, false);
+  eq('checkAnswer: a typo in a synonym is not one', VT.checkAnswer('tuogh', toughCard).synonym, null);
+  const listsItself = VT.checkAnswer('resilient', { word: 'resilient', synonyms: ['resilient'] });
+  eq('checkAnswer: exact wins over a word that lists itself', listsItself.exact && listsItself.synonym === null, true);
+  eq('checkAnswer: an empty answer is never a synonym',
+     VT.checkAnswer('', { word: 'x', synonyms: [''] }).synonym, null);
+  eq('checkAnswer: no synonyms field is fine', VT.checkAnswer('cat', { word: 'dog' }).synonym, null);
+  eq('checkAnswer: the diff is still there', VT.checkAnswer('pidgeon', { word: 'pigeon' }).near, true);
+
   // --- schedule (FSRS-6). Expected numbers come from ts-fsrs 's own
   // FSRSAlgorithm.next_state with default parameters, run 2026-09-19.
   {

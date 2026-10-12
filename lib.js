@@ -457,6 +457,18 @@ const VT = {
              typed: typedMarks, answer: answerMarks };
   },
 
+  // A review answer graded against the card: diffWord against the word, plus
+  // `synonym` — the entry's own synonym you typed, as stored — when it is not
+  // exact. Only an exact match of a synonym counts; a typo in one is just
+  // wrong. Entries without synonyms (Korean, Chinese) get null.
+  checkAnswer(typed, entry) {
+    const diff = VT.diffWord(typed, entry?.word);
+    const key = VT.normaliseWord(typed);
+    const synonym = diff.exact || !key ? null
+      : (entry?.synonyms || []).find((s) => VT.normaliseWord(s) === key) ?? null;
+    return { ...diff, synonym };
+  },
+
   // The gloss a quiz asks about: the Vietnamese, or the dictionary definition when
   // there is no translation. Null when the entry has neither — a word saved
   // while both the dictionary and the translator were down cannot be an

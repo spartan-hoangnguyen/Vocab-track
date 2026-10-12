@@ -1067,7 +1067,7 @@ let typed = '';
 // unanswerable — those fall back to the old recognition card.
 let canType = false;
 
-const GRADE_FOR = { exact: 4, near: 3, wrong: 0 };
+const GRADE_FOR = { exact: 4, synonym: 4, near: 3, wrong: 0 };
 // One day's worth, the same pace the imported list arrives at.
 const AHEAD_BATCH = 20;
 
@@ -1254,7 +1254,7 @@ function renderCard() {
   }
   renderFull(revealed ? entry : null);
   renderGif(revealed ? entry : null);
-  renderDiff(revealed && canType ? VT.diffWord(typed, entry.word) : null);
+  renderDiff(revealed && canType ? VT.checkAnswer(typed, entry) : null, entry.word);
   renderGrades(revealed ? suggestedGrade() : null);
 }
 
@@ -1360,13 +1360,14 @@ function kbd(text) {
 // override it.
 function suggestedGrade() {
   if (!canType) return null;
-  const d = VT.diffWord(typed, queue[0]?.word);
+  const d = VT.checkAnswer(typed, queue[0]);
   if (d.exact) return GRADE_FOR.exact;
+  if (d.synonym) return GRADE_FOR.synonym;
   if (d.near) return GRADE_FOR.near;
   return GRADE_FOR.wrong;
 }
 
-function renderDiff(diff) {
+function renderDiff(diff, word) {
   const node = $('rv-diff');
   node.replaceChildren();
   node.hidden = !diff;
@@ -1375,6 +1376,12 @@ function renderDiff(diff) {
   if (diff.exact) {
     node.className = 'rvdiff good';
     node.textContent = 'Correct';
+    return;
+  }
+  // Right word, just not this card's: shown as typed, never as a slip.
+  if (diff.synonym) {
+    node.className = 'rvdiff good';
+    node.textContent = `${typed.trim()} — a synonym of ${word}`;
     return;
   }
   node.className = diff.near ? 'rvdiff near' : 'rvdiff bad';

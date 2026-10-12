@@ -59,7 +59,8 @@ Built for one person. No accounts, no sync, no server.
   Enter checks it and marks the letters you got wrong, so `pidgeon` reads
   as one slip rather than as a failure. Typing already says how well you knew
   it, so Enter also takes the grade that fits — exact goes to Good, one or two
-  letters out (or one jamo out on a Korean answer) to Hard, anything else to Blank — and `1`-`4` override it.
+  letters out (or one jamo out on a Korean answer) to Hard, a synonym the
+  card already lists to Good too (it says so), anything else to Blank — and `1`-`4` override it.
   FSRS-6 spaced repetition underneath, in the dashboard or the panel.
 - **Practise beside the card, on the same schedule.** Six modes — Quiz,
   Listening, Fill the gap, Speak, Card Blast and Mix — sit as tabs next to
