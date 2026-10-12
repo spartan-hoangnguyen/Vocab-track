@@ -15,7 +15,8 @@
     "https://translation.googleapis.com/*",
     "https://api.mymemory.translated.net/*",
     "https://api.languagetool.org/*",
-    "https://api.giphy.com/*"
+    "https://api.giphy.com/*",
+    "http://127.0.0.1:8765/*"
   ],
   "background": {
     "service_worker": "service-worker.js"

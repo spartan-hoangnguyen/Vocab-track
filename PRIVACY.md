@@ -20,7 +20,7 @@ else.
 
 ## What leaves your browser
 
-Five things leave your browser, each only when you do something that needs it:
+Six things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -29,6 +29,7 @@ Five things leave your browser, each only when you do something that needs it:
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, through AnkiConnect |
 
 Each of these services gets the request directly from your browser, so it also
 sees your IP address, as with any web request. Their own privacy policies
