@@ -8,6 +8,10 @@ Ranked by how likely it is to break, from the final whole-branch review.
 
 ## Install
 
+These are the developer (unpacked) steps, and the checks below run against
+that install. The store install, from [INSTALL.md](../INSTALL.md), is checked
+when it is published (T083).
+
 1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
 2. Select `~/work/Vocab-track` (the folder containing `manifest.json`)
 3. Pin the extension — the toolbar icon toggles the side panel, and is how you
@@ -147,7 +151,24 @@ Open it from **Open dashboard →** in the side panel.
 
 18. **Statistics.** With only a few days of data the charts will be mostly empty;
     that is correct, not a bug. Confirm "Review load" folds everything overdue
-    into today rather than spreading it backwards.
+    into today rather than spreading it backwards. "Keeps slipping" comes first:
+    grade a word Blank in Review (twice, if it comes back), then open Statistics
+    in the same tab → it is listed as "forgot 1×", once per day however often
+    you missed it. Click it → the Words view opens on that word's card. On a
+    profile with no lapses it reads "Nothing forgotten in the last 13 weeks."
+    "Retention" has 13 weekly bars, this week last: hover one → "<date>: 87% ·
+    41 of 47 remembered", or "no reviews". The note compares the newest and
+    oldest weeks with reviews and names FSRS's 90%; with under two such weeks
+    it says "Review for a few weeks to see a trend." Flip the language toggle →
+    the chart redraws from that language's reviews only. "Time reviewing" has
+    30 daily bars, estimated from the gaps between grades: review 10 cards →
+    today shows a few minutes. Leave the review open for 10 minutes, grade one
+    more → today grows by under a minute. With no reviews the note reads "No
+    reviews in the last 30 days." "Where they came from" reads "<site> · 24
+    words · 9 learned", a word counted once per site however many of its pages
+    you met it on. "Learned by folder" lists folders as "<icon> <name> · 9 of
+    24 learned", best share first; skipped words count in neither number, and
+    words in no folder sit under "From reading".
 
 19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
     word in them. The video must pause on that click, the panel must open with
@@ -571,17 +592,19 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
 87. **A failed translation names itself.** Open DevTools on the side panel,
     Network tab, and set it to **Offline**. Look up a new Korean word. The
     card must carry a red banner reading *Translation failed… look the word
-    up again to retry*, with the browser's own error text on the end — not a
-    bare `—`, which is what a word with no translation looks like. Go back
-    online, look the same word up again: the banner goes and the gloss fills
-    in.
+    up again to retry*, then each translation source with the browser's own
+    error text (*Google Translate: TypeError: Failed to fetch; MyMemory:
+    TypeError: Failed to fetch.*) — not a bare `—`, which is what a word with
+    no translation looks like. Go back online, look the same word up again:
+    the banner goes and the gloss fills in.
 
 88. **A word whose gloss never arrived repairs itself.** Find a Korean word
     saved with **—** where the Vietnamese gloss should be (the translation
     endpoint rate-limits, so one will turn up). Click it again on a page, or
     look it up from the dashboard. The gloss fills in, and DevTools → Network
-    shows exactly one `translate_a/single` request. Click a word that already
-    has a gloss: no request at all, and the gloss does not change.
+    shows exactly one `translate_a/single` request (or, while Google is
+    rate-limiting, one MyMemory request instead; see 105). Click a word that
+    already has a gloss: no request at all, and the gloss does not change.
 
 89. **The Korean voice is the good one.** Press ▶ on a Korean card. It must
     not be a novelty voice — Eddy, Rocko and Grandma are cartoon voices macOS
@@ -589,6 +612,12 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     **Yuna (Enhanced)** (System Settings → Accessibility → Spoken Content →
     System Voice → Manage Voices → Korean) and press ▶ again: it should switch
     to the enhanced recording without any setting being touched.
+
+    **The preferences say when there is no Korean voice.** Remove Yuna and
+    Yuna (Enhanced) in Manage Voices, reload the dashboard and open Review with
+    Korean active. Where the Speaker select was, a line reads "No Korean voice
+    is installed." followed by the macOS path. Install Yuna again and reload:
+    the Speaker select is back with Yuna in it.
 
 ## Chinese: lookup
 
@@ -705,6 +734,35 @@ words, then fill this in.
 - Date: ______  Chrome version: ______  macOS: ______
 - Result: ______ (items that failed, with what you saw)
 
+## Translation fallback
+
+Reload the side panel between these steps: a rate-limited source stays paused
+for ten minutes, and only a reload clears it. To make Google fail on purpose,
+open DevTools on the side panel → Network, right-click any request →
+**Block request domain**, and block `translate.googleapis.com`. A real 429
+cannot be produced on demand; the unit tests cover that path.
+
+105. **Google down, a gloss anyway.** With `translate.googleapis.com` blocked,
+     look up a new Korean word. The card shows a Vietnamese gloss with
+     **via MyMemory** under it, and no red banner. Unblock it and look up
+     another new word: **via Google Translate**.
+106. **Every source down names each one.** Set Network to **Offline** and look
+     up a new word. The banner is the one in 87, and it names Google Translate
+     and MyMemory, each with its reason. Go back online and look the same word
+     up again: the banner goes, and the gloss fills in with its source line.
+107. **The key answers before MyMemory.** Dashboard → **Import & export** →
+     **Translation key**: paste a Google Cloud Translation key. Block
+     `translate.googleapis.com` again and look up a new word: **via Google
+     Cloud Translation**. Paste `bad-key` instead and look up another: the
+     gloss is **via MyMemory**, and there is no banner.
+
+## Translation fallback: last full run
+
+Run items 87, 88 and 105–107 in a real Chrome profile, then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Result: ______ (items that failed, with what you saw)
+
 ## Highlighting: last full run
 
 Run step 2 (highlighting, forms, phrasal verbs, late content) in a real Chrome
@@ -722,6 +780,31 @@ highlighted, and a click quizzes `give up`. Then fill this in.
 (2,000 words plus the phrasal-verb list over 5,000 nodes in under 200 ms) and
 `test/repaint-probe.html` (late posts, own UI, editors, dropped ranges, and
 "gave up" in a late post as the saved `give up`).
+
+## Voices: last full run
+
+Run items 89 and 101 on a Mac, then the combined checks below, then fill this
+in.
+
+- Choose **Yuna (Enhanced)** for Korean in Review → Speaker. ▶ on a review
+  card, in Practice → Listening and in the side panel all speak with it.
+- Remove every Korean voice. The preferences, the review ▶ and the side panel ▶
+  all say "No Korean voice is installed." with the macOS path.
+- On Windows or Linux, if one is available: the same S2 check, with the path
+  that was shown.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Voices installed: ______
+- Result (Mac): ______ (items that failed, with what you saw)
+- Result (Windows / Linux): not run
+
+`bash test/run.sh` covers the same scenarios with hand-made voice lists, and
+passes on 2026-10-12 in headless Chrome 154.0.8037.98: `test/dashboard-probe.html` (the
+Speaker list per language, the stored choice reaching `speak()` and
+`pronounce()`, an uninstalled choice falling back to Automatic, the preview,
+the no-voice line and its return on `voiceschanged`) and
+`test/sidepanel-probe.html` (`voicesFor()`, `installPath()` per OS, the quiz
+hint).
 
 ## If something fails
 

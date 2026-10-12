@@ -14,9 +14,10 @@
     "offscreen"
   ],
   "host_permissions": [
-    "https://dictionary.cambridge.org/*",
     "https://api.datamuse.com/*",
     "https://translate.googleapis.com/*",
+    "https://translation.googleapis.com/*",
+    "https://api.mymemory.translated.net/*",
     "https://api.languagetool.org/*",
     "https://api.giphy.com/*"
   ],
