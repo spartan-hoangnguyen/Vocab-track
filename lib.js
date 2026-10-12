@@ -650,6 +650,29 @@ const VT = {
     return out;
   },
 
+  // ponytail: an estimate from the gaps between grades, not a timer. A gap
+  // over SESSION_GAP_MS starts a new session, a gap counts up to CARD_CAP_MS,
+  // and a session's first card counts half a cap. Real time per card needs a
+  // start time recorded per card.
+  SESSION_GAP_MS: 5 * 60 * 1000,
+  CARD_CAP_MS: 60 * 1000,
+
+  // Minutes spent reviewing per local day (VT.dayKey), every grade counted:
+  // this is effort, so a same-day re-show is time spent too.
+  reviewMinutes(rows) {
+    const out = new Map();
+    let prev = null;
+    for (const { at } of [...rows].sort((a, b) => a.at - b.at)) {
+      const gap = prev == null ? Infinity : at - prev;
+      const ms = gap > VT.SESSION_GAP_MS ? VT.CARD_CAP_MS / 2 : Math.min(gap, VT.CARD_CAP_MS);
+      const day = VT.dayKey(at);
+      out.set(day, (out.get(day) ?? 0) + ms);
+      prev = at;
+    }
+    for (const [day, ms] of out) out.set(day, ms / 60000);
+    return out;
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

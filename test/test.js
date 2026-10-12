@@ -576,6 +576,23 @@ async function parserTests() {
           VT.weeklyRetention([], 13, now).every((w) => w.reviews === 0 && w.rate === null));
   }
 
+  // --- review minutes: estimated from the gaps between grades
+  {
+    const t0 = new Date(2026, 0, 5, 9).getTime();
+    const ten = Array.from({ length: 10 }, (_, i) => ({ word: 'w' + i, quality: 4, at: t0 + i * 20000 }));
+    eq('reviewMinutes: ten grades 20 s apart are 9 × 20 s + 30 s',
+       VT.reviewMinutes(ten).get('2026-01-05'), 3.5);
+    eq('reviewMinutes: two grades 2 h apart are two sessions',
+       VT.reviewMinutes([{ word: 'a', quality: 4, at: t0 }, { word: 'b', quality: 0, at: t0 + 2 * 3600000 }])
+         .get('2026-01-05'), 1);
+    eq('reviewMinutes: a long pause inside a session counts a minute at most',
+       VT.reviewMinutes([{ word: 'a', quality: 4, at: t0 }, { word: 'b', quality: 4, at: t0 + 4 * 60000 }])
+         .get('2026-01-05'), 1.5);
+    eq('reviewMinutes: unsorted input is sorted first',
+       VT.reviewMinutes([...ten].reverse()).get('2026-01-05'), 3.5);
+    eq('reviewMinutes: no history, no days', VT.reviewMinutes([]).size, 0);
+  }
+
   // --- forecast: every return inside the window counts, not just the next one
   {
     const D = 24 * 60 * 60 * 1000;

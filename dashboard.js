@@ -1860,6 +1860,7 @@ function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) =
 function renderStats(all) {
   renderWeak(all);
   renderRetention(all);
+  renderTime(all);
   $('st-sub').textContent = all.length
     ? `${all.length} words · first saved ${new Date(Math.min(...all.map((e) => e.added)))
         .toLocaleDateString()}`
@@ -1994,6 +1995,30 @@ function renderRetention(all) {
     ? `${when(last.ago)} ${pct(last.rate)}% · ${when(first.ago).toLowerCase()} ${pct(first.rate)}% · ` +
       `FSRS aims for ${FSRS_TARGET}%`
     : 'Review for a few weeks to see a trend.';
+}
+
+// Minutes a day spent reviewing, last 30 days, estimated from grade gaps.
+function renderTime(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const minutes = VT.reviewMinutes(reviewLog.filter((row) => mine.has(row.word)));
+  const series = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString();
+    // At least a minute on a day with any review, so a short one is not "none".
+    const raw = minutes.get(VT.dayKey(d.getTime())) ?? 0;
+    const n = raw ? Math.max(1, Math.round(raw)) : 0;
+    series.push({ label, n, title: `${label}: ${n} min` });
+  }
+  plotSeries($('st-time'), series, false);
+  const from = new Date(); from.setDate(from.getDate() - 29);
+  $('st-time-from').textContent = from.toLocaleDateString();
+  const total = series.reduce((sum, d) => sum + d.n, 0);
+  const span = total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} min` : `${total} min`;
+  $('st-time-sum').textContent = total
+    ? `${total < series.length ? 'Under a minute' : `About ${Math.round(total / series.length)} min`} a day`
+      + ` · ${span} in 30 days`
+    : 'No reviews in the last 30 days.';
 }
 
 /* ---------- writing ---------- */

@@ -149,7 +149,11 @@ Open it from **Open dashboard →** in the side panel.
     41 of 47 remembered", or "no reviews". The note compares the newest and
     oldest weeks with reviews and names FSRS's 90%; with under two such weeks
     it says "Review for a few weeks to see a trend." Flip the language toggle →
-    the chart redraws from that language's reviews only.
+    the chart redraws from that language's reviews only. "Time reviewing" has
+    30 daily bars, estimated from the gaps between grades: review 10 cards →
+    today shows a few minutes. Leave the review open for 10 minutes, grade one
+    more → today grows by under a minute. With no reviews the note reads "No
+    reviews in the last 30 days."
 
 19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
     word in them. The video must pause on that click, the panel must open with

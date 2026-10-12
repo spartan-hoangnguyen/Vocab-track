@@ -951,8 +951,18 @@ ready.then(() => setTimeout(async () => {
         /^This week 90% · 2 weeks ago 70% · FSRS aims for 90%$/.test(document.getElementById('st-retention-sum').textContent),
         document.getElementById('st-retention-sum').textContent);
   check('an empty week says so', retBars()[0].title.endsWith(': no reviews'), retBars()[0].title);
+  const timeBars = () => [...document.querySelectorAll('#st-time i')];
+  const timeSum = () => document.getElementById('st-time-sum').textContent;
+  // Today: r0..r9 at one instant, r9 again a second later, 책 too (other language).
+  check('the time chart has 30 daily bars, today last, in minutes',
+        timeBars().length === 30 && /: 1 min$/.test(timeBars()[29].title), timeBars()[29]?.title);
+  check('the time note gives the daily average and the total',
+        /^Under a minute a day · 3 min in 30 days$/.test(timeSum()), timeSum());
   STORE.lang = 'ko';
   await refresh();
+  check('the language toggle changes the time bars to that language',
+        timeBars().filter((b) => !b.classList.contains('none')).length === 1
+        && timeBars()[29].title.endsWith(': 1 min'), timeBars()[29].title);
   check('the language toggle redraws retention from that language only',
         filled().length === 0 && retBars()[12].title.endsWith(': 0% · 0 of 1 remembered')
         && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.',
@@ -964,6 +974,9 @@ ready.then(() => setTimeout(async () => {
   await refresh();
   check('with nothing forgotten the list says so',
         weakRows().join() === 'Nothing forgotten in the last 13 weeks.', weakRows().join(' | '));
+  check('with no history the time chart is empty and says so',
+        timeBars().every((b) => b.classList.contains('none')) && timeSum() === 'No reviews in the last 30 days.',
+        timeSum());
   check('with no history every retention bar is empty and the note asks for weeks',
         retBars().every((b) => b.classList.contains('none'))
         && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.');
