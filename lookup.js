@@ -266,7 +266,9 @@ globalThis.chrome?.storage?.onChanged?.addListener((changes, area) => {
   if (area === 'local' && changes.reviewPrefs) chosenVoices = changes.reviewPrefs.newValue?.voices ?? {};
 });
 
-function speak(word, accent = 'uk', lang) {
+// `voiceURI` is the Speaker select's preview: the voice to hear right now,
+// before the storage write lands. '' is Automatic. Omitted, the stored choice.
+function speak(word, accent = 'uk', lang, voiceURI) {
   const pack = LANG.pick(lang, word);
   const voices = pack.voices;
   // reviewPrefs.accent is ONE string across every language, so a profile that
@@ -278,7 +280,7 @@ function speak(word, accent = 'uk', lang) {
   // The voice picked in the review preferences, while it is still installed
   // and still speaks this language; otherwise Automatic — see bestVoice above.
   // Null is a legal value and means "you choose", which is where this started.
-  const uri = chosenVoices[pack.id];
+  const uri = voiceURI ?? chosenVoices[pack.id];
   const picked = uri ? voicesFor(voice.bcp47, list, voice.exact).find((v) => v.voiceURI === uri) : null;
   const chosen = picked ?? bestVoice(voice.bcp47, list, voice.exact);
   // The OS has voices and none of them speaks this language: Chrome would

@@ -697,6 +697,37 @@ ready.then(() => setTimeout(async () => {
   check('Chinese lists the zh-CN voice, not Cantonese or Taiwan', optionNames() === 'Automatic|Tingting', optionNames());
   await setLang('ko');
   check('back on Korean the choice is selected', speaker.value === 'uri:Yuna', speaker.value);
+  // The preview ▶ beside the select: the select's voice, before storage says so.
+  const preview = document.getElementById('rv-speaker-play');
+  showView('overview');
+  preview.click();
+  check('with no card on screen the preview speaks the language’s own name with the chosen voice',
+        utts.at(-1)?.text === '한국어' && utts.at(-1)?.voice?.voiceURI === 'uri:Yuna',
+        `${utts.at(-1)?.text} / ${utts.at(-1)?.voice?.name}`);
+  speaker.value = 'uri:Rocko';
+  speaker.dispatchEvent(new Event('change'));
+  preview.click();
+  check('straight after a change it previews the new voice, before storage settles',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Rocko' && chosenVoices.ko === 'uri:Yuna',
+        `${utts.at(-1)?.voice?.name} / cache ${chosenVoices.ko}`);
+  queue.unshift({ ...mk('책', { lang: 'ko', due: 0 }), audio: 'ko.mp3' });
+  showView('review');
+  renderCard();
+  window.Audio = function (src) { played.push(src); this.play = () => Promise.resolve(); };
+  const playedBefore = played.length;
+  preview.click();
+  window.Audio = RealAudio;
+  check('with a review card on screen it speaks the card’s word, never its recording',
+        utts.at(-1)?.text === '책' && played.length === playedBefore, utts.at(-1)?.text);
+  preview.focus();
+  for (const key of [' ', 'Enter']) {
+    preview.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  }
+  check('Space or Enter on the preview neither reveals nor grades the card',
+        !revealed && queue[0].word === '책', queue[0].word);
+  queue.shift();
+  speaker.value = 'uri:Yuna';
+  speaker.dispatchEvent(new Event('change'));
   speechSynthesis.getVoices = () => osList.filter((v) => v.name !== 'Yuna');
   speechSynthesis.dispatchEvent(new Event('voiceschanged'));
   check('an uninstalled choice reads as Automatic', speaker.value === '', speaker.value);

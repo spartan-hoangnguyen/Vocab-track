@@ -1691,6 +1691,18 @@ $('rv-speaker').addEventListener('change', (event) => {
   setReviewPrefs({ voices });
   refocusCard();
 });
+// Always synthesis, never the mp3: it previews the OS voice. The select's
+// value rather than the stored one, which may not have landed yet. The word
+// on screen when there is a card, else the language's own name.
+$('rv-speaker-play').addEventListener('click', (event) => {
+  event.preventDefault();   // inside the label: a click there would open the select
+  const voices = LANG.get(activeLang).voices;
+  const onCard = queue.length && !$('view-review').hidden;
+  speak(onCard ? queue[0].word : voices[0].label,
+    voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id,
+    activeLang, $('rv-speaker').value);
+  refocusCard();
+});
 // getVoices() is [] on a cold load and fills in later.
 globalThis.speechSynthesis?.addEventListener('voiceschanged', renderPrefs);
 
