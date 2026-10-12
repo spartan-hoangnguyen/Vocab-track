@@ -458,6 +458,7 @@ Two permissions look broader than they are:
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
+| `tools/package.sh` | Builds the Chrome Web Store zip in `dist/`: tracked runtime files only, `nativeMessaging` dropped from the zipped manifest |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |

@@ -6,3 +6,6 @@ __pycache__/
 # committed — the definitions and examples in them are not ours to publish.
 data/ielts-c1-c2.json
 data/phrasal-verbs.json
+
+# Store zips from tools/package.sh.
+dist/
