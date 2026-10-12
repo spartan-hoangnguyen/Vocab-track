@@ -600,6 +600,31 @@ const VT = {
     return out;
   },
 
+  // The first grade of each word on each local day. A lapse comes back in the
+  // same session and is graded again; counting that re-show would make one
+  // bad day look like two. Rows are { word, quality, at }, oldest first.
+  dailyFirsts(rows) {
+    const seen = new Set();
+    return rows.filter((row) => {
+      const key = row.word + '\u0000' + VT.dayKey(row.at);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  // The words forgotten most (a first grade below 3), with the time of the
+  // latest lapse, which also breaks ties. Words never forgotten are left out.
+  weakWords(rows, limit = 10) {
+    const by = new Map();
+    for (const { word, quality, at } of VT.dailyFirsts(rows)) {
+      if (quality >= 3) continue;
+      const was = by.get(word) ?? { word, lapses: 0, last: 0 };
+      by.set(word, { word, lapses: was.lapses + 1, last: Math.max(was.last, at) });
+    }
+    return [...by.values()].sort((a, b) => b.lapses - a.lapses || b.last - a.last).slice(0, limit);
+  },
+
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];

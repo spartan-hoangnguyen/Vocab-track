@@ -885,6 +885,56 @@ ready.then(() => setTimeout(async () => {
         /: \d+ reviews? \+ \d+ new$/.test(document.querySelector('#st-due i').title),
         document.querySelector('#st-due i').title);
 
+  /* ---- statistics: words that keep slipping ----
+     A store of its own, so the counts are exact, put back afterwards. */
+  const weakSaved = STORE.words;
+  const DAYW = 24 * 60 * 60 * 1000;
+  const histKey = (daysAgo) => 'history:' + VT.dayKey(Date.now() - daysAgo * DAYW);
+  const histAt = (daysAgo) => Date.now() - daysAgo * DAYW;
+  STORE.words = Object.fromEntries(['resilient', 'cat', 'category', 'calm'].map((w) =>
+    [w, mk(w, { folders: ['reading'], added: Date.now() - (w === 'category' ? 0 : 5000), due: Date.now() - 1000 })]));
+  STORE.words['책'] = mk('책', { lang: 'ko', vi: 'sách', folders: ['reading'], due: Date.now() + 1e9 });
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  STORE[histKey(10)] = [['resilient', 0, histAt(10)], ['책', 0, histAt(10)]];
+  STORE[histKey(5)] = [['resilient', 1, histAt(5)], ['resilient', 0, histAt(5) + 60000], ['calm', 4, histAt(5)]];
+  STORE[histKey(2)] = [['resilient', 0, histAt(2)], ['cat', 0, histAt(2)], ['gone', 0, histAt(2)]];
+  await refresh();
+  showView('stats');
+  const weakRows = () => [...document.querySelectorAll('#st-weak li')].map((li) => li.textContent);
+  check('the weak list puts the most forgotten word first, once per day',
+        /^resilientforgot 3× · /.test(weakRows()[0] ?? '') && /^catforgot 1× · /.test(weakRows()[1] ?? ''),
+        weakRows().join(' | '));
+  check('a word never forgotten, a deleted word and another language are left out',
+        weakRows().length === 2, weakRows().join(' | '));
+  document.querySelector('#st-weak li:nth-child(2) button').click();
+  await tick();
+  check('clicking a weak word opens the Words view with its card first',
+        !document.getElementById('view-words').hidden && document.getElementById('q').value === 'cat'
+        && document.querySelector('#w-cards > *')?.textContent.includes('cat')
+        && !document.querySelector('#w-cards > *')?.textContent.includes('category'),
+        document.querySelector('#w-cards > *')?.textContent.slice(0, 40));
+  document.getElementById('q').value = '';
+  startReview(null);
+  while (queue[0] && queue[0].word !== 'calm') queue.shift();
+  revealed = true;
+  await grade(0);
+  showView('stats');
+  render();
+  check('a Blank in review shows on the list without a reload',
+        weakRows().some((t) => t.startsWith('calmforgot 1×')), weakRows().join(' | '));
+  STORE.lang = 'ko';
+  await refresh();
+  check('the language toggle shows only that language\'s weak words',
+        weakRows().length === 1 && weakRows()[0].startsWith('책forgot 1×'), weakRows().join(' | '));
+  delete STORE.lang;
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  STORE[histKey(0)] = [];
+  STORE.words = weakSaved;
+  await refresh();
+  check('with nothing forgotten the list says so',
+        weakRows().join() === 'Nothing forgotten in the last 13 weeks.', weakRows().join(' | '));
+  showView('overview');
+
   /* ---- a Korean card, reviewable on the MT gloss alone ----
      No dictionary data exists for it: only `vi` is set, which is what makes
      canType true (dashboard.js:878) and keeps this a typing card rather than

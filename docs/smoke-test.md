@@ -140,7 +140,11 @@ Open it from **Open dashboard →** in the side panel.
 
 18. **Statistics.** With only a few days of data the charts will be mostly empty;
     that is correct, not a bug. Confirm "Review load" folds everything overdue
-    into today rather than spreading it backwards.
+    into today rather than spreading it backwards. "Keeps slipping" comes first:
+    grade a word Blank in Review (twice, if it comes back), then open Statistics
+    in the same tab → it is listed as "forgot 1×", once per day however often
+    you missed it. Click it → the Words view opens on that word's card. On a
+    profile with no lapses it reads "Nothing forgotten in the last 13 weeks."
 
 19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
     word in them. The video must pause on that click, the panel must open with

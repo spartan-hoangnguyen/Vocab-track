@@ -517,6 +517,31 @@ async function parserTests() {
     eq('dayKey is the local date', VT.dayKey(new Date(2026, 0, 5, 23, 59).getTime()), '2026-01-05');
   }
 
+  // --- weak words: first grade per word per day, most lapses first
+  {
+    const D = 24 * 60 * 60 * 1000;
+    const t0 = new Date(2026, 0, 5, 9).getTime();
+    const rows = [
+      { word: 'a', quality: 0, at: t0 },
+      { word: 'a', quality: 0, at: t0 + 60000 },          // same-day re-show
+      { word: 'b', quality: 4, at: t0 },
+      { word: 'b', quality: 0, at: t0 + 60000 },          // a lapse after a pass: not first
+      { word: 'c', quality: 1, at: t0 + D },
+      { word: 'a', quality: 4, at: t0 + 2 * D },
+      { word: 'd', quality: 0, at: t0 + 3 * D }
+    ];
+    eq('dailyFirsts: one row per word per day', VT.dailyFirsts(rows).length, 5);
+    eq('dailyFirsts: keeps the first of the day', VT.dailyFirsts(rows)[1].quality, 4);
+    eq('dailyFirsts: empty input', VT.dailyFirsts([]).length, 0);
+    const weak = VT.weakWords([...rows, { word: 'c', quality: 0, at: t0 + 4 * D }]);
+    eq('weakWords: most lapses first', weak[0].word + weak[0].lapses, 'c2');
+    eq('weakWords: ties go to the latest lapse', weak.slice(1).map((w) => w.word).join(), 'd,a');
+    eq('weakWords: last is the latest lapse', weak[0].last, t0 + 4 * D);
+    check('weakWords: a word with only passing first grades is left out', !weak.some((w) => w.word === 'b'));
+    eq('weakWords: limit', VT.weakWords(rows, 1).length, 1);
+    eq('weakWords: empty input', VT.weakWords([]).length, 0);
+  }
+
   // --- forecast: every return inside the window counts, not just the next one
   {
     const D = 24 * 60 * 60 * 1000;

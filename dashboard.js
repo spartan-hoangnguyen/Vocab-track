@@ -19,6 +19,8 @@ let activeLang = LANG.FALLBACK;
 // is what compares the two.
 let queueLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
+// The last HISTORY_DAYS of grades, every language; render() filters it.
+let reviewLog = [];
 let pins = [];
 // The GIPHY key, mirrored here only so renderCard can decide whether to offer a
 // Find GIF button without an async read per card. giphy.js re-reads storage for
@@ -70,9 +72,9 @@ async function getGiphyKey() {
 }
 
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey] = await Promise.all(
+  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, reviewLog] = await Promise.all(
     [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-     getLang(), getGiphyKey()]);
+     getLang(), getGiphyKey(), getHistory()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -345,7 +347,8 @@ function renderWords(all) {
   const shown = (term
     ? scope.filter((e) => e.word.includes(term) || (e.vi ?? '').toLowerCase().includes(term))
     : scope
-  ).sort((a, b) => b.added - a.added);
+  // An exact match first: searching "cat" should open cat, not category.
+  ).sort((a, b) => (b.word === term) - (a.word === term) || b.added - a.added);
 
   // An imported word list runs to thousands of entries, and a card is 16
   // elements: 1,900 words measured at 30,578 of them, rebuilt on every
@@ -1419,6 +1422,8 @@ async function applyGrade(entry, quality) {
   Object.assign(entry, patch);
   await putWord(entry.word, patch);
   recordReview(entry.word, quality, patch.lastReview);
+  // Mirrored here so Statistics moves without a reload, as `words` does.
+  reviewLog.push({ word: entry.word, quality, at: patch.lastReview });
   words[entry.word] = entry;
   return patch;
 }
@@ -1853,6 +1858,7 @@ function plotSeries(node, series, caption) {
 }
 
 function renderStats(all) {
+  renderWeak(all);
   $('st-sub').textContent = all.length
     ? `${all.length} words · first saved ${new Date(Math.min(...all.map((e) => e.added)))
         .toLocaleDateString()}`
@@ -1928,6 +1934,39 @@ function renderStats(all) {
     count.className = 'n';
     count.textContent = `${n} word${n === 1 ? '' : 's'}`;
     li.append(name, count);
+    list.appendChild(li);
+  }
+}
+
+// Words forgotten most often in the window, each one a way back to its card.
+function renderWeak(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const weak = VT.weakWords(reviewLog.filter((row) => mine.has(row.word)));
+  const list = $('st-weak');
+  list.replaceChildren();
+  if (!weak.length) {
+    const li = document.createElement('li');
+    li.textContent = 'Nothing forgotten in the last 13 weeks.';
+    list.appendChild(li);
+  }
+  for (const { word, lapses, last } of weak) {
+    const li = document.createElement('li');
+    const open = document.createElement('button');
+    open.type = 'button';
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = word;
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `forgot ${lapses}× · ${relative(last)}`;
+    open.append(name, count);
+    open.addEventListener('click', () => {
+      $('q').value = word;
+      activeFolder = null;
+      showView('words');
+      render();
+    });
+    li.appendChild(open);
     list.appendChild(li);
   }
 }
