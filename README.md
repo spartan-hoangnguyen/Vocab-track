@@ -78,6 +78,11 @@ No accounts, no sync, no server. Your words stay in your own Chrome profile.
 
 ## Install
 
+To use it, follow [INSTALL.md](INSTALL.md): add it from the Chrome Web Store,
+no Developer mode.
+
+### For development
+
 No build step, and nothing to install first.
 
 1. Clone or download this repository, then `chrome://extensions` → enable

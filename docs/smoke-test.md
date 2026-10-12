@@ -8,6 +8,10 @@ Ranked by how likely it is to break, from the final whole-branch review.
 
 ## Install
 
+These are the developer (unpacked) steps, and the checks below run against
+that install. The store install, from [INSTALL.md](../INSTALL.md), is checked
+when it is published (T083).
+
 1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
 2. Select `~/work/Vocab-track` (the folder containing `manifest.json`)
 3. Pin the extension — the toolbar icon toggles the side panel, and is how you
