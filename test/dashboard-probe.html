@@ -651,6 +651,71 @@ ready.then(() => setTimeout(async () => {
   window.Audio = RealAudio;
   speechSynthesis.speak = realSpeak;
 
+  /* ---- Speaker: which OS voice ▶ uses, chosen per language ----
+     Headless Chrome has no voices, so a hand-made list stands in, and a plain
+     utterance class, because a real one refuses a hand-made voice. */
+  const OV = (name, lang) => ({ name, lang, voiceURI: 'uri:' + name, localService: true, default: false });
+  const osList = [OV('Yuna', 'ko-KR'), OV('Yuna (Enhanced)', 'ko-KR'), OV('Rocko', 'ko-KR'),
+    OV('Alex', 'en-US'), OV('Tingting', 'zh-CN'), OV('Sinji', 'zh-HK'), OV('Meijia', 'zh-TW')];
+  const realGetVoices = speechSynthesis.getVoices;
+  const RealUtterance = window.SpeechSynthesisUtterance;
+  window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const utts = [];
+  speechSynthesis.speak = (u) => utts.push(u);
+  const speaker = document.getElementById('rv-speaker');
+  const optionNames = () => [...speaker.options].map((o) => o.textContent).join('|');
+  speechSynthesis.getVoices = () => [];
+  await setLang('ko');
+  check('on a cold load the Speaker select holds only Automatic', optionNames() === 'Automatic', optionNames());
+  check('and is shown although Korean has one pack voice',
+        !speaker.parentElement.hidden && document.getElementById('rv-voice').parentElement.hidden);
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('voiceschanged fills it with the Korean voices only',
+        optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+  check('and a language nobody chose for reads Automatic', speaker.value === '', speaker.value);
+  speaker.value = 'uri:Yuna';
+  speaker.dispatchEvent(new Event('change'));
+  check('choosing Yuna saves it under the language',
+        STORE.reviewPrefs.voices?.ko === 'uri:Yuna', JSON.stringify(STORE.reviewPrefs.voices));
+  for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
+  const koEntry = { word: '책', lang: 'ko', audio: null };
+  speakWord(koEntry);
+  check('▶ on a Korean card speaks with Yuna, not the Automatic pick',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna'
+        && bestVoice('ko-KR', osList)?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  pronounce(koEntry);
+  check('and pronounce() with one argument, the side panel’s call, does too',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna', utts.at(-1)?.voice?.name);
+  await setLang('en');
+  check('English lists English voices',
+        optionNames() === 'Automatic|Alex' && speaker.value === '', optionNames());
+  check('and the Korean choice is still stored, with English left Automatic',
+        STORE.reviewPrefs.voices.ko === 'uri:Yuna' && !('en' in STORE.reviewPrefs.voices),
+        JSON.stringify(STORE.reviewPrefs.voices));
+  await setLang('zh');
+  check('Chinese lists the zh-CN voice, not Cantonese or Taiwan', optionNames() === 'Automatic|Tingting', optionNames());
+  await setLang('ko');
+  check('back on Korean the choice is selected', speaker.value === 'uri:Yuna', speaker.value);
+  speechSynthesis.getVoices = () => osList.filter((v) => v.name !== 'Yuna');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('an uninstalled choice reads as Automatic', speaker.value === '', speaker.value);
+  speakWord(koEntry);
+  check('and ▶ falls back to the Automatic pick', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  speaker.value = '';
+  speaker.dispatchEvent(new Event('change'));
+  check('choosing Automatic removes the language’s key',
+        !('ko' in STORE.reviewPrefs.voices), JSON.stringify(STORE.reviewPrefs.voices));
+  for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
+  speakWord(koEntry);
+  check('and ▶ is Automatic again', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  await setLang('en');
+  speechSynthesis.getVoices = realGetVoices;
+  speechSynthesis.speak = realSpeak;
+  window.SpeechSynthesisUtterance = RealUtterance;
+
   // The document-level review keys must not steal a focused control's own.
   startReview('shuf');
   renderCard();

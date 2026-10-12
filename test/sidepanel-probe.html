@@ -266,7 +266,7 @@ ready.then(() => setTimeout(async () => {
      meant Rocko about as often as Yuna. Driven with a hand-made list because
      headless Chrome has no voices at all — getVoices() there is always []. */
   const V = (name, lang, extra = {}) =>
-    ({ name, lang, localService: true, default: false, ...extra });
+    ({ name, lang, voiceURI: name, localService: true, default: false, ...extra });
   const mac = [V('Eddy', 'ko-KR'), V('Flo', 'ko-KR'), V('Grandma', 'ko-KR'),
     V('Rocko', 'ko-KR'), V('Yuna', 'ko-KR', { default: true }),
     V('Alex', 'en-US', { default: true })];
@@ -304,6 +304,12 @@ ready.then(() => setTimeout(async () => {
         bestVoice('en-US', enMac)?.name === 'Samantha', bestVoice('en-US', enMac)?.name);
   check('a system voice beats a Google network voice for the same region',
         bestVoice('zh-CN', [V('Google 普通话（中国大陆）', 'zh-CN', { localService: false }), V('Tingting', 'zh-CN')], true)?.name === 'Tingting');
+
+  check('voicesFor lists every voice of the language, novelty ones included',
+        voicesFor('ko-KR', mac).map((v) => v.name).join() === 'Eddy,Flo,Grandma,Rocko,Yuna');
+  check('and an exact zh-CN ask lists no Cantonese or Taiwan voice',
+        voicesFor('zh-CN', [V('Sinji', 'zh-HK'), V('Meijia', 'zh-TW'), V('Tingting', 'zh_CN')], true)
+          .map((v) => v.name).join() === 'Tingting');
 
   /* ---- Chinese: Mandarin from mainland China, never Cantonese ---- */
   const zhVoice = LANG.get('zh').voices[0];

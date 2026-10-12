@@ -26,7 +26,8 @@ let pins = [];
 let giphyKey = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
-const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
+// `voices` is { [packId]: voiceURI }; a language with no key is Automatic.
+const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10, voices: {} };
 let prefs = { ...REVIEW_DEFAULTS };
 
 function showView(name) {
@@ -1649,6 +1650,15 @@ function renderPrefs() {
   // silently keep the select empty. The options are built first for the same
   // reason: a value with no matching option does not stick.
   voice.value = voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id;
+
+  // Not the accent's hide rule: Korean has one pack voice and many OS voices.
+  // A stored URI for a voice since uninstalled has no option and reads as
+  // Automatic, which is also what speak() falls back to.
+  const os = voicesFor(voices[0].bcp47, globalThis.speechSynthesis?.getVoices() ?? [], voices[0].exact);
+  const speaker = $('rv-speaker');
+  speaker.replaceChildren(new Option('Automatic', ''), ...os.map((v) => new Option(v.name, v.voiceURI)));
+  const stored = prefs.voices?.[activeLang];
+  speaker.value = os.some((v) => v.voiceURI === stored) ? stored : '';
 }
 
 // A click moves focus off the typing box; give it back, or the next letters
@@ -1674,6 +1684,15 @@ $('rv-voice').addEventListener('change', (event) => {
   setReviewPrefs({ accent: event.target.value });
   refocusCard();
 });
+$('rv-speaker').addEventListener('change', (event) => {
+  // Merged, never replaced: the other languages keep their choice.
+  const voices = { ...prefs.voices, [activeLang]: event.target.value };
+  if (!event.target.value) delete voices[activeLang];
+  setReviewPrefs({ voices });
+  refocusCard();
+});
+// getVoices() is [] on a cold load and fills in later.
+globalThis.speechSynthesis?.addEventListener('voiceschanged', renderPrefs);
 
 function renderStar(entry) {
   const on = VT.foldersOf(entry).includes(VT.STARRED);

@@ -123,6 +123,8 @@ only real one. The extension now names the voice it wants instead of letting
 Chrome pick among the nine, but it can only pick from what is installed:
 **System Settings → Accessibility → Spoken Content → System Voice → Manage
 Voices → Korean → Yuna (Enhanced)** is the download that makes the difference.
+Then pick it in **Review → Speaker** with Korean active, so ▶ uses it on
+purpose rather than because the automatic pick happened to land on it.
 An enhanced recording is preferred over the system default automatically once
 it is there.
 
@@ -590,14 +592,13 @@ manual checklist for it.
   the `\p{L}` pivot classes both hold on Hangul, but the focal-letter formula is
   calibrated to Latin letter widths and the long-word beat never fires on an
   어절, which is rarely over four characters.
-- **The voice is chosen by name, and the name list is macOS's.** Chrome picks
-  a voice for you when an utterance names only a language, and it picks badly
-  where a language has novelty voices installed. The pick is now explicit —
-  an enhanced recording, then the system default, then anything local — with
-  the known macOS novelty names filtered out. That list goes stale when Apple
-  renames one, and it says nothing about Windows or Linux, where the rest of
-  the ordering still applies. A real voice picker in the review preferences is
-  the upgrade path.
+- **Automatic voice choice filters by name, and the name list is macOS's.**
+  The review preferences have a **Speaker** select per language, listing the
+  voices the machine actually has. A language left on *Automatic* gets an
+  explicit pick — an enhanced recording, then the system default, then
+  anything local — with the known macOS novelty names filtered out. That list
+  goes stale when Apple renames one, and it says nothing about Windows or
+  Linux, where the rest of the ordering still applies.
 - **A gloss that never arrived is re-asked on every click.** The translation
   endpoint rate-limits, so a word saved during a bad minute keeps no meaning —
   looking it up again now retries rather than answering from storage. The cost

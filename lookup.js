@@ -203,12 +203,23 @@ function voiceHint(pack) {
 // mp3 and only falls through to synthesis when there is none; a Korean word
 // has no mp3 at all, so synthesis IS the feature there.
 //
-// ponytail: a name list, and macOS's. It goes stale when Apple renames one,
-// and it says nothing about Windows or Linux — where the filters below still
-// do the useful half. The upgrade path is a real voice picker in the review
-// preferences, listing what the machine actually has; this is the version
-// that needs no UI and no stored preference.
+// The review preferences' Speaker select (reviewPrefs.voices) is the real
+// choice now. This name list only shapes Automatic, the pick for a language
+// nobody chose a voice for. It goes stale when Apple renames one, and it says
+// nothing about Windows or Linux — where the filters below still do the
+// useful half.
 const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred|Good News|Grandma|Grandpa|Jester|Junior|Kathy|Organ|Reed|Rocko|Sandy|Shelley|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
+
+const normTag = (t) => String(t ?? '').toLowerCase().replace(/_/g, '-');
+
+// Every voice that speaks `tag`'s language: the Speaker select's options, and
+// the pool bestVoice() picks from.
+function voicesFor(tag, voices, exact = false) {
+  const want = exact ? normTag(tag) : normTag(tag).split('-')[0];
+  if (!want) return [];
+  return (voices ?? [])
+    .filter((v) => (exact ? normTag(v.lang) : normTag(v.lang).split('-')[0]) === want);
+}
 
 // Pure, so the probe can drive it with a hand-made list: headless Chrome has
 // no voices at all and getVoices() there is always [].
@@ -222,17 +233,13 @@ const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred
 // `exact` asks for the whole tag (zh-CN), for a pack whose regions are
 // different languages: a zh-HK voice speaks Cantonese.
 function bestVoice(tag, voices, exact = false) {
-  const norm = (t) => String(t ?? '').toLowerCase().replace(/_/g, '-');
-  const want = exact ? norm(tag) : norm(tag).split('-')[0];
-  if (!want) return null;
-  const matching = (voices ?? [])
-    .filter((v) => (exact ? norm(v.lang) : norm(v.lang).split('-')[0]) === want);
+  const matching = voicesFor(tag, voices, exact);
   const serious = matching.filter((v) => !NOVELTY.test(v.name ?? ''));
   const any = serious.length ? serious : matching;
   // The asked-for region first when the machine has it: the language matches
   // on its primary subtag above, so without this a UK word was read by
   // Samantha, the en-US system default, while Daniel (en-GB) sat unused.
-  const regional = any.filter((v) => norm(v.lang) === norm(tag));
+  const regional = any.filter((v) => normTag(v.lang) === normTag(tag));
   const pool = regional.length ? regional : any;
   return pool.find((v) => /premium|enhanced|siri/i.test(v.name ?? ''))
     ?? pool.find((v) => v.default)
@@ -249,17 +256,31 @@ function bestVoice(tag, voices, exact = false) {
 // voice from every press after it.
 globalThis.speechSynthesis?.getVoices();
 
+// reviewPrefs.voices, { [packId]: voiceURI }, mirrored here so speak() stays
+// synchronous: it runs inside click handlers and its callers want the boolean.
+// A store from before the picker has no `voices`, and that is Automatic.
+let chosenVoices = {};
+Promise.resolve(globalThis.chrome?.storage?.local?.get('reviewPrefs'))
+  .then((got) => { chosenVoices = got?.reviewPrefs?.voices ?? {}; });
+globalThis.chrome?.storage?.onChanged?.addListener((changes, area) => {
+  if (area === 'local' && changes.reviewPrefs) chosenVoices = changes.reviewPrefs.newValue?.voices ?? {};
+});
+
 function speak(word, accent = 'uk', lang) {
-  const voices = LANG.pick(lang, word).voices;
+  const pack = LANG.pick(lang, word);
+  const voices = pack.voices;
   // reviewPrefs.accent is ONE string across every language, so a profile that
   // picked US in English arrives here with 'us' on a Korean word. Falling back
   // to the pack's first voice is what makes that an accent that does not apply
   // rather than utterance.lang = undefined.
   const voice = voices.find((v) => v.id === accent) ?? voices[0];
   const list = speechSynthesis.getVoices();
-  // Named explicitly rather than left to Chrome — see bestVoice above. Null
-  // is a legal value and means "you choose", which is where this started.
-  const chosen = bestVoice(voice.bcp47, list, voice.exact);
+  // The voice picked in the review preferences, while it is still installed
+  // and still speaks this language; otherwise Automatic — see bestVoice above.
+  // Null is a legal value and means "you choose", which is where this started.
+  const uri = chosenVoices[pack.id];
+  const picked = uri ? voicesFor(voice.bcp47, list, voice.exact).find((v) => v.voiceURI === uri) : null;
+  const chosen = picked ?? bestVoice(voice.bcp47, list, voice.exact);
   // The OS has voices and none of them speaks this language: Chrome would
   // stay silent (or, for zh, reach for Cantonese), so say nothing and answer
   // false — the caller owns the surface to show voiceHint() on. An EMPTY list
