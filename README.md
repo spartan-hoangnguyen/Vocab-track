@@ -19,7 +19,7 @@ Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, with no dictionary behind it yet. See
 *Languages* below, which says plainly what it does and does not do.
 
-Built for one person. No accounts, no sync, no server.
+No accounts, no sync, no server. Your words stay in your own Chrome profile.
 
 | Side panel | Dashboard |
 |---|---|
@@ -417,6 +417,8 @@ the same licence.
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
+The policy for the store version, written for someone who did not build it,
+is [PRIVACY.md](PRIVACY.md).
 
 Five things leave your browser, each only when you do something that needs it:
 
@@ -443,7 +445,8 @@ Two permissions look broader than they are:
 - **`<all_urls>`** — the content script has to be on the page you are reading
   for a click to look a word up, and there is no way to know in advance which
   page that is. It reads the word you clicked. It sends nothing on its own.
-- **`nativeMessaging`** — macOS capture only. It talks to `tools/vocab-host.py`
+- **`nativeMessaging`** — developer install only: `tools/package.sh` drops it
+  from the store build. macOS capture only. It talks to `tools/vocab-host.py`
   on your own machine, which is a queue file the Quick Action writes to. It is
   inert until you run `tools/install-macos.sh`, and nothing leaves the machine.
 
