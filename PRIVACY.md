@@ -25,12 +25,14 @@ else.
 
 ## What leaves your browser
 
-Seven things leave your browser, each only when you do something that needs it:
+Nine things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
 | You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
+| Google Translate fails, and you set a translation key | `translation.googleapis.com` | the word and your key, for the same gloss |
+| Google Translate fails or rate-limits that lookup | `api.mymemory.translated.net` | the word, for the same gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
@@ -53,6 +55,11 @@ under **Off on these sites** on the same page.
 **GIFs are off until you add your own GIPHY API key.** The key stays in
 `chrome.storage.local` and is never part of an export. Nothing is sent to
 GIPHY until you press the button on a review card.
+
+**The Google Cloud Translation key is optional.** It stays in
+`chrome.storage.local` and is never part of an export. Nothing is sent to
+`translation.googleapis.com` until you add one, and then only when the free
+Google endpoint fails.
 
 **Korean sends nothing to krdict until you add your own krdict key.** The key
 stays in `chrome.storage.local` and is never part of an export. Without a key,
