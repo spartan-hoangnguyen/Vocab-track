@@ -150,6 +150,15 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #giphy-key{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--rule);
            border-radius:9px;background:var(--panel);color:var(--ink);
            font:13px ui-monospace,Menlo,monospace}
+/* The AnkiConnect origin, shown to copy verbatim: wraps rather than overflowing
+   the card, and selectable as one token. */
+#anki-origin{display:inline-block;word-break:break-all;user-select:all;
+             font:12px ui-monospace,Menlo,monospace;background:var(--panel);
+             border:1px solid var(--rule);border-radius:6px;padding:4px 7px;color:var(--ink2)}
+.anki-deckrow{display:flex;align-items:center;gap:9px;margin:14px 0 0}
+.anki-deckrow label{font-size:13px;color:var(--ink2)}
+#anki-deck{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);
+           border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
@@ -402,6 +411,10 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .wc-link:hover{color:var(--ink);border-bottom-color:var(--ink3)}
 .tag.clickable{cursor:pointer}
 .tag.clickable:hover{background:var(--tag-hi);color:var(--ink)}
+/* A word already pushed to Anki: a quiet green tick. .anki-err flags a push
+   that failed, with the reason in the tag's title. */
+.tag.anki-on{color:#2f7d4f}
+.tag.anki-err{color:#c0392b}
 
 /* Words that arrived from another Mac app while the dashboard was shut. */
 .capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);

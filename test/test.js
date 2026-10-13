@@ -273,6 +273,61 @@ async function fixtureJson(name) {
   return res.json();
 }
 
+// --- backup: backupPayload / mergeWord / mergeHistory
+{
+  const dump = {
+    words: { cat: { word: 'cat' } }, folders: { f_a: { id: 'f_a' } }, pins: ['f_a'],
+    giphyKey: 'secret', theme: 'night', 'history:2026-10-01': [['cat', 4, 5]],
+    practice: { day: 'x', counts: { quiz: 1 }, misses: { cat: 2 } }
+  };
+  const p = VT.backupPayload(dump, Date.UTC(2026, 9, 12));
+  eq('backup is version 2', p.version, 2);
+  eq('backup keeps the history day', JSON.stringify(p.history), '{"2026-10-01":[["cat",4,5]]}');
+  check('backup drops giphyKey and theme', !('giphyKey' in p) && !('theme' in p)
+        && !JSON.stringify(p).includes('secret'));
+  eq('backup carries pins', p.pins.join(), 'f_a');
+  eq('backup carries only practice misses', JSON.stringify(p.practiceMisses), '{"cat":2}');
+  check('backup keeps v1 keys', p.words.cat && p.folders.f_a && p.exported === '2026-10-12T00:00:00.000Z');
+
+  const local = { folders: ['a'], sources: ['u1'], due: 10, interval: 1, reps: 1,
+                  stability: 1, difficulty: 5, lastReview: 100 };
+  const newer = { folders: ['b'], sources: ['u2'], due: 99, interval: 9, reps: 4,
+                  stability: 9, difficulty: 3, lastReview: 200 };
+  const m1 = VT.mergeWord(local, newer);
+  check('mergeWord takes a newer schedule',
+        VT.SCHEDULE_FIELDS.every((f) => m1[f] === newer[f]));
+  eq('mergeWord unions folders on newer', m1.folders.join(), 'a,b');
+  const m2 = VT.mergeWord(local, { ...newer, lastReview: 50 });
+  check('mergeWord keeps the local schedule against an older one',
+        VT.SCHEDULE_FIELDS.every((f) => !(f in m2)));
+  eq('mergeWord unions sources on older', m2.sources.join(), 'u1,u2');
+  const m3 = VT.mergeWord(local, { folders: ['c'], due: 1, interval: 0, reps: 0 });
+  check('mergeWord keeps the local schedule for a list entry (no lastReview)',
+        VT.SCHEDULE_FIELDS.every((f) => !(f in m3)));
+  eq('mergeWord unions folders for a list entry', m3.folders.join(), 'a,c');
+  eq('mergeWord on a word with no folders keeps From reading',
+     VT.mergeWord({}, { folders: ['x'] }).folders.join(), 'reading,x');
+
+  const h = VT.mergeHistory([['a', 4, 3], ['b', 3, 1]], [['b', 3, 1], ['c', 5, 2]]);
+  eq('mergeHistory dedupes and sorts', JSON.stringify(h), '[["b",3,1],["c",5,2],["a",4,3]]');
+  eq('mergeHistory with one side missing', VT.mergeHistory(undefined, [['a', 4, 1]]).length, 1);
+
+  eq('backupFileName is a dated file under vocab-track',
+     VT.backupFileName(new Date(2026, 9, 5, 23, 59).getTime()), 'vocab-track/backup-2026-10-05.json');
+  const dl = (id, day) => ({ id, filename: `/Users/me/Downloads/vocab-track/backup-2026-10-${day}.json` });
+  const nine = ['01', '02', '03', '04', '05', '06', '07', '08', '09'].map((d, i) => dl(i + 1, d));
+  const pr = VT.backupsToPrune(nine, 7);
+  eq('backupsToPrune removes the two oldest of nine days', pr.remove.sort().join(), '1,2');
+  eq('backupsToPrune erases nothing else', pr.erase.length, 0);
+  const today = [dl(10, '09'), dl(11, '09'), dl(12, '09'), dl(3, '01')];
+  const pt = VT.backupsToPrune(today, 7);
+  eq('backupsToPrune erases older entries of the same day, keeping the newest',
+     pt.erase.sort().join(), '10,11');
+  eq('backupsToPrune never deletes a kept day\'s file', pt.remove.length, 0);
+  eq('backupsToPrune ignores other files',
+     VT.backupsToPrune([{ id: 1, filename: '/x/vocab-track/notes.json' }], 0).remove.length, 0);
+}
+
 async function parserTests() {
   // --- the Korean dictionary pack. Here rather than at the top level only
   // because lookup() is async and this file is a classic script.
@@ -358,7 +413,7 @@ async function parserTests() {
   // The level is not in the Datamuse response; it comes from the bundled CEFR
   // list (lang/en/cefr.js), which parse() reads by the word.
   eq('resilient level comes from the CEFR list', resilient.level, 'C1');
-  eq('resilient has no IPA', resilient.ipa, null);
+  eq('resilient IPA is rebuilt from the CMU pronunciation', resilient.ipa, 'rɪˈzɪljənt');
   eq('resilient has no recorded audio', resilient.audio, null);
   eq('nor a second recording', resilient.audioUs, null);
   eq('resilient part of speech is expanded from the tag', resilient.pos, 'adjective');
@@ -418,6 +473,37 @@ async function parserTests() {
   check('and sits in its level folder',
         hskWords.every((e) => e.folders[0] === `zh-hsk${e.level.slice(4)}`));
   eq('学生 is in it at HSK 1', hsk.words['学生']?.level, 'HSK 1');
+
+  // --- ARPAbet (CMU) -> IPA, the pronunciation rebuilt from Datamuse md=r.
+  const ipa = enDict.arpaToIpa;
+  eq('arpaToIpa places stress before the onset', ipa('HH AE1 P IY0'), 'ˈhæpi');
+  eq('arpaToIpa handles a cluster onset', ipa('S T R AE1 T AH0 JH IY0'), 'ˈstrætədʒi');
+  eq('arpaToIpa reduces an unstressed AH to schwa', ipa('R IH0 Z IH1 L Y AH0 N T'), 'rɪˈzɪljənt');
+  eq('arpaToIpa is null on empty input', ipa(''), null);
+  eq('arpaToIpa is null on unknown phonemes', ipa('?? !!'), null);
+
+  // --- the frequency estimate: a level for a word the curated list lacks.
+  const f2l = enDict.freqToLevel;
+  eq('a very frequent word estimates A1', f2l(407), 'A1');
+  eq('a mid word estimates B1', f2l(12), 'B1');
+  eq('a rare word estimates C2', f2l(0.9), 'C2');
+  eq('no frequency is no level', f2l(0), null);
+
+  // A listed word keeps its exact level and is not marked estimated.
+  eq('resilient is exact, not estimated', resilient.levelEst, false);
+  // A word the list lacks takes the frequency estimate, marked estimated.
+  const est = enDict.parse(
+    { word: 'ubiquitous', defs: ['adj\tseeming to be everywhere'], tags: ['adj', 'f:2.7'] }, []);
+  eq('an unlisted word gets a level from frequency', est.level, 'C1');
+  check('and it is marked estimated', est.levelEst === true);
+  const noLvl = enDict.parse({ word: 'zxqwv', defs: ['n\tx'], tags: ['n'] }, []);
+  eq('an unlisted word with no frequency has no level', noLvl.level, null);
+  check('and is not marked estimated', noLvl.levelEst !== true);
+
+  // levelText marks an estimate with a trailing ~, for display only.
+  eq('levelText marks an estimate', VT.levelText({ level: 'C1', levelEst: true }), 'C1~');
+  eq('levelText leaves an exact level bare', VT.levelText({ level: 'B2' }), 'B2');
+  eq('levelText is null with no level', VT.levelText({ level: null }), null);
 
   // --- diffWord
   const shown = (marks) => marks.map((m) => (m.ok ? m.text : `[${m.text}]`)).join('');
@@ -1179,6 +1265,42 @@ async function parserTests() {
   check('the gloss chain asks google', /translate\.googleapis\.com\/translate_a\/single/.test(lookupCode));
   check('and falls back to mymemory', /api\.mymemory\.translated\.net\/get/.test(lookupCode));
   check('and, with a key, the cloud api', /translation\.googleapis\.com\/language\/translate\/v2/.test(lookupCode));
+
+  // --- push to Anki (anki.js). The pure note builder only; ankiInvoke is
+  // network. Anki renders a field as HTML, so third-party text must be escaped.
+  eq('escapeHtml neutralises angle brackets', escapeHtml('<b>'), '&lt;b&gt;');
+  eq('escapeHtml neutralises ampersand and quotes', escapeHtml('a&"\''), 'a&amp;&quot;&#39;');
+  eq('ankiTag strips spaces', ankiTag('IELTS C1'), 'IELTS_C1');
+
+  const aNote = ankiNote(
+    { word: 'resilient', lang: 'en', ipa: 'rɪˈzɪljənt', vi: 'kiên cường',
+      def: 'able to recover', level: 'C1', senses: [{ example: 'a resilient girl' }] },
+    'Vocab-track::English', ['IELTS C1']);
+  eq('the front is the bare word, for stable dedupe', aNote.fields.Front, 'resilient');
+  eq('the note uses the Basic model', aNote.modelName, 'Basic');
+  eq('and the deck it was given', aNote.deckName, 'Vocab-track::English');
+  check('the back carries the meaning', aNote.fields.Back.includes('kiên cường'));
+  check('the back carries the IPA', aNote.fields.Back.includes('/rɪˈzɪljənt/'));
+  check('the back carries the example', aNote.fields.Back.includes('a resilient girl'));
+  check('a re-push skips duplicates', aNote.options.allowDuplicate === false);
+  check('tags carry the source, language and folder',
+        aNote.tags.includes('vocab-track') && aNote.tags.includes('lang::en')
+        && aNote.tags.includes('IELTS_C1'));
+
+  // The injection path: a gloss or definition from the translator, rendered as
+  // HTML in Anki. It must come out escaped, never as a live tag.
+  const aEvil = ankiNote({ word: 'w', lang: 'en', def: '<img src=x onerror=alert(1)>' }, 'D');
+  check('a definition cannot smuggle a live tag into Anki',
+        !aEvil.fields.Back.includes('<img src=x onerror')
+        && aEvil.fields.Back.includes('&lt;img src=x onerror=alert(1)&gt;'),
+        aEvil.fields.Back);
+
+  // The GIF is the one allowed <img>, and only when VT.giphyOk passes its URL.
+  const aGif = ankiNote({ word: 'w', lang: 'en', gif: 'https://media.giphy.com/media/a/200.gif' }, 'D');
+  check('a valid giphy url becomes an image',
+        aGif.fields.Back.includes('<img src="https://media.giphy.com/media/a/200.gif"'));
+  const aBadGif = ankiNote({ word: 'w', lang: 'en', gif: 'https://evil.test/x.gif' }, 'D');
+  check('an off-giphy gif url is never an image', !aBadGif.fields.Back.includes('<img'));
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

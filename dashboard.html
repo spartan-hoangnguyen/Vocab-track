@@ -333,17 +333,20 @@
   <!-- Import / export -->
   <section id="view-io" hidden>
     <h1>Import &amp; export</h1>
-    <div class="sub">Your words live only in this browser profile. Export is the backup.</div>
+    <div class="sub">Your words live only in this browser profile. A backup file is written
+       to Downloads/vocab-track a minute after you change them; seven days are kept.</div>
+    <p class="note" id="backup-status">No automatic backup yet.</p>
     <div class="iocards">
       <div class="iocard">
         <h3>Export</h3>
-        <p>Downloads every word and folder as one JSON file.</p>
+        <p>Downloads your words, folders, pins, review history and practice
+           misses as one JSON file. Your GIPHY key is never included.</p>
         <button class="btn" id="export-btn">Export JSON</button>
       </div>
       <div class="iocard">
         <h3>Import</h3>
-        <p>Merges by word. Existing entries keep their review schedule;
-           folders are combined. Nothing is overwritten.</p>
+        <p>Merges by word. When both sides have a word, the more recently
+           reviewed schedule wins; folders are combined.</p>
         <input type="file" id="import-file" accept="application/json,.json">
         <div class="note" id="io-note"></div>
       </div>
@@ -368,6 +371,24 @@
            target="_blank" rel="noreferrer">Cloud Console → Credentials</a>.</p>
         <input type="text" id="translate-key" placeholder="Google Cloud Translation API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="iocard">
+        <h3>Push to Anki</h3>
+        <p>Create Anki cards (word → meaning) from your
+           <b id="anki-lang">English</b> words, through the AnkiConnect add-on.
+           Open the Anki desktop app first. One-time setup: add this origin to
+           AnkiConnect's <code>webCorsOriginList</code> (Anki → Tools → Add-ons →
+           AnkiConnect → Config), then restart Anki.</p>
+        <p><code id="anki-origin"></code></p>
+        <p class="anki-deckrow">
+          <label for="anki-deck">Deck</label>
+          <select id="anki-deck"></select>
+        </p>
+        <div class="dlgrow">
+          <button class="btn ghost" id="anki-test">Test connection</button>
+          <button class="btn" id="anki-push">Push to Anki</button>
+        </div>
+        <div class="note" id="anki-note"></div>
       </div>
     </div>
   </section>
@@ -424,6 +445,7 @@
 <script src="store.js"></script>
 <script src="lookup.js"></script>
 <script src="giphy.js"></script>
+<script src="anki.js"></script>
 <script src="practice.js"></script>
 <script src="practice-quiz.js"></script>
 <script src="practice-listening.js"></script>

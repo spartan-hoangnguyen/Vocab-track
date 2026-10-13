@@ -694,6 +694,79 @@ const VT = {
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];
   },
 
+  // The fields VT.schedule() owns. mergeWord is the one place that moves them
+  // between two copies of a word, so the backup and any later sync agree.
+  SCHEDULE_FIELDS: ['interval', 'reps', 'due', 'stability', 'difficulty', 'lastReview'],
+
+  // What Export writes and Import (and the automatic backup) reads, from a
+  // chrome.storage.local.get(null) dump. The v1 keys stay at the top so old
+  // readers still see a word list. Per-machine settings and caches (theme,
+  // lang, giphyKey, ...) are left out on purpose: the GIPHY key never leaves.
+  backupPayload(dump, now = Date.now()) {
+    const history = {};
+    for (const [key, rows] of Object.entries(dump)) {
+      if (key.startsWith('history:') && Array.isArray(rows)) history[key.slice(8)] = rows;
+    }
+    return {
+      version: 2,
+      exported: new Date(now).toISOString(),
+      words: dump.words ?? {},
+      folders: dump.folders ?? {},
+      pins: Array.isArray(dump.pins) ? dump.pins : [],
+      history,
+      practiceMisses: dump.practice?.misses ?? {}
+    };
+  },
+
+  // The patch for a word both sides have. Membership and sources are unioned;
+  // the schedule comes whole from whichever side reviewed it last, so an old
+  // backup never rolls a schedule back. A word list carries no lastReview, so
+  // it never moves a local schedule.
+  mergeWord(existing, incoming) {
+    const patch = {
+      folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
+      sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
+    };
+    if (incoming.lastReview > (existing.lastReview ?? 0)) {
+      for (const f of VT.SCHEDULE_FIELDS) if (f in incoming) patch[f] = incoming[f];
+    }
+    return patch;
+  },
+
+  // The automatic backup's path under Downloads: one file per local day.
+  backupFileName(now = Date.now()) {
+    return `vocab-track/backup-${VT.dayKey(now)}.json`;
+  },
+
+  // Which backup downloads to clean up, from chrome.downloads.search items.
+  // `remove`: every item of a day older than the newest `keep` days (delete the
+  // file and its entry). `erase`: older entries of a kept day — overwriting
+  // today's file adds a download entry each time, and they all name the same
+  // file, so only the entry may go, never the file.
+  backupsToPrune(items, keep = 7) {
+    const dayOf = (item) => /backup-(\d{4}-\d{2}-\d{2})\.json$/.exec(item.filename ?? '')?.[1];
+    const dated = items.filter(dayOf).sort((a, b) => b.id - a.id);
+    const days = [...new Set(dated.map(dayOf))].sort().reverse();
+    const kept = new Set(days.slice(0, keep));
+    const remove = [];
+    const erase = [];
+    const seen = new Set();
+    for (const item of dated) {
+      const day = dayOf(item);
+      if (!kept.has(day)) remove.push(item.id);
+      else if (seen.has(day)) erase.push(item.id);
+      seen.add(day);
+    }
+    return { remove, erase };
+  },
+
+  // One day's review rows ([word, quality, at]) from two sides, deduped.
+  mergeHistory(a = [], b = []) {
+    const seen = new Map();
+    for (const row of [...a, ...b]) seen.set(JSON.stringify(row.slice(0, 3)), row);
+    return [...seen.values()].sort((x, y) => x[2] - y[2]);
+  },
+
   // Folder ids are generated, never derived from the name, so renaming a
   // folder cannot strand the words that point at it.
   newFolder(name, { color = 'sage', icon = '\u{1F4C1}', desc = '', lang = null } = {}) {
@@ -990,6 +1063,15 @@ const VT = {
     return order[ranks[Math.floor(ranks.length / 2)]];
   },
 
+  // The level as shown on a card: the bare level, with a trailing ~ when it was
+  // estimated from frequency rather than read from the curated list. Null when
+  // there is no level at all. The charts bucket on the bare `level`, so this is
+  // display only.
+  levelText(entry) {
+    if (!entry?.level) return null;
+    return entry.level + (entry.levelEst ? '~' : '');
+  },
+
   // `lang` is the pack the word belongs to. Detected from the script when not
   // given, so a caller that predates languages — tools/ielts-parse.html, the
   // tests — keeps producing exactly what it did before. `viSource` is the id of
@@ -1001,6 +1083,10 @@ const VT = {
       lang: lang ?? LANG.detect(word)?.id ?? LANG.FALLBACK,
       folders: [VT.READING],
       level: parsed.level,
+      // Only written when the level was estimated from frequency rather than
+      // read from the curated list, so no stray field sits on every word (a
+      // keyless Korean import has no estimate at all). The UI marks it.
+      ...(parsed.levelEst ? { levelEst: true } : {}),
       ipa: parsed.ipa,
       def: parsed.def,
       audio: parsed.audio,

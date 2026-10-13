@@ -13,14 +13,19 @@ profile you installed it in. That is your saved words, the sentence you met
 each word in, the address of the page it came from, your review schedule, your
 folders, the writing mistakes you make most often, and your settings. None of
 it is uploaded. There is no account, no sync and no Vocab-track server.
-Removing the extension deletes all of it.
+Removing the extension deletes all of it, except the automatic backups.
+
+The automatic backup is a copy of your words in your own Downloads folder, in
+`Downloads/vocab-track/backup-<date>.json`. The extension writes it a minute
+after you change your words and keeps the last seven. It is not uploaded, and
+it stays after you remove the extension until you delete it.
 
 An export is a file you save yourself. It goes where you put it and nowhere
 else.
 
 ## What leaves your browser
 
-Five things leave your browser, each only when you do something that needs it:
+Six things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -29,6 +34,7 @@ Five things leave your browser, each only when you do something that needs it:
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, through AnkiConnect |
 
 Each of these services gets the request directly from your browser, so it also
 sees your IP address, as with any web request. Their own privacy policies

@@ -138,9 +138,16 @@ Open it from **Open dashboard →** in the side panel.
     without a reload.
 
 17. **Export, then import the same file back.** Nothing should duplicate, and
-    your review schedules must be unchanged — import merges and deliberately
-    never overwrites `ease`/`interval`/`reps`/`due`. Then edit the JSON to add a
-    word by hand and re-import to confirm new entries are added.
+    your review schedules must be unchanged — for a word both sides have, the
+    more recently reviewed schedule wins, and here they are the same. Then edit
+    the JSON to add a word by hand and re-import to confirm new entries are added.
+
+17a. **Automatic backup.** Grade one card, wait a minute, then
+    `ls -l ~/Downloads/vocab-track/`: `backup-<today>.json` is there, newer than
+    the grade, with no download bubble shown for it. Download any file from a
+    website right after — its bubble must still show. **Import & export** names
+    the file under *Last automatic backup*. Grade twenty cards in a row: one
+    write about a minute after the last, not twenty.
 
 18. **Statistics.** With only a few days of data the charts will be mostly empty;
     that is correct, not a bug. Confirm "Review load" folds everything overdue

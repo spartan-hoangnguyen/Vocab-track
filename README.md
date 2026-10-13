@@ -7,9 +7,12 @@ Select a word on any page, click the button that appears, and the side panel
 shows what the dictionary has. For English that is a Datamuse entry: the
 definition of each sense, the part of speech, and synonyms, alongside a
 Vietnamese translation and **the sentence you met it in**. The CEFR level comes
-from a bundled word list, because no lookup carries it. There is no IPA and no
-recorded audio from this source. The play button speaks the word with the system
-voice, and the **Wiktionary ↗** link opens the full entry.
+from a bundled word list, because no lookup carries it. A word the list does not
+have gets a level estimated from its frequency, marked with a `~`. The IPA is
+rebuilt from
+the word's CMU pronunciation. There is no recorded audio from this source. The
+play button speaks the word with the system voice, and the **Wiktionary ↗** link
+opens the full entry.
 Cambridge put a bot wall in front of its pages that a background request cannot
 pass, so the lookup moved to a keyless source. Saved words are highlighted on
 every page you read, not only the one you saved them from, and reviewed as
@@ -81,7 +84,10 @@ No accounts, no sync, no server. Your words stay in your own Chrome profile.
   Cambridge definitions, pronunciation and an example sentence on every card.
   See *Word lists* below. `data/phrasal-verbs.json` does the same for 1,058
   common phrasal verbs.
-- **Own your data.** Export and re-import the whole store as JSON.
+- **Own your data.** Export downloads one JSON file with your words and their
+  review schedules, folders, pins, review history and practice misses (never
+  your GIPHY key). Import merges it back: when both sides have a word, the more
+  recently reviewed schedule wins, so an old backup never rolls a word back.
 
 ## Install
 
@@ -250,6 +256,32 @@ effect in every open tab straight away. LanguageTool is open source and
 self-hostable; pointing `LT_URL` in `service-worker.js` at your own container
 is the whole change if you ever want nothing to leave the machine at all.
 
+## Push to Anki
+
+The dashboard can create Anki cards from your words, through the AnkiConnect
+add-on. Each card shows the word on the front. The back shows the meaning, the
+definition, an example, the level and the GIF. The review schedule stays in
+Vocab-track. Anki runs its own.
+
+Set it up once:
+
+1. Install the **AnkiConnect** add-on in the Anki desktop app. Its code is
+   `2055492159`.
+2. Open **Import & export → Push to Anki** in the dashboard. Copy the origin it
+   shows.
+3. In Anki, open **Tools → Add-ons → AnkiConnect → Config**. Add that origin to
+   `webCorsOriginList`. Restart Anki.
+
+Open Anki, then press **Test connection**. This loads your Anki decks into the
+picker. Choose one of your decks, or keep the new `Vocab-track` deck the picker
+offers. Then press **Push to Anki**. It pushes the words for the language the
+toggle shows. A re-push adds only new words, because a word already in that deck
+is skipped.
+
+Each word card also carries its own Push to Anki control, so you can push one
+word on its own. A word already in Anki shows a **✓ Anki** badge. The badge's
+tooltip names the deck. A per-word push uses the deck the picker holds.
+
 ## Word lists
 
 **The two English lists are not committed here — you build them.** Their
@@ -277,8 +309,9 @@ say the same thing. Both run the same FSRS-6 review as everything else.
 
 The cards do not all arrive at once. Twenty become due a day, C1 first, so the
 file behaves like a course rather than a wall — the last word is due in 97 days,
-and FSRS takes over from there. Importing twice does not reset that: an existing
-word is never overwritten.
+and FSRS takes over from there. Importing twice does not reset that: a list
+carries no review date, so an existing word keeps its schedule (only a backup
+with a newer review moves it).
 
 The countdown starts from the day the file was **built**, not the day you
 import it: a file left for three months arrives with every card already due.
@@ -312,9 +345,15 @@ two open sources through [Open Language Profiles](https://github.com/openlanguag
 The CEFR-J Vocabulary Profile 1.5 covers A1 to B2. It is from Tono Laboratory at
 Tokyo University of Foreign Studies, free to use with citation. The Octanove
 Vocabulary Profile C1/C2 1.0 covers C1 and C2, under CC BY-SA 4.0. A word takes
-the easiest level any sense of it has. A word outside the list, such as a proper
-noun, has no level. This file ships with the extension and loads in the side
-panel and the dashboard, never in the content script.
+the easiest level any sense of it has. This file ships with the extension and
+loads in the side panel and the dashboard, never in the content script.
+
+A word the list does not have takes an estimated level instead, from its
+frequency. The dictionary lookup already asks Datamuse for the word, and asks
+for the frequency in the same request. A frequency tracks CEFR only loosely, so
+this is a coarse band within about one level of the real one. The card marks it
+with a `~`, and the estimate is set only on a fresh lookup, not on words saved
+before. A word with no frequency either, such as a proper noun, has no level.
 
 ### Phrasal verbs
 
@@ -438,11 +477,14 @@ the same licence.
 ## Privacy
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`
-on your own machine and are never uploaded anywhere.
+on your own machine and are never uploaded anywhere. The automatic backup is a
+file in your own Downloads folder (`Downloads/vocab-track/backup-<date>.json`),
+written by the extension a minute after you change your words; nothing is sent
+anywhere.
 The policy for the store version, written for someone who did not build it,
 is [PRIVACY.md](PRIVACY.md).
 
-Seven things leave your browser, each only when you do something that needs it:
+Eight things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -453,6 +495,7 @@ Seven things leave your browser, each only when you do something that needs it:
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, so nothing leaves it |
 
 GIFs on cards are off until you add your own GIPHY API key. The key field is
 under **Import & export**, in **GIFs on cards**. The key is kept in
@@ -469,6 +512,12 @@ characters a month, and the Cloud project needs billing turned on.
 Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes
 no third-party request at all — the fonts are vendored under `fonts/`.
+
+The automatic backup needs four permissions: **`downloads`** writes the file
+(and deletes this extension's own backups older than seven days),
+**`downloads.ui`** hides the download bubble for that one file, **`alarms`**
+waits a minute after your last change, and **`offscreen`** turns the store into
+a file the download can take — a service worker cannot make one itself.
 
 Two permissions look broader than they are:
 
@@ -492,7 +541,7 @@ Two permissions look broader than they are:
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
 | `tools/package.sh` | Builds the Chrome Web Store zip in `dist/`: tracked runtime files only, `nativeMessaging` dropped from the zipped manifest |
-| `service-worker.js` | Opens the panel and the dashboard, hands words over |
+| `service-worker.js` | Opens the panel and the dashboard, hands words over, writes the automatic backup (`offscreen.*` makes its file) |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
 
@@ -669,7 +718,9 @@ manual checklist for it.
   no Korean at all, and it checks the prose you type into someone else's
   textarea — third-party text, not your word store — so the dashboard's
   language toggle deliberately does not govern it.
-- **Storage is local to this Chrome profile.** Export is the only backup.
+- **Storage is local to this Chrome profile.** The backup is a file per day
+  in `Downloads/vocab-track/`, the last seven days kept; restore one with
+  **Import**. Nothing syncs between machines on its own — carry the file.
 - **A folder's language is inferred from the words in it**, not stored, for
   every folder made before folders had a language — which is why nothing had
   to be migrated. The cost is that a folder holding both languages shows in
