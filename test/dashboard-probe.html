@@ -297,6 +297,20 @@ ready.then(() => setTimeout(async () => {
         full.querySelectorAll('#rv-full-body .tag').length === 2);
   check('an empty group is not given a heading',
         !/Opposites/.test(document.getElementById('rv-full-body').textContent));
+
+  // Same card again, answered with one of its own synonyms: accepted, at Good.
+  revealed = false;
+  renderCard();
+  typeBox.value = 'Approach';
+  document.getElementById('rv-type').dispatchEvent(new Event('submit', { cancelable: true }));
+  await new Promise((r) => setTimeout(r, 20));
+  check('a saved synonym is accepted and says so',
+        diff.className.includes('good') && diff.textContent === 'Approach — a synonym of strategy',
+        `${diff.className}: ${diff.textContent}`);
+  const synPick = document.querySelectorAll('#rv-grades button.pick');
+  check('a synonym suggests Good',
+        synPick.length === 1 && synPick[0].querySelector('b').textContent === 'Good',
+        synPick[0]?.querySelector('b').textContent);
   // Remembered across cards: renderCard rebuilds on every grade.
   full.open = true;
   full.dispatchEvent(new Event('toggle'));
