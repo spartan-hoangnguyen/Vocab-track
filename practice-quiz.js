@@ -110,7 +110,7 @@
         // this means, and the word said out loud is the answer to it.
         if (!reverse) head.appendChild(playButton(entry, ctx, say, done.signal));
         next.appendChild(head);
-        if (!reverse && entry.ipa) next.appendChild(ctx.node('p', 'prhint prq-ipa', `/${entry.ipa}/`));
+        if (!reverse && entry.ipa) next.appendChild(ctx.node('p', 'prhint prq-ipa', VT.pronText(entry.ipa, LANG.of(entry))));
 
         const grid = ctx.node('div', 'propts');
         buttons = options.map((option, i) => {
@@ -216,7 +216,7 @@
   function fullEntry(entry, ctx) {
     const box = ctx.node('span', 'prq-full');
     box.appendChild(ctx.node('b', null, entry.word));
-    if (entry.ipa) box.appendChild(ctx.node('i', null, `/${entry.ipa}/`));
+    if (entry.ipa) box.appendChild(ctx.node('i', null, VT.pronText(entry.ipa, LANG.of(entry))));
     const gloss = VT.glossOf(entry);
     if (gloss) box.appendChild(ctx.node('span', null, gloss));
     const sentence = entry.context ?? (entry.senses ?? []).map((s) => s.example).find(Boolean);

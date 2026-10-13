@@ -17,61 +17,171 @@ async function fetchEntry(word, lang) {
            failed: `no dictionary registered for ${lang}` };
 }
 
-async function fetchVietnamese(word, lang = 'en') {
-  // Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
-  // personal tool; it will break one day, and the replacement goes behind
-  // this same function.
-  //
-  // `sl` is the study language, not always English: the same endpoint answers
-  // for Korean unchanged (verified: sl=ko&tl=vi on 책 returns "sách").
-  const url = 'https://translate.googleapis.com/translate_a/single'
-    + `?client=dict-chrome-ex&sl=${encodeURIComponent(lang)}&tl=vi`
+// The gloss comes from a chain of keyless sources, asked in order, and the
+// first one with a translation wins (glossFor below). Each source is a URL
+// builder, pure so a test can pin it without the network, and a fetcher.
+//
+// A fetcher returns a gloss, or null when the source answered and had nothing,
+// which is a real answer about the word. It throws when the source could not
+// be asked, which is a fact about the network. They are not the same and must
+// not look the same. A keyed source with no key set returns undefined: it was
+// never asked, so it is neither an answer nor a failure.
+
+// Unofficial, keyless endpoint (dict-chrome-ex client). Acceptable for a
+// personal tool; it will break one day, which is why it is not alone.
+//
+// `sl` is the study language, not always English: the same endpoint answers
+// for Korean unchanged (verified: sl=ko&tl=vi on 책 returns "sách").
+// The pack names the code the endpoint wants (zh → zh-CN), not its id.
+function googleUrl(word, lang = 'en') {
+  const sl = LANG.get(lang)?.mt ?? lang;
+  return 'https://translate.googleapis.com/translate_a/single'
+    + `?client=dict-chrome-ex&sl=${encodeURIComponent(sl)}&tl=vi`
     + `&dt=t&q=${encodeURIComponent(word)}`;
-  const res = await fetch(url);
+}
+
+async function fetchGoogle(word, lang = 'en') {
+  // A timeout on every source, so one that hangs cannot keep the next one
+  // from being asked.
+  const res = await fetch(googleUrl(word, lang), { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  // Null means the endpoint answered and had nothing, which is a real answer
-  // about the word. Throwing means it could not be asked, which is a fact
-  // about the network. They are not the same and must not look the same.
   return data?.[0]?.[0]?.[0] ?? null;
 }
 
-// 429 is the endpoint saying one IP has asked too much, and it keeps saying it
+// Google Cloud Translation, Basic (v2): the official API, with the reader's
+// own key. It does not rate-limit like the keyless endpoint, and its free tier
+// is 500,000 characters a month, on a Cloud project with billing turned on.
+function googleCloudUrl(key, word, lang = 'en') {
+  const sl = LANG.get(lang)?.mt ?? lang;
+  const params = new URLSearchParams({
+    key: String(key ?? ''), q: String(word ?? ''), source: sl, target: 'vi', format: 'text'
+  });
+  return `https://translation.googleapis.com/language/translate/v2?${params}`;
+}
+
+// Read here, on every lookup, rather than passed in: a key saved in the
+// dashboard then counts on the very next side panel lookup, with no reload.
+// Trimmed for the reason dashboard.js trims the GIPHY key. Its own function so
+// a test can replace it without a chrome.storage stub.
+async function translateKey() {
+  const { translateKey: key } = await chrome.storage.local.get('translateKey');
+  return String(key ?? '').trim();
+}
+
+async function fetchGoogleCloud(word, lang = 'en') {
+  const key = await translateKey();
+  if (!key) return undefined;
+  const res = await fetch(googleCloudUrl(key, word, lang), { signal: AbortSignal.timeout(10000) });
+  // A bad key is a 400 ("API key not valid"), not only a 403. Either way the
+  // fix is the reader's, so the reason says where to make it.
+  if (res.status === 400 || res.status === 403) {
+    throw new Error('the key was rejected — check it in settings');
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data?.data?.translations?.[0]?.translatedText ?? null;
+}
+
+// MyMemory: free and keyless, and it answers en→vi, ko→vi and zh-CN→vi with
+// the same language codes Google takes.
+function myMemoryUrl(word, lang = 'en') {
+  const sl = LANG.get(lang)?.mt ?? lang;
+  const params = new URLSearchParams({ q: String(word ?? ''), langpair: `${sl}|vi` });
+  return `https://api.mymemory.translated.net/get?${params}`;
+}
+
+async function fetchMyMemory(word, lang = 'en') {
+  const res = await fetch(myMemoryUrl(word, lang), { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  // MyMemory reports a used-up daily quota inside a 200: the real status is in
+  // the body, and translatedText holds a "MYMEMORY WARNING" sentence that must
+  // never be saved as a gloss. Thrown as an HTTP status, so a 429 in the body
+  // pauses this source exactly like a 429 on the wire.
+  const status = Number(data?.responseStatus ?? 200);
+  if (data?.quotaFinished === true || status !== 200) {
+    throw new Error(`HTTP ${status === 200 ? 429 : data?.responseStatus}`);
+  }
+  const vi = String(data?.responseData?.translatedText ?? '').trim();
+  // The word handed back unchanged is MyMemory having nothing, not a gloss.
+  if (!vi || vi.toLowerCase() === String(word).toLowerCase()) return null;
+  return vi;
+}
+
+// 429 is a source saying one IP has asked too much, and it keeps saying it
 // for a while. Asking again on every lookup during that window is useless AND
-// part of the problem, so the first 429 stops the asking.
+// part of the problem, so the first 429 stops the asking — of that source
+// only, so a rate-limited Google still leaves MyMemory to answer.
 //
-// An object rather than a bare `let` so a test can put it back; module scope
+// An object rather than bare `let`s so a test can put it back; module scope
 // rather than storage because a panel reload clears it, which is the right
 // failure mode — a stale pause cannot outlive the real limit by much, and
-// nothing has to be migrated.
+// nothing has to be migrated. `ask` looks the fetcher up at call time, so a
+// test can replace one by name.
 //
-// ponytail: a flat ten minutes, because the response carries no Retry-After
-// header to read. Read one if it ever appears.
-const GLOSS = { pausedUntil: 0, PAUSE_MS: 10 * 60 * 1000 };
+// ponytail: a flat ten minutes, because neither response carries a
+// Retry-After header to read. Read one if it ever appears.
+const GLOSS = {
+  PAUSE_MS: 10 * 60 * 1000,
+  sources: [
+    { id: 'google', name: 'Google Translate', pausedUntil: 0,
+      ask: (word, lang) => fetchGoogle(word, lang) },
+    { id: 'google-cloud', name: 'Google Cloud Translation', pausedUntil: 0,
+      ask: (word, lang) => fetchGoogleCloud(word, lang) },
+    { id: 'mymemory', name: 'MyMemory', pausedUntil: 0,
+      ask: (word, lang) => fetchMyMemory(word, lang) }
+  ]
+};
 
-function rateLimited() {
-  const mins = Math.max(1, Math.ceil((GLOSS.pausedUntil - Date.now()) / 60000));
-  return `too many lookups from this network for now — the free translation `
-    + `endpoint is rate-limiting it. Try again in about ${mins} minute`
-    + `${mins === 1 ? '' : 's'}.`;
+// The name a card shows for a stored `viSource`, or null for an id no source
+// has (an entry saved before sources were recorded has none at all).
+function glossSourceName(id) {
+  return GLOSS.sources.find((src) => src.id === id)?.name ?? null;
+}
+
+function rateLimited(src) {
+  const mins = Math.max(1, Math.ceil((src.pausedUntil - Date.now()) / 60000));
+  return `${src.name} is rate-limiting this network — try again in about `
+    + `${mins} minute${mins === 1 ? '' : 's'}`;
 }
 
 // The reason a gloss is missing, kept rather than swallowed. Both were a bare
 // `—` on the card before, so a rate-limited minute and a word the endpoint
 // genuinely cannot translate were indistinguishable on screen — which is what
 // made this take three rounds to pin down.
+//
+// Returns { vi, source, failed }: `source` is the id of the source that
+// answered, null when none gave a gloss. `failed` is set only when EVERY
+// source failed, and names each one with its reason; a source that answered
+// with nothing is a real answer, so it leaves `failed` null.
 async function glossFor(word, lang) {
-  if (Date.now() < GLOSS.pausedUntil) return { vi: null, failed: rateLimited() };
-  try {
-    return { vi: await fetchVietnamese(word, lang), failed: null };
-  } catch (err) {
-    console.error('[vocab-track] translation failed for', word, err);
-    if (/\b429\b/.test(String(err.message))) {
-      GLOSS.pausedUntil = Date.now() + GLOSS.PAUSE_MS;
-      return { vi: null, failed: rateLimited() };
+  const reasons = [];
+  let answered = false;
+  for (const src of GLOSS.sources) {
+    // Checked here, per source, not once before the loop: a pause that stopped
+    // the whole chain would make the fallback unreachable for exactly the ten
+    // minutes it exists for.
+    if (Date.now() < src.pausedUntil) {
+      reasons.push(rateLimited(src));
+      continue;
     }
-    return { vi: null, failed: `${err.name}: ${err.message}` };
+    try {
+      const vi = await src.ask(word, lang);
+      if (vi) return { vi, source: src.id, failed: null };
+      if (vi !== undefined) answered = true;
+    } catch (err) {
+      console.error(`[vocab-track] ${src.name} translation failed for`, word, err);
+      if (/\b429\b/.test(String(err.message))) {
+        src.pausedUntil = Date.now() + GLOSS.PAUSE_MS;
+        reasons.push(rateLimited(src));
+      } else {
+        const why = err.name === 'Error' ? err.message : `${err.name}: ${err.message}`;
+        reasons.push(`${src.name}: ${why}`);
+      }
+    }
   }
+  return { vi: null, source: null, failed: answered ? null : `${reasons.join('; ')}.` };
 }
 
 // The whole save path for one word, with no UI in it: a known word answers
@@ -121,7 +231,9 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
       glossFailed = gloss.failed;
       if (gloss.vi) {
         known.vi = gloss.vi;
+        known.viSource = gloss.source;
         patch.vi = gloss.vi;
+        patch.viSource = gloss.source;
       }
     }
     // The dictionary is retried for the same reason the gloss is: the lookup can
@@ -178,7 +290,7 @@ async function resolveWord(rawWord, url, folderIds, context, langId) {
     ? { level: null, ipa: null, def: null, audio: null }
     : parsed;
 
-  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id);
+  const entry = VT.newEntry(word, parsedEntry, gloss.vi, url, pack.id, gloss.source);
   if (context) entry.context = context;
   // Not persisted: it describes this attempt, not the word. Two channels
   // because the two failures want different sentences — a missing definition
@@ -204,12 +316,35 @@ function pronounce(entry, accent = 'uk') {
       console.error('[vocab-track] audio playback failed for', entry.word, err);
       speak(entry.word, accent, entry.lang);
     });
-    return;
+    return true;
   }
   // The only caller that holds an entry, so the only place the word's language
   // can still be recovered. Without these two arguments every synthesised word
   // on every surface is English.
-  speak(entry.word, accent, entry.lang);
+  return speak(entry.word, accent, entry.lang);
+}
+
+// Where this OS adds a speech voice. Pure, so the probe can ask for each OS:
+// `platform` is navigator.userAgentData.platform ('macOS', 'Windows',
+// 'Chrome OS', 'Linux') or the older navigator.platform ('MacIntel', 'Win32').
+// Anything else is a Linux-like desktop, where Chrome speaks through
+// speech-dispatcher.
+function installPath(platform) {
+  const p = String(platform ?? '').toLowerCase();
+  if (p.startsWith('mac')) {
+    return 'Add one in System Settings → Accessibility → Spoken Content → System Voice → Manage Voices.';
+  }
+  if (p.startsWith('win')) return 'Add one in Settings → Time & language → Speech → Manage voices → Add voices.';
+  if (/chrome ?os|cros/.test(p)) {
+    return 'Add one in Settings → Accessibility → Text-to-Speech → Speech engine settings.';
+  }
+  return 'Install a speech-dispatcher voice for it (espeak-ng, for example), then restart Chrome.';
+}
+
+// What a caller with a surface shows when pronounce() answers false.
+function voiceHint(pack) {
+  const nav = globalThis.navigator;
+  return `No ${pack.name} voice is installed. ${installPath(nav?.userAgentData?.platform || nav?.platform)}`;
 }
 
 // `lang` is a pack id, and optional for a different reason than `accent` is.
@@ -225,12 +360,23 @@ function pronounce(entry, accent = 'uk') {
 // mp3 and only falls through to synthesis when there is none; a Korean word
 // has no mp3 at all, so synthesis IS the feature there.
 //
-// ponytail: a name list, and macOS's. It goes stale when Apple renames one,
-// and it says nothing about Windows or Linux — where the filters below still
-// do the useful half. The upgrade path is a real voice picker in the review
-// preferences, listing what the machine actually has; this is the version
-// that needs no UI and no stored preference.
+// The review preferences' Speaker select (reviewPrefs.voices) is the real
+// choice now. This name list only shapes Automatic, the pick for a language
+// nobody chose a voice for. It goes stale when Apple renames one, and it says
+// nothing about Windows or Linux — where the filters below still do the
+// useful half.
 const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred|Good News|Grandma|Grandpa|Jester|Junior|Kathy|Organ|Reed|Rocko|Sandy|Shelley|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
+
+const normTag = (t) => String(t ?? '').toLowerCase().replace(/_/g, '-');
+
+// Every voice that speaks `tag`'s language: the Speaker select's options, and
+// the pool bestVoice() picks from.
+function voicesFor(tag, voices, exact = false) {
+  const want = exact ? normTag(tag) : normTag(tag).split('-')[0];
+  if (!want) return [];
+  return (voices ?? [])
+    .filter((v) => (exact ? normTag(v.lang) : normTag(v.lang).split('-')[0]) === want);
+}
 
 // Pure, so the probe can drive it with a hand-made list: headless Chrome has
 // no voices at all and getVoices() there is always [].
@@ -240,13 +386,18 @@ const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Eddy|Flo|Fred
 // local, which beats whatever is left. An empty list returns null and the
 // utterance keeps the language alone — exactly the old behaviour, which is
 // the right answer while getVoices() is still filling in.
-function bestVoice(tag, voices) {
-  const want = String(tag ?? '').toLowerCase().split(/[-_]/)[0];
-  if (!want) return null;
-  const matching = (voices ?? [])
-    .filter((v) => String(v.lang ?? '').toLowerCase().split(/[-_]/)[0] === want);
+//
+// `exact` asks for the whole tag (zh-CN), for a pack whose regions are
+// different languages: a zh-HK voice speaks Cantonese.
+function bestVoice(tag, voices, exact = false) {
+  const matching = voicesFor(tag, voices, exact);
   const serious = matching.filter((v) => !NOVELTY.test(v.name ?? ''));
-  const pool = serious.length ? serious : matching;
+  const any = serious.length ? serious : matching;
+  // The asked-for region first when the machine has it: the language matches
+  // on its primary subtag above, so without this a UK word was read by
+  // Samantha, the en-US system default, while Daniel (en-GB) sat unused.
+  const regional = any.filter((v) => normTag(v.lang) === normTag(tag));
+  const pool = regional.length ? regional : any;
   return pool.find((v) => /premium|enhanced|siri/i.test(v.name ?? ''))
     ?? pool.find((v) => v.default)
     ?? pool.find((v) => v.localService)
@@ -254,22 +405,50 @@ function bestVoice(tag, voices) {
     ?? null;
 }
 
-function speak(word, accent = 'uk', lang) {
-  const voices = LANG.pick(lang, word).voices;
+// Chrome loads the voice list only when something first asks for it, and fills
+// it in two steps: its Google network voices first, the system's own voices
+// (Tingting, Yuna, Samantha…) after. Asked for here, on page load, so the list
+// is whole by the time anyone presses ▶. Without this the FIRST press found
+// only network voices and spoke with one — a different, often robotic-sounding
+// voice from every press after it.
+globalThis.speechSynthesis?.getVoices();
+
+// reviewPrefs.voices, { [packId]: voiceURI }, mirrored here so speak() stays
+// synchronous: it runs inside click handlers and its callers want the boolean.
+// A store from before the picker has no `voices`, and that is Automatic.
+let chosenVoices = {};
+Promise.resolve(globalThis.chrome?.storage?.local?.get('reviewPrefs'))
+  .then((got) => { chosenVoices = got?.reviewPrefs?.voices ?? {}; });
+globalThis.chrome?.storage?.onChanged?.addListener((changes, area) => {
+  if (area === 'local' && changes.reviewPrefs) chosenVoices = changes.reviewPrefs.newValue?.voices ?? {};
+});
+
+// `voiceURI` is the Speaker select's preview: the voice to hear right now,
+// before the storage write lands. '' is Automatic. Omitted, the stored choice.
+function speak(word, accent = 'uk', lang, voiceURI) {
+  const pack = LANG.pick(lang, word);
+  const voices = pack.voices;
   // reviewPrefs.accent is ONE string across every language, so a profile that
   // picked US in English arrives here with 'us' on a Korean word. Falling back
   // to the pack's first voice is what makes that an accent that does not apply
   // rather than utterance.lang = undefined.
   const voice = voices.find((v) => v.id === accent) ?? voices[0];
+  const list = speechSynthesis.getVoices();
+  // The voice picked in the review preferences, while it is still installed
+  // and still speaks this language; otherwise Automatic — see bestVoice above.
+  // Null is a legal value and means "you choose", which is where this started.
+  const uri = voiceURI ?? chosenVoices[pack.id];
+  const picked = uri ? voicesFor(voice.bcp47, list, voice.exact).find((v) => v.voiceURI === uri) : null;
+  const chosen = picked ?? bestVoice(voice.bcp47, list, voice.exact);
+  // The OS has voices and none of them speaks this language: Chrome would
+  // stay silent (or, for zh, reach for Cantonese), so say nothing and answer
+  // false — the caller owns the surface to show voiceHint() on. An EMPTY list
+  // is not that: it fills asynchronously (voiceschanged), and headless Chrome
+  // never has one, so it speaks and lets Chrome choose, as before.
+  if (list.length && !chosen) return false;
   const utterance = new SpeechSynthesisUtterance(word);
   utterance.lang = voice.bcp47;
-  // Named explicitly rather than left to Chrome — see bestVoice above. Null
-  // is a legal value and means "you choose", which is where this started.
-  utterance.voice = bestVoice(voice.bcp47, speechSynthesis.getVoices());
-  // ponytail: says nothing at all when the OS has no voice for this tag —
-  // Chrome neither throws nor fires an error, it just stays silent, and a Mac
-  // ships no Korean voice until one is downloaded. getVoices() is the check,
-  // but it fills asynchronously (voiceschanged) and this seam owns no surface
-  // to warn on. The warning belongs to a caller that has one.
+  utterance.voice = chosen;
   speechSynthesis.speak(utterance);
+  return true;
 }

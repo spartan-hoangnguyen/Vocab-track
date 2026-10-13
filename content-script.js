@@ -1,5 +1,33 @@
 let button = null;
 
+// Reloading or updating the extension cuts every content script already on an
+// open page off from it: chrome.runtime.id goes undefined and sendMessage
+// throws "Extension context invalidated". Nothing here can reconnect — only a
+// page reload injects a fresh copy — so say that on the page instead of
+// throwing into the console and leaving the click doing nothing.
+function sendLookup(message) {
+  if (!chrome.runtime?.id) {
+    staleNotice();
+    return;
+  }
+  chrome.runtime.sendMessage(message);
+}
+
+function staleNotice() {
+  const note = document.createElement('div');
+  note.setAttribute(OWN_UI, '');
+  note.setAttribute('role', 'status');
+  note.textContent = 'Vocab-track was updated — reload this page to look words up again.';
+  note.style.cssText = [
+    'all:revert', 'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
+    'z-index:2147483647', 'font:13px/1.4 system-ui,sans-serif', 'padding:8px 12px',
+    'background:#1c1a17', 'color:#faf7f2', 'border-radius:8px', 'box-shadow:0 1px 4px rgba(0,0,0,.3)'
+  ].join(';');
+  document.body.appendChild(note);
+  setTimeout(() => note.remove(), STALE_NOTICE_MS);
+}
+const STALE_NOTICE_MS = 5000;
+
 function removeButton() {
   button?.remove();
   button = null;
@@ -8,6 +36,7 @@ function removeButton() {
 function showButton(word, rect, context) {
   removeButton();
   button = document.createElement('button');
+  button.setAttribute(OWN_UI, '');
   button.textContent = '📘';
   button.title = `Look up "${word}"`;
   // Inline styles with a maximum z-index: the button must survive whatever
@@ -39,7 +68,7 @@ function showButton(word, rect, context) {
     // Stop the page seeing this and clearing the selection first.
     event.preventDefault();
     event.stopPropagation();
-    chrome.runtime.sendMessage({ type: 'lookup', word, url: location.href, context });
+    sendLookup({ type: 'lookup', word, url: location.href, context });
     // Clear the selection so the following mouseup finds no candidate and does not
     // re-show the button. preventDefault() above blocks the browser's default
     // selection-collapse, so it is still live and must be cleared explicitly.
@@ -120,63 +149,117 @@ function highlightStyle() {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 
+// The saved entry each painted range stands for. A range's text is what the
+// page wrote, which stops being the saved word once forms are matched.
+const rangeEntry = new WeakMap();
+
+function toRanges(hits) {
+  return hits.map(({ node, index, length, entry }) => {
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + length);
+    rangeEntry.set(range, entry);
+    return range;
+  });
+}
+
 // Takes entries, not strings: each word is matched by the rules of its own
 // language, so `lang` has to travel with it. A bare { word } is fine — VT.find
 // falls back to detecting the script.
 function rangesFor(entries) {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      const parent = node.parentElement;
-      // closest(), not parentElement.tagName: a highlighted code block nests
-      // spans inside <pre><code>, so the immediate parent is not the CODE.
-      if (!parent || parent.closest('script, style, code, pre, textarea') ||
-          parent.isContentEditable) {
-        return NodeFilter.FILTER_REJECT;
-      }
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-
-  const ranges = [];
-  let node;
-  while ((node = walker.nextNode())) {
-    for (const entry of entries) {
-      // Each word is matched by the rules of its own language, so an English
-      // and a Korean word saved from the same page both light up.
-      for (const hit of VT.find(entry.word, node.nodeValue, entry.lang)) {
-        const range = document.createRange();
-        range.setStart(node, hit.index);
-        range.setEnd(node, hit.index + hit.length);
-        ranges.push(range);
-      }
-    }
-  }
-  return ranges;
+  return toRanges(VT.highlightHits(document.body, entries));
 }
+
+// The index of every saved word, built once per change to `words` and kept,
+// so content the page adds later is scanned without rebuilding it.
+let pageIndex = null;
 
 async function applyHighlights() {
   const { words } = await chrome.storage.local.get('words');
-  if (!words) return;
-
-  // Per-page, not per-URL: a word saved from a video carries the moment it was
-  // said, so no two sources for one video are string-equal.
-  const key = VT.pageKey(location.href);
-  const here = Object.values(words)
-    .filter((entry) => entry.sources?.some((source) => VT.pageKey(source) === key));
-  if (!here.length) return;
-
-  const ranges = rangesFor(here);
-  if (!ranges.length) return;
-
+  // Every saved word, on every page: the point is to meet a word again away
+  // from where you saved it, and an imported list has no page at all.
+  pageIndex = words ? VT.wordIndex(Object.values(words)) : null;
+  if (!pageIndex) {
+    CSS.highlights.delete(HIGHLIGHT_NAME);
+    return;
+  }
   highlightStyle();
-  // ponytail: highlights are painted once, at document_idle. Content added
-  // later by infinite scroll is not covered. Upgrade path is a debounced
-  // MutationObserver calling applyHighlights again.
-  CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...ranges));
+  // Set even when empty: a repaint adds its ranges to this one Highlight.
+  CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...toRanges(VT.scanHits(document.body, pageIndex))));
 }
 
 applyHighlights();
+
+// A saved, retired or deleted word repaints the whole page: the index itself
+// changed, so every range may be stale.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.words) applyHighlights();
+});
+
+
+/* ---------- content the page adds later ---------- */
+
+
+// Infinite scroll, "load more" and an SPA's route change all arrive as new
+// nodes. They are collected and scanned once the page is quiet for this long,
+// so a feed that appends twenty posts in a burst costs one scan, not twenty.
+const REPAINT_DELAY_MS = 300;
+const pendingNodes = new Set();
+let repaintTimer = null;
+
+// The extension's own UI — the 📘 button, the stale notice, the reader — is
+// marked with this attribute. VT.scanHits skips it on a full paint; here it
+// keeps the button's own mutations from scheduling a repaint at all.
+const OWN_UI = 'data-vocab-track';
+
+function skipMutation(node) {
+  const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  // A keystroke in an editor is a characterData mutation; scanHits would skip
+  // the node anyway, and scheduling a repaint per key is the cost to avoid.
+  return !element || element.closest(`[${OWN_UI}]`) || element.isContentEditable;
+}
+
+function repaint() {
+  repaintTimer = null;
+  const highlight = CSS.highlights.get(HIGHLIGHT_NAME);
+  const nodes = [...pendingNodes];
+  pendingNodes.clear();
+  if (!pageIndex || !highlight) return;
+
+  // Ranges whose text left the page, or whose text node changed, go: a long
+  // feed that recycles its posts would otherwise grow the Highlight forever,
+  // and an edited node is scanned again below. A live Range whose text is
+  // removed collapses onto the parent, which is still connected, so
+  // `collapsed` is the test that catches a removed post.
+  const edited = new Set(nodes.filter((node) => node.nodeType === Node.TEXT_NODE));
+  for (const range of highlight) {
+    if (range.collapsed || !range.startContainer.isConnected || edited.has(range.startContainer)) {
+      highlight.delete(range);
+    }
+  }
+  // A node inside another pending node is covered by that node's scan.
+  const queued = new Set(nodes);
+  const roots = nodes.filter((node) => {
+    if (!node.isConnected) return false;
+    for (let up = node.parentNode; up; up = up.parentNode) {
+      if (queued.has(up)) return false;
+    }
+    return true;
+  });
+  for (const root of roots) {
+    for (const range of toRanges(VT.scanHits(root, pageIndex))) highlight.add(range);
+  }
+}
+
+new MutationObserver((records) => {
+  for (const record of records) {
+    const added = record.type === 'characterData' ? [record.target] : record.addedNodes;
+    for (const node of added) {
+      if (!skipMutation(node)) pendingNodes.add(node);
+    }
+  }
+  if (pendingNodes.size && !repaintTimer) repaintTimer = setTimeout(repaint, REPAINT_DELAY_MS);
+}).observe(document.body, { childList: true, subtree: true, characterData: true });
 
 
 /* ---------- click a highlighted word to be quizzed on it ---------- */
@@ -206,21 +289,22 @@ document.addEventListener('click', (event) => {
   // above owns that, and it ends with the 📘 button.
   if (!window.getSelection()?.isCollapsed) return;
 
-  // A Highlight is setlike, so its ranges iterate directly, and toString() on
-  // one is the matched text.
+  // A Highlight is setlike, so its ranges iterate directly. The word sent is
+  // the saved entry's, not the range's text: a click on "resilience" quizzes
+  // the `resilient` you saved.
   for (const hit of CSS.highlights.get(HIGHLIGHT_NAME) ?? []) {
     if (!hit.isPointInRange(node, range.startOffset)) continue;
     // Capture phase and both of these, so a saved word inside a link opens the
     // panel instead of navigating away.
     event.preventDefault();
     event.stopPropagation();
-    chrome.runtime.sendMessage({
+    sendLookup({
       type: 'lookup',
       // The word is already saved, so resolveWord answers from storage with no
       // network call, and context is left null: it is never overwritten on a
       // known word and this click is a quiz, not a save.
       mode: 'quiz',
-      word: VT.normaliseWord(hit.toString()),
+      word: VT.normaliseWord(rangeEntry.get(hit)?.word ?? hit.toString()),
       url: location.href,
       context: null
     });
@@ -320,7 +404,7 @@ function captionClick(event) {
 
   const id = VT.youtubeId(location.href);
   const seconds = Math.floor(video?.currentTime ?? 0);
-  chrome.runtime.sendMessage({
+  sendLookup({
     type: 'lookup',
     word: hit.word,
     // The timestamp IS the position, the way a text fragment is on a page.

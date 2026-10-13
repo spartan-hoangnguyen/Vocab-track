@@ -32,11 +32,25 @@ const LANG = (() => {
       // tag defaults to the id because the two agree for a bare language subtag
       // — a pack whose region is load-bearing (ko-KR) names it itself.
       voices: [{ id: 'std', label: pack.native ?? id, bcp47: id }],
+      // The source language the MT gloss is asked in. The id, unless the
+      // endpoint wants something more specific (zh → zh-CN).
+      mt: id,
+      // How the pronunciation field (`ipa`) is labelled. Null is IPA, which
+      // shows bare between slashes; a romanisation names itself (zh: Pinyin).
+      pronLabel: null,
+      // How many words a sentence holds, for practice-speak's "a full
+      // sentence" rule. Spaces, unless the language writes none (zh).
+      wordCount: (text) => String(text ?? '').trim().split(/\s+/).filter(Boolean).length,
       // The written forms that still count as this word when it is looked for
       // in a sentence — practice-speak's grading. English has real morphology to
       // add (lang/en/index.js); for a language that does not inflect the word it
       // is looking for, the word is the word.
       inflections: (word) => [word],
+      // The written forms the page highlighter looks for. Only read when the
+      // pack is `indexed`: VT.wordIndex then finds them by lookup, not by
+      // match(), so a pack without a token scan leaves both alone.
+      forms: (word) => [word],
+      indexed: false,
       ...pack
     });
   }

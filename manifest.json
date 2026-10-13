@@ -10,9 +10,10 @@
     "nativeMessaging"
   ],
   "host_permissions": [
-    "https://dictionary.cambridge.org/*",
     "https://api.datamuse.com/*",
     "https://translate.googleapis.com/*",
+    "https://translation.googleapis.com/*",
+    "https://api.mymemory.translated.net/*",
     "https://api.languagetool.org/*",
     "https://api.giphy.com/*",
     "http://127.0.0.1:8765/*"
@@ -51,8 +52,10 @@
       "js": [
         "lib.js",
         "lang/lang.js",
+        "lang/en/irregular.js",
         "lang/en/index.js",
         "lang/ko/index.js",
+        "lang/zh/index.js",
         "content-script.js",
         "reader.js",
         "writer.js"

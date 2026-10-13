@@ -8,6 +8,10 @@ Ranked by how likely it is to break, from the final whole-branch review.
 
 ## Install
 
+These are the developer (unpacked) steps, and the checks below run against
+that install. The store install, from [INSTALL.md](../INSTALL.md), is checked
+when it is published (T083).
+
 1. `chrome://extensions` → enable **Developer mode** → **Load unpacked**
 2. Select `~/work/Vocab-track` (the folder containing `manifest.json`)
 3. Pin the extension — the toolbar icon toggles the side panel, and is how you
@@ -33,6 +37,21 @@ While iterating: reload the card after changing `manifest.json` or
    likely cause is the isolated-world stylesheet not being adopted by the page
    document; the fallback is a `<style>` element, which the spec deliberately
    avoided. Also try a page that assigns `document.adoptedStyleSheets` itself.
+   Then open a different page that uses the same word: it is highlighted there
+   too, because every saved word is looked for on every page.
+   **Highlighting forms.** Save `resilient` and `run`. On a page that says
+   "resilience" and "ran", both are highlighted. Click "resilience": the panel
+   quizzes `resilient`. With `accelerate` saved, "accelerator" is not
+   highlighted.
+   **Phrasal verbs.** Import `data/phrasal-verbs.json`. On a page that says
+   "she gave up", "gave up" is one highlight. Click it: the panel quizzes
+   `give up`. "give it up" is not highlighted.
+   **Late content.** On an infinite feed (Reddit, X, a news site's "load
+   more"), scroll until new posts load: the saved words in them are
+   highlighted with no reload. Move to another view in an SPA (GitHub, for
+   example) without reloading: the new view is highlighted. Save a word with
+   the 📘 button: its other occurrences on the page light up at once. Type a
+   saved word into a comment box: it is not highlighted.
 
 3. **Unknown word.** Look up `zzqqxwv`. The panel must say it is not in the
    dictionary and save nothing. If it saves an entry whose play button
@@ -125,7 +144,24 @@ Open it from **Open dashboard →** in the side panel.
 
 18. **Statistics.** With only a few days of data the charts will be mostly empty;
     that is correct, not a bug. Confirm "Review load" folds everything overdue
-    into today rather than spreading it backwards.
+    into today rather than spreading it backwards. "Keeps slipping" comes first:
+    grade a word Blank in Review (twice, if it comes back), then open Statistics
+    in the same tab → it is listed as "forgot 1×", once per day however often
+    you missed it. Click it → the Words view opens on that word's card. On a
+    profile with no lapses it reads "Nothing forgotten in the last 13 weeks."
+    "Retention" has 13 weekly bars, this week last: hover one → "<date>: 87% ·
+    41 of 47 remembered", or "no reviews". The note compares the newest and
+    oldest weeks with reviews and names FSRS's 90%; with under two such weeks
+    it says "Review for a few weeks to see a trend." Flip the language toggle →
+    the chart redraws from that language's reviews only. "Time reviewing" has
+    30 daily bars, estimated from the gaps between grades: review 10 cards →
+    today shows a few minutes. Leave the review open for 10 minutes, grade one
+    more → today grows by under a minute. With no reviews the note reads "No
+    reviews in the last 30 days." "Where they came from" reads "<site> · 24
+    words · 9 learned", a word counted once per site however many of its pages
+    you met it on. "Learned by folder" lists folders as "<icon> <name> · 9 of
+    24 learned", best share first; skipped words count in neither number, and
+    words in no folder sit under "From reading".
 
 19. **YouTube captions.** Open any video, turn subtitles on (`c`), and click a
     word in them. The video must pause on that click, the panel must open with
@@ -519,23 +555,23 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     yet, and that sentence is the only reason that is not alarming: the words
     are filed under Korean folders and the session is showing English.
 
-83. **The toggle reaches the folder grid, not just the words.** Flip to **한**.
+83. **The toggle reaches the folder grid, not just the words.** Choose **한국어** in the language dropdown.
     *All folders* shows **초급 669**, **중급 1,395**, **고급 1,832**, plus
     *From reading* and *Starred*. **IELTS C1, IELTS C2, Phrasal A1 and Phrasal
     A2 must all be gone** — that is the bug this change exists for, and an
     empty card with a `0 words` count is the old behaviour, not the new one.
-    The subtitle counts the folders you can see. Flip back to **EN**: the
+    The subtitle counts the folders you can see. Choose **English** again: the
     English folders return and the three Korean ones go.
 
-84. **A card from the list.** In **한**, open 초급 and review one. The meaning
+84. **A card from the list.** In **한국어**, open 초급 and review one. The meaning
     is a Vietnamese gloss; the level chip reads 초급, not a CEFR band; the
     level bars on the Overview are labelled 초급/중급/고급 and have words in
     them. The pronunciation row on the side panel says **한국어**, never UK.
     About seven cards in ten also carry a collocation with the word blanked
     out; the rest ask from the gloss alone.
 
-85. **A folder scope cannot outlive its language.** In **EN**, open *IELTS C1*
-    so the words view is scoped to it. Flip to **한** without leaving the view:
+85. **A folder scope cannot outlive its language.** In **English**, open *IELTS C1*
+    so the words view is scoped to it. Switch to **한국어** without leaving the view:
     the title falls back to *All words* rather than sitting over an empty list
     under an English folder's name. *From reading* survives the same flip — it
     belongs to every language.
@@ -549,17 +585,19 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
 87. **A failed translation names itself.** Open DevTools on the side panel,
     Network tab, and set it to **Offline**. Look up a new Korean word. The
     card must carry a red banner reading *Translation failed… look the word
-    up again to retry*, with the browser's own error text on the end — not a
-    bare `—`, which is what a word with no translation looks like. Go back
-    online, look the same word up again: the banner goes and the gloss fills
-    in.
+    up again to retry*, then each translation source with the browser's own
+    error text (*Google Translate: TypeError: Failed to fetch; MyMemory:
+    TypeError: Failed to fetch.*) — not a bare `—`, which is what a word with
+    no translation looks like. Go back online, look the same word up again:
+    the banner goes and the gloss fills in.
 
 88. **A word whose gloss never arrived repairs itself.** Find a Korean word
     saved with **—** where the Vietnamese gloss should be (the translation
     endpoint rate-limits, so one will turn up). Click it again on a page, or
     look it up from the dashboard. The gloss fills in, and DevTools → Network
-    shows exactly one `translate_a/single` request. Click a word that already
-    has a gloss: no request at all, and the gloss does not change.
+    shows exactly one `translate_a/single` request (or, while Google is
+    rate-limiting, one MyMemory request instead; see 105). Click a word that
+    already has a gloss: no request at all, and the gloss does not change.
 
 89. **The Korean voice is the good one.** Press ▶ on a Korean card. It must
     not be a novelty voice — Eddy, Rocko and Grandma are cartoon voices macOS
@@ -567,6 +605,199 @@ than a fixture. Import first; 82 is the acceptance test for the whole change.
     **Yuna (Enhanced)** (System Settings → Accessibility → Spoken Content →
     System Voice → Manage Voices → Korean) and press ▶ again: it should switch
     to the enhanced recording without any setting being touched.
+
+    **The preferences say when there is no Korean voice.** Remove Yuna and
+    Yuna (Enhanced) in Manage Voices, reload the dashboard and open Review with
+    Korean active. Where the Speaker select was, a line reads "No Korean voice
+    is installed." followed by the macOS path. Install Yuna again and reload:
+    the Speaker select is back with Yuna in it.
+
+## Chinese: lookup
+
+90. **Double-click segmentation.** Open a Simplified Chinese article
+    (zh.wikipedia.org) and double-click inside a two-character word such as
+    `学生` or `中文`. **Write down what Chrome selected.** Chrome breaks words
+    with ICU, the same dictionary `Intl.Segmenter` uses in `lang/zh/index.js`,
+    so it should select the same unit the highlighter matches — `学生`, not one
+    character and not the whole sentence. ICU glues some one-character words
+    to a neighbour (`我是`, `他在`), so a double-click there selects both
+    characters; drag-select to get one.
+    *Answer (fill in):* ______
+
+91. **A Chinese word saves under zh with a gloss.** Select `学生` → the 📘
+    button appears. Click it: the panel shows the Vietnamese gloss *học sinh*,
+    no "lookup failed" warning, and a *full entry ↗* link to mdbg.net. In
+    DevTools → Application → Extension storage → local, the entry carries
+    `lang: "zh"`, and the panel's Network tab shows the `translate_a/single`
+    request with `sl=zh-CN`. Look up an English and a Korean word next: their
+    requests still say `sl=en` and `sl=ko`.
+
+92. **Japanese with kana is not offered.** On a Japanese page, select `食べる`
+    → no 📘 button. A kanji-only selection (`学生` on a Japanese page) does get
+    one and is treated as Chinese — a known limit.
+
+## Chinese: on the page and in practice
+
+93. **Whole words only.** Save `学生`, and separately save `学`. Open a page with
+    `我是学生` on it: `学生` is highlighted, and no highlight sits on the `学`
+    inside it. A page with `学` standing alone (`学而不思则罔`) highlights it.
+
+94. **One sentence, not the paragraph.** Save a word from a Chinese paragraph
+    of several sentences. The card's context is the one sentence the word was
+    in, ending at its `。`, `！` or `？` — not the whole paragraph.
+
+95. **Back to the spot.** On that card, click the source link: the page opens
+    scrolled to the sentence with it highlighted. (The fragment is the sentence
+    as written; if it was cut with `…` the link still opens the page.)
+
+96. **Fill the gap.** With four Chinese words that have a saved sentence, open
+    Practice → Fill the gap. The sentence shows `_____` exactly where the word
+    was, and nothing of the word leaks around the gap.
+
+97. **RSVP is not tuned for Chinese.** Starting the speed reader on a Chinese
+    article flashes whole clauses at once, because Chinese has no spaces to
+    split on. Known limit.
+
+## Chinese: HSK levels and the starter list
+
+98. **A lookup carries its level.** Look up `学生` on a page: the card's level
+    chip reads **HSK 1**. `经济` reads **HSK 4**. A word outside HSK 2.0
+    (`魑魅魍魉`) has no chip.
+
+99. **The starter list lands under 中文.** Dashboard → **Import** →
+    `data/zh/hsk.json` from an English session. The note says the words are in
+    Chinese. Choose **中文** in the language dropdown: six folders, **HSK 1**
+    to **HSK 6**, with 150 words in HSK 1. Open one card: pinyin and an English
+    meaning show; the Vietnamese gloss fills in when you click the word on a
+    page or look it up.
+
+100. **Pinyin and a definition.** Look up `学生`: the panel shows
+     **Pinyin: xuésheng**, the sense *student*, the gloss *học sinh* and no
+     warning. Look up `行`: **Pinyin: háng / xíng**, with senses from both
+     readings, each prefixed with its own. Review a Chinese card and reveal
+     it: the line under the word reads **Pinyin: …**, while an English card
+     still shows its IPA between slashes. A word CEDICT lacks still saves with
+     its gloss and no banner.
+
+101. **The Chinese voice is Mandarin.** With a zh-CN voice installed
+     (Tingting; System Settings → Accessibility → Spoken Content → System
+     Voice → Manage Voices → Chinese (China mainland)), press ▶ on a Chinese
+     card: Mandarin, never a Cantonese (Sinji) or Taiwanese (Meijia) voice.
+     Remove it and press ▶ again: nothing is spoken, and a line says no Chinese
+     voice is installed and where to add one — in the dashboard at the bottom
+     of the window, in the panel under the pronunciation row.
+
+102. **Speaking and listening practice take Chinese.** With four Chinese
+     words, Practice → Listening plays each in Mandarin. Practice → Speak
+     listens in zh-CN: say a sentence using the word, five words or more
+     (`我是一个很好的学生` counts as five; ICU joins 我是 into one) → it passes.
+
+## Chinese: switching, next to English and Korean
+
+103. **The dropdown switches everything.** With English, Korean and Chinese
+     words saved, choose **中文** in the dashboard's language dropdown: the
+     words list holds only Chinese words, the folders are the HSK ones plus
+     *From reading* and *Starred*, the Overview level bars read HSK 1 … HSK 6,
+     and Review deals only Chinese cards. Choose **한국어**, then **English**:
+     each restores its own words, folders, scale and queue. Mid-review, the
+     session rebuilds on the switch.
+
+104. **A Chinese card end to end.** Review a Chinese card: the prompt is the
+     Vietnamese gloss (or the English sense for a starter word with no gloss
+     yet), the typing box takes the characters from an IME without grading on
+     the IME's Enter, and revealing shows the word, **Pinyin: …** and ▶.
+
+## Chinese: known limits
+
+These are expected, not failures. Each is written into the README's *Known
+limits*.
+
+- Traditional characters (`學生`) get a gloss but no pinyin, definition or
+  level.
+- A kanji-only Japanese word is looked up as Chinese.
+- A one-character word ICU joins to its neighbour is not highlighted there
+  (`我` in `我是`, `在` in `他在`).
+- The speed reader flashes Chinese a clause at a time.
+
+## Chinese: last full run
+
+Run items 90–104 in a real Chrome profile that also has English and Korean
+words, then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Result: ______ (items that failed, with what you saw)
+
+## Translation fallback
+
+Reload the side panel between these steps: a rate-limited source stays paused
+for ten minutes, and only a reload clears it. To make Google fail on purpose,
+open DevTools on the side panel → Network, right-click any request →
+**Block request domain**, and block `translate.googleapis.com`. A real 429
+cannot be produced on demand; the unit tests cover that path.
+
+105. **Google down, a gloss anyway.** With `translate.googleapis.com` blocked,
+     look up a new Korean word. The card shows a Vietnamese gloss with
+     **via MyMemory** under it, and no red banner. Unblock it and look up
+     another new word: **via Google Translate**.
+106. **Every source down names each one.** Set Network to **Offline** and look
+     up a new word. The banner is the one in 87, and it names Google Translate
+     and MyMemory, each with its reason. Go back online and look the same word
+     up again: the banner goes, and the gloss fills in with its source line.
+107. **The key answers before MyMemory.** Dashboard → **Import & export** →
+     **Translation key**: paste a Google Cloud Translation key. Block
+     `translate.googleapis.com` again and look up a new word: **via Google
+     Cloud Translation**. Paste `bad-key` instead and look up another: the
+     gloss is **via MyMemory**, and there is no banner.
+
+## Translation fallback: last full run
+
+Run items 87, 88 and 105–107 in a real Chrome profile, then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Result: ______ (items that failed, with what you saw)
+
+## Highlighting: last full run
+
+Run step 2 (highlighting, forms, phrasal verbs, late content) in a real Chrome
+profile with every bundled list imported (IELTS, phrasal verbs, HSK, the
+Korean starter list), on one news article, one infinite feed and one SPA.
+Also scroll a feed until a post says "gave up" with `give up` saved: it is
+highlighted, and a click quizzes `give up`. Then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Pages: ______ (article, feed, SPA)
+- Result: ______ (items that failed, with what you saw; any visible delay)
+
+`bash test/run.sh` covers the same scenarios on stub pages, and passes on
+2026-10-09 in headless Chrome 154.0.8037.98: `test/highlight-probe.html`
+(2,000 words plus the phrasal-verb list over 5,000 nodes in under 200 ms) and
+`test/repaint-probe.html` (late posts, own UI, editors, dropped ranges, and
+"gave up" in a late post as the saved `give up`).
+
+## Voices: last full run
+
+Run items 89 and 101 on a Mac, then the combined checks below, then fill this
+in.
+
+- Choose **Yuna (Enhanced)** for Korean in Review → Speaker. ▶ on a review
+  card, in Practice → Listening and in the side panel all speak with it.
+- Remove every Korean voice. The preferences, the review ▶ and the side panel ▶
+  all say "No Korean voice is installed." with the macOS path.
+- On Windows or Linux, if one is available: the same S2 check, with the path
+  that was shown.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Voices installed: ______
+- Result (Mac): ______ (items that failed, with what you saw)
+- Result (Windows / Linux): not run
+
+`bash test/run.sh` covers the same scenarios with hand-made voice lists, and
+passes on 2026-10-12 in headless Chrome 154.0.8037.98: `test/dashboard-probe.html` (the
+Speaker list per language, the stored choice reaching `speak()` and
+`pronounce()`, an uninstalled choice falling back to Automatic, the preview,
+the no-voice line and its return on `voiceschanged`) and
+`test/sidepanel-probe.html` (`voicesFor()`, `installPath()` per OS, the quiz
+hint).
 
 ## If something fails
 

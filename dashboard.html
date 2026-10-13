@@ -43,9 +43,11 @@
     <span class="sp"></span>
     <!-- After .sp (flex:1), so it right-aligns into the bar's settings cluster
          with Review and the moon rather than sitting beside the search box.
-         Empty: renderLang fills it from LANG.list(), so a third pack needs no
+         Empty: renderLang fills it from LANG.list(), so a new pack needs no
          markup, and it stays hidden while only one language is registered. -->
-    <div class="langseg" id="lang-seg" hidden></div>
+    <label class="rvopt" id="lang-seg" hidden>
+      <select id="lang-select" aria-label="Study language"></select>
+    </label>
     <button class="btn" id="review-btn">Review</button>
     <!-- Last in the bar, where the design keeps its moon. One icon for both
          themes: aria-pressed is the state, and night fills the moon in. -->
@@ -120,6 +122,15 @@
         <label class="rvopt">Voice
           <select id="rv-voice"></select>
         </label>
+        <!-- The OS voice ▶ speaks with when there is no recording, per
+             language. Filled by renderPrefs from getVoices(). -->
+        <label class="rvopt">Speaker
+          <select id="rv-speaker"></select>
+          <button class="rvopt" id="rv-speaker-play" aria-label="Preview this voice">▶</button>
+        </label>
+        <!-- In the Speaker label's place when the OS has voices but none for
+             this language. Not for an empty list: that may still be loading. -->
+        <p class="rvhint" id="rv-speaker-none" role="status" hidden></p>
       </div>
     </div>
 
@@ -247,6 +258,22 @@
     <div class="sub" id="st-sub"></div>
     <div class="charts">
       <figure class="chart">
+        <figcaption>Keeps slipping · last 13 weeks</figcaption>
+        <ul class="sources weak" id="st-weak"></ul>
+      </figure>
+      <figure class="chart">
+        <figcaption>Retention · last 13 weeks</figcaption>
+        <div class="plot" id="st-retention"></div>
+        <div class="axis"><span id="st-retention-from"></span><span>this week</span></div>
+        <p class="chartnote" id="st-retention-sum"></p>
+      </figure>
+      <figure class="chart">
+        <figcaption>Time reviewing · last 30 days</figcaption>
+        <div class="plot" id="st-time"></div>
+        <div class="axis"><span id="st-time-from"></span><span>today</span></div>
+        <p class="chartnote" id="st-time-sum"></p>
+      </figure>
+      <figure class="chart">
         <figcaption>Words added · last 30 days</figcaption>
         <div class="plot" id="st-added"></div>
         <div class="axis"><span id="st-added-from"></span><span>today</span></div>
@@ -265,6 +292,10 @@
       <figure class="chart">
         <figcaption>Where they came from</figcaption>
         <ul class="sources" id="st-sources"></ul>
+      </figure>
+      <figure class="chart">
+        <figcaption>Learned by folder</figcaption>
+        <ul class="sources" id="st-folders"></ul>
       </figure>
     </div>
   </section>
@@ -327,6 +358,18 @@
                autocomplete="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="iocard">
+        <h3>Translation key</h3>
+        <p>The free translation endpoint rate-limits after many lookups. Paste a
+           Google Cloud Translation API key and it answers next, before the
+           MyMemory fallback. The free tier is 500,000 characters a month, but
+           the Cloud project needs billing turned on. The key is kept in this
+           browser only and is never part of an export. Create one under
+           <a href="https://console.cloud.google.com/apis/credentials"
+           target="_blank" rel="noreferrer">Cloud Console → Credentials</a>.</p>
+        <input type="text" id="translate-key" placeholder="Google Cloud Translation API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="iocard">
         <h3>Push to Anki</h3>
         <p>Create Anki cards (word → meaning) from your
            <b id="anki-lang">English</b> words, through the AnkiConnect add-on.
@@ -383,13 +426,19 @@
 </dialog>
 
 
+<!-- speakWord's "no voice installed" line; dashboard.js showVoiceHint. -->
+<p class="voicehint" id="voice-hint" role="status" hidden></p>
+
 <script src="lib.js"></script>
 <script src="lang/lang.js"></script>
 <script src="lang/en/index.js"></script>
 <script src="lang/ko/index.js"></script>
+<script src="lang/zh/index.js"></script>
 <script src="lang/en/cefr.js"></script>
 <script src="lang/en/dictionary.js"></script>
 <script src="lang/ko/dictionary.js"></script>
+<script src="lang/zh/hsk.js"></script>
+<script src="lang/zh/dictionary.js"></script>
 <script src="store.js"></script>
 <script src="lookup.js"></script>
 <script src="giphy.js"></script>

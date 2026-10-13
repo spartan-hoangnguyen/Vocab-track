@@ -58,7 +58,7 @@
       // would print the dashboard instead of the assertions.
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../anki.js', '../practice.js',
+    .then(() => { return ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/cefr.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../lang/zh/hsk.js', '../lang/zh/dictionary.js', '../store.js', '../lookup.js', '../giphy.js', '../anki.js', '../practice.js',
       ...['quiz', 'listening', 'fill', 'speak', 'blast', 'mix'].map((m) => `../practice-${m}.js`),
       '../dashboard.js']
       // Serial, not Promise.all: dashboard.js reads VT from lib.js at load.
@@ -302,6 +302,21 @@ ready.then(() => setTimeout(async () => {
   full.dispatchEvent(new Event('toggle'));
   renderCard();
   check('the drawer stays open on the next render', document.getElementById('rv-full').open);
+
+  /* ---- the pronunciation line names a romanisation ---- */
+  const rvIpa = document.getElementById('rv-ipa');
+  const heldCard = queue[0];
+  revealed = true;
+  renderCard();
+  check('an English card shows its IPA between slashes once revealed',
+        !rvIpa.hidden && rvIpa.textContent === `/${heldCard.ipa}/`, rvIpa.textContent);
+  queue[0] = { ...heldCard, word: '学生', lang: 'zh', ipa: 'xuésheng', vi: 'học sinh', def: 'student' };
+  renderCard();
+  check('a Chinese card shows its pinyin under a Pinyin label',
+        !rvIpa.hidden && rvIpa.textContent === 'Pinyin: xuésheng', rvIpa.textContent);
+  queue[0] = heldCard;
+  revealed = false;
+  renderCard();
 
   /* ---- Skip: out of the rotation, still in the collection ---- */
   startReview(null);
@@ -636,6 +651,128 @@ ready.then(() => setTimeout(async () => {
   window.Audio = RealAudio;
   speechSynthesis.speak = realSpeak;
 
+  /* ---- Speaker: which OS voice ▶ uses, chosen per language ----
+     Headless Chrome has no voices, so a hand-made list stands in, and a plain
+     utterance class, because a real one refuses a hand-made voice. */
+  const OV = (name, lang) => ({ name, lang, voiceURI: 'uri:' + name, localService: true, default: false });
+  const osList = [OV('Yuna', 'ko-KR'), OV('Yuna (Enhanced)', 'ko-KR'), OV('Rocko', 'ko-KR'),
+    OV('Alex', 'en-US'), OV('Tingting', 'zh-CN'), OV('Sinji', 'zh-HK'), OV('Meijia', 'zh-TW')];
+  const realGetVoices = speechSynthesis.getVoices;
+  const RealUtterance = window.SpeechSynthesisUtterance;
+  window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const utts = [];
+  speechSynthesis.speak = (u) => utts.push(u);
+  const speaker = document.getElementById('rv-speaker');
+  const optionNames = () => [...speaker.options].map((o) => o.textContent).join('|');
+  speechSynthesis.getVoices = () => [];
+  await setLang('ko');
+  check('on a cold load the Speaker select holds only Automatic', optionNames() === 'Automatic', optionNames());
+  check('and is shown although Korean has one pack voice',
+        !speaker.parentElement.hidden && document.getElementById('rv-voice').parentElement.hidden);
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('voiceschanged fills it with the Korean voices only',
+        optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+  check('and a language nobody chose for reads Automatic', speaker.value === '', speaker.value);
+  speaker.value = 'uri:Yuna';
+  speaker.dispatchEvent(new Event('change'));
+  check('choosing Yuna saves it under the language',
+        STORE.reviewPrefs.voices?.ko === 'uri:Yuna', JSON.stringify(STORE.reviewPrefs.voices));
+  for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
+  const koEntry = { word: '책', lang: 'ko', audio: null };
+  speakWord(koEntry);
+  check('▶ on a Korean card speaks with Yuna, not the Automatic pick',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna'
+        && bestVoice('ko-KR', osList)?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  pronounce(koEntry);
+  check('and pronounce() with one argument, the side panel’s call, does too',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna', utts.at(-1)?.voice?.name);
+  await setLang('en');
+  check('English lists English voices',
+        optionNames() === 'Automatic|Alex' && speaker.value === '', optionNames());
+  check('and the Korean choice is still stored, with English left Automatic',
+        STORE.reviewPrefs.voices.ko === 'uri:Yuna' && !('en' in STORE.reviewPrefs.voices),
+        JSON.stringify(STORE.reviewPrefs.voices));
+  await setLang('zh');
+  check('Chinese lists the zh-CN voice, not Cantonese or Taiwan', optionNames() === 'Automatic|Tingting', optionNames());
+  await setLang('ko');
+  check('back on Korean the choice is selected', speaker.value === 'uri:Yuna', speaker.value);
+  // The preview ▶ beside the select: the select's voice, before storage says so.
+  const preview = document.getElementById('rv-speaker-play');
+  showView('overview');
+  preview.click();
+  check('with no card on screen the preview speaks the language’s own name with the chosen voice',
+        utts.at(-1)?.text === '한국어' && utts.at(-1)?.voice?.voiceURI === 'uri:Yuna',
+        `${utts.at(-1)?.text} / ${utts.at(-1)?.voice?.name}`);
+  speaker.value = 'uri:Rocko';
+  speaker.dispatchEvent(new Event('change'));
+  preview.click();
+  check('straight after a change it previews the new voice, before storage settles',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Rocko' && chosenVoices.ko === 'uri:Yuna',
+        `${utts.at(-1)?.voice?.name} / cache ${chosenVoices.ko}`);
+  queue.unshift({ ...mk('책', { lang: 'ko', due: 0 }), audio: 'ko.mp3' });
+  showView('review');
+  renderCard();
+  window.Audio = function (src) { played.push(src); this.play = () => Promise.resolve(); };
+  const playedBefore = played.length;
+  preview.click();
+  window.Audio = RealAudio;
+  check('with a review card on screen it speaks the card’s word, never its recording',
+        utts.at(-1)?.text === '책' && played.length === playedBefore, utts.at(-1)?.text);
+  preview.focus();
+  for (const key of [' ', 'Enter']) {
+    preview.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  }
+  check('Space or Enter on the preview neither reveals nor grades the card',
+        !revealed && queue[0].word === '책', queue[0].word);
+  queue.shift();
+  speaker.value = 'uri:Yuna';
+  speaker.dispatchEvent(new Event('change'));
+  speechSynthesis.getVoices = () => osList.filter((v) => v.name !== 'Yuna');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('an uninstalled choice reads as Automatic', speaker.value === '', speaker.value);
+  speakWord(koEntry);
+  check('and ▶ falls back to the Automatic pick', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  speaker.value = '';
+  speaker.dispatchEvent(new Event('change'));
+  check('choosing Automatic removes the language’s key',
+        !('ko' in STORE.reviewPrefs.voices), JSON.stringify(STORE.reviewPrefs.voices));
+  for (const f of listeners) f({ reviewPrefs: { newValue: STORE.reviewPrefs } }, 'local');
+  speakWord(koEntry);
+  check('and ▶ is Automatic again', utts.at(-1)?.voice?.name === 'Yuna (Enhanced)', utts.at(-1)?.voice?.name);
+  // Voices, but none for Korean: the line takes the select's place.
+  const noneLine = document.getElementById('rv-speaker-none');
+  speechSynthesis.getVoices = () => osList.filter((v) => v.lang === 'en-US');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('with only English voices, Korean says no voice is installed and where to add one',
+        noneLine.checkVisibility() && noneLine.textContent === voiceHint(LANG.get('ko'))
+        && /^No Korean voice is installed\. Add one in|^No Korean voice is installed\. Install/.test(noneLine.textContent),
+        noneLine.textContent);
+  check('and shows no Speaker select or preview',
+        !speaker.checkVisibility() && !preview.checkVisibility());
+  const hint = document.getElementById('voice-hint');
+  hint.hidden = true;
+  speakWord(koEntry);
+  check('▶ on a Korean card shows the same sentence at the bottom of the window',
+        !hint.hidden && hint.textContent === noneLine.textContent, hint.textContent);
+  speechSynthesis.getVoices = () => [];
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('an empty list shows the select with only Automatic and no warning',
+        speaker.checkVisibility() && optionNames() === 'Automatic' && !noneLine.checkVisibility());
+  speechSynthesis.getVoices = () => osList.filter((v) => v.lang === 'en-US');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('a Korean voice arriving brings the select back and the warning goes',
+        speaker.checkVisibility() && preview.checkVisibility() && !noneLine.checkVisibility()
+        && optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+  await setLang('en');
+  speechSynthesis.getVoices = realGetVoices;
+  speechSynthesis.speak = realSpeak;
+  window.SpeechSynthesisUtterance = RealUtterance;
+
   // The document-level review keys must not steal a focused control's own.
   startReview('shuf');
   renderCard();
@@ -870,6 +1007,227 @@ ready.then(() => setTimeout(async () => {
         /: \d+ reviews? \+ \d+ new$/.test(document.querySelector('#st-due i').title),
         document.querySelector('#st-due i').title);
 
+  /* ---- statistics: words that keep slipping ----
+     A store of its own, so the counts are exact, put back afterwards. */
+  const weakSaved = STORE.words;
+  const DAYW = 24 * 60 * 60 * 1000;
+  const histKey = (daysAgo) => 'history:' + VT.dayKey(Date.now() - daysAgo * DAYW);
+  const histAt = (daysAgo) => Date.now() - daysAgo * DAYW;
+  STORE.words = Object.fromEntries(['resilient', 'cat', 'category', 'calm'].map((w) =>
+    [w, mk(w, { folders: ['reading'], added: Date.now() - (w === 'category' ? 0 : 5000), due: Date.now() - 1000 })]));
+  STORE.words['책'] = mk('책', { lang: 'ko', vi: 'sách', folders: ['reading'], due: Date.now() + 1e9 });
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  STORE[histKey(10)] = [['resilient', 0, histAt(10)], ['책', 0, histAt(10)]];
+  STORE[histKey(5)] = [['resilient', 1, histAt(5)], ['resilient', 0, histAt(5) + 60000], ['calm', 4, histAt(5)]];
+  STORE[histKey(2)] = [['resilient', 0, histAt(2)], ['cat', 0, histAt(2)], ['gone', 0, histAt(2)]];
+  await refresh();
+  showView('stats');
+  const weakRows = () => [...document.querySelectorAll('#st-weak li')].map((li) => li.textContent);
+  check('the weak list puts the most forgotten word first, once per day',
+        /^resilientforgot 3× · /.test(weakRows()[0] ?? '') && /^catforgot 1× · /.test(weakRows()[1] ?? ''),
+        weakRows().join(' | '));
+  check('a word never forgotten, a deleted word and another language are left out',
+        weakRows().length === 2, weakRows().join(' | '));
+  document.querySelector('#st-weak li:nth-child(2) button').click();
+  await tick();
+  check('clicking a weak word opens the Words view with its card first',
+        !document.getElementById('view-words').hidden && document.getElementById('q').value === 'cat'
+        && document.querySelector('#w-cards > *')?.textContent.includes('cat')
+        && !document.querySelector('#w-cards > *')?.textContent.includes('category'),
+        document.querySelector('#w-cards > *')?.textContent.slice(0, 40));
+  document.getElementById('q').value = '';
+  startReview(null);
+  while (queue[0] && queue[0].word !== 'calm') queue.shift();
+  revealed = true;
+  await grade(0);
+  showView('stats');
+  render();
+  check('a Blank in review shows on the list without a reload',
+        weakRows().some((t) => t.startsWith('calmforgot 1×')), weakRows().join(' | '));
+  STORE.lang = 'ko';
+  await refresh();
+  check('the language toggle shows only that language\'s weak words',
+        weakRows().length === 1 && weakRows()[0].startsWith('책forgot 1×'), weakRows().join(' | '));
+  delete STORE.lang;
+
+  /* ---- statistics: retention by week ---- */
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  // Three weeks back to now, at 70%, 80% and 90% — ten distinct words a week.
+  STORE.words = Object.fromEntries(Array.from({ length: 10 }, (_, i) => ['r' + i,
+    mk('r' + i, { folders: ['reading'], due: Date.now() + 1e9 })]));
+  STORE.words['책'] = mk('책', { lang: 'ko', vi: 'sách', folders: ['reading'], due: Date.now() + 1e9 });
+  [[14, 7], [7, 8], [0, 9]].forEach(([daysAgo, pass]) => {
+    STORE[histKey(daysAgo)] = Array.from({ length: 10 }, (_, i) => ['r' + i, i < pass ? 4 : 0, histAt(daysAgo)]);
+  });
+  STORE[histKey(0)].push(['r9', 5, histAt(0) + 1000], ['책', 0, histAt(0)]);
+  await refresh();
+  const retBars = () => [...document.querySelectorAll('#st-retention i')];
+  const filled = () => retBars().filter((b) => !b.classList.contains('none'));
+  check('the retention chart has 13 weekly bars', retBars().length === 13, retBars().length);
+  check('three weeks of reviews draw three bars, oldest first',
+        filled().map((b) => b.style.height).join() === '70%,80%,90%',
+        filled().map((b) => b.style.height).join());
+  check('a bar says the week, the rate and how many were remembered',
+        /: 90% · 9 of 10 remembered$/.test(filled()[2]?.title ?? ''), filled()[2]?.title);
+  check('the note compares this week with the oldest and names the FSRS target',
+        /^This week 90% · 2 weeks ago 70% · FSRS aims for 90%$/.test(document.getElementById('st-retention-sum').textContent),
+        document.getElementById('st-retention-sum').textContent);
+  check('an empty week says so', retBars()[0].title.endsWith(': no reviews'), retBars()[0].title);
+  const timeBars = () => [...document.querySelectorAll('#st-time i')];
+  const timeSum = () => document.getElementById('st-time-sum').textContent;
+  // Today: r0..r9 at one instant, r9 again a second later, 책 too (other language).
+  check('the time chart has 30 daily bars, today last, in minutes',
+        timeBars().length === 30 && /: 1 min$/.test(timeBars()[29].title), timeBars()[29]?.title);
+  check('the time note gives the daily average and the total',
+        /^Under a minute a day · 3 min in 30 days$/.test(timeSum()), timeSum());
+  STORE.lang = 'ko';
+  await refresh();
+  check('the language toggle changes the time bars to that language',
+        timeBars().filter((b) => !b.classList.contains('none')).length === 1
+        && timeBars()[29].title.endsWith(': 1 min'), timeBars()[29].title);
+  check('the language toggle redraws retention from that language only',
+        filled().length === 0 && retBars()[12].title.endsWith(': 0% · 0 of 1 remembered')
+        && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.',
+        retBars()[12].title);
+  delete STORE.lang;
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  STORE[histKey(0)] = [];
+  STORE.words = weakSaved;
+  await refresh();
+  check('with nothing forgotten the list says so',
+        weakRows().join() === 'Nothing forgotten in the last 13 weeks.', weakRows().join(' | '));
+  check('with no history the time chart is empty and says so',
+        timeBars().every((b) => b.classList.contains('none')) && timeSum() === 'No reviews in the last 30 days.',
+        timeSum());
+  check('with no history every retention bar is empty and the note asks for weeks',
+        retBars().every((b) => b.classList.contains('none'))
+        && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.');
+
+  /* ---- statistics: learned by source and by folder ---- */
+  const progSaved = STORE.words;
+  const progFolders = STORE.folders;
+  STORE.folders = { ...(STORE.folders ?? {}),
+    fx: { id: 'fx', name: 'Exam', icon: '📝', color: 'sage', auto: false, added: 1 } };
+  const learned = { reps: 3, interval: 30, due: Date.now() + 1e9 };
+  STORE.words = {
+    p1: mk('p1', { folders: ['fx'], ...learned,
+      sources: ['https://a.example/one', 'https://a.example/two', 'https://b.example/x'] }),
+    p2: mk('p2', { folders: ['fx'], skipped: true, ...learned, sources: ['https://a.example/one'] }),
+    p3: mk('p3', { folders: ['fx'], due: Date.now() + 1e9, sources: ['https://a.example/three'] }),
+    p4: mk('p4', { folders: ['fx'], due: Date.now() + 1e9 }),
+    p5: mk('p5', { due: Date.now() + 1e9 }),
+    '책': mk('책', { lang: 'ko', vi: 'sách', folders: ['fx'], ...learned, sources: ['https://ko.example/'] })
+  };
+  await refresh();
+  const listRows = (id) => [...document.querySelectorAll(`#${id} li`)].map((li) => li.textContent);
+  check('a site row gives its words, once per site, and how many are learned',
+        listRows('st-sources').join(' | ') === 'a.example3 words · 1 learned | b.example1 word · 1 learned',
+        listRows('st-sources').join(' | '));
+  check('a folder reads "N of M learned", skipped words left out, and wordless ones read as From reading',
+        listRows('st-folders').join(' | ') === '📝 Exam1 of 3 learned | 📖 From reading0 of 1 learned',
+        listRows('st-folders').join(' | '));
+  STORE.lang = 'ko';
+  await refresh();
+  check('the language toggle limits both lists to that language',
+        listRows('st-sources').join() === 'ko.example1 word · 1 learned'
+        && listRows('st-folders').join() === '📝 Exam1 of 1 learned',
+        listRows('st-sources').join() + ' / ' + listRows('st-folders').join());
+  delete STORE.lang;
+  STORE.words = {};
+  await refresh();
+  check('with no words the folder list says so',
+        listRows('st-folders').join() === 'No folders with words yet.', listRows('st-folders').join());
+  STORE.words = progSaved;
+  STORE.folders = progFolders;
+  if (progFolders === undefined) delete STORE.folders;
+  await refresh();
+
+  /* ---- R007 end to end: every insight on one realistic profile ----
+     13 weeks of history in two languages. English retention climbs from 60%
+     to 90%; "slip" and "slide" keep lapsing; one English word is mastered.
+     Korean has its own, smaller history. */
+  const e2eSaved = STORE.words;
+  STORE.words = {};
+  const enWords = Array.from({ length: 10 }, (_, i) => 'en' + i);
+  for (const w of [...enWords, 'slip', 'slide'])
+    STORE.words[w] = mk(w, { folders: ['reading'], due: Date.now() + 1e9, sources: ['https://news.example/' + w] });
+  Object.assign(STORE.words.en0, { reps: 4, interval: 40 });
+  for (const w of ['책', '물'])
+    STORE.words[w] = mk(w, { lang: 'ko', vi: 'x', folders: ['reading'], due: Date.now() + 1e9, sources: ['https://ko.example/' + w] });
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  // Each day's rows sit in the past: today's start ten minutes ago, older
+  // days at noon. A row stamped after now falls outside every week.
+  const base = (daysAgo) => {
+    const d = new Date(histAt(daysAgo));
+    if (daysAgo) { d.setHours(12, 0, 0, 0); return d.getTime(); }
+    return Date.now() - 10 * 60000;
+  };
+  for (let week = 12; week >= 0; week--) {
+    const daysAgo = week * 7;
+    const pass = 6 + Math.floor((12 - week) / 4);   // 6 → 9 of the ten
+    // Which of the ten fail rotates, so no ordinary word piles up lapses.
+    const rows = enWords.map((w, i) => [w, (i + week) % 10 < pass ? 4 : 1, base(daysAgo) + i * 20000]);
+    rows.push(['slip', 0, base(daysAgo) + 220000], ['slide', 0, base(daysAgo) + 240000]);
+    if (week % 6 === 0) rows.push(['slip', 0, base(daysAgo) + 260000]);   // same day: counts once
+    if (week < 2) rows.push(['책', 0, base(daysAgo) + 280000], ['물', 4, base(daysAgo) + 300000]);
+    STORE[histKey(daysAgo)] = rows;
+  }
+  await refresh();
+  showView('stats');
+  const e2e = () => ({
+    weak: weakRows(),
+    ret: document.getElementById('st-retention-sum').textContent,
+    retBars: retBars().filter((b) => !b.classList.contains('none')).length,
+    time: timeSum(),
+    sources: listRows('st-sources').join(' | '),
+    folders: listRows('st-folders').join(' | ')
+  });
+  const en = e2e();
+  check('R007: the two slipping words come first',
+        en.weak.slice(0, 2).map((t) => t.replace(/forgot.*/, '')).sort().join() === 'slide,slip'
+        && en.weak.slice(0, 2).every((t) => /forgot 13× /.test(t)), en.weak.join(' | '));
+  check('R007: the retention note shows the climb',
+        /^This week 75% · 12 weeks ago 50% · FSRS aims for 90%$/.test(en.ret), en.ret);
+  check('R007: time and learned counts fill in on the same profile',
+        /in 30 days$/.test(en.time) && en.folders === '📖 From reading1 of 12 learned'
+        && en.sources === 'news.example12 words · 1 learned', `${en.time} / ${en.folders} / ${en.sources}`);
+  const noScroll = () => {
+    const view = document.getElementById('view-stats');
+    const right = view.getBoundingClientRect().right + 1;
+    return document.documentElement.scrollWidth <= document.documentElement.clientWidth
+      && [...view.querySelectorAll('*')].every((el) => el.getBoundingClientRect().right <= right);
+  };
+  check('R007: Statistics has no horizontal scroll at 1400 px', noScroll());
+  document.body.style.width = '900px';
+  render();
+  check('R007: and none at 900 px', noScroll());
+  document.body.style.width = '';
+  const slipping = en.weak[0].replace(/forgot.*/, '');
+  document.querySelector('#st-weak button').click();
+  await tick();
+  const firstCard = document.querySelector('#w-cards > *')?.textContent ?? '';
+  check('R007: clicking a slipping word opens its card',
+        !document.getElementById('view-words').hidden && document.getElementById('q').value === slipping
+        && firstCard.includes(slipping) && !firstCard.includes(slipping === 'slip' ? 'slide' : 'slip'),
+        `${slipping}: ${firstCard.slice(0, 40)}`);
+  document.getElementById('q').value = '';
+  STORE.lang = 'ko';
+  await refresh();
+  showView('stats');
+  const ko = e2e();
+  check('R007: switching language changes every insight together',
+        ko.weak.length === 1 && ko.weak[0].startsWith('책forgot 2×')
+        && ko.retBars === 2 && ko.ret === 'This week 50% · last week 50% · FSRS aims for 90%'
+        && ko.time !== en.time && ko.sources.startsWith('ko.example')
+        && ko.folders === '📖 From reading0 of 2 learned',
+        JSON.stringify(ko));
+  delete STORE.lang;
+  for (const k of Object.keys(STORE)) if (k.startsWith('history:')) delete STORE[k];
+  STORE[histKey(0)] = [];
+  STORE.words = e2eSaved;
+  await refresh();
+  showView('overview');
+
   /* ---- a Korean card, reviewable on the MT gloss alone ----
      No dictionary data exists for it: only `vi` is set, which is what makes
      canType true (dashboard.js:878) and keeps this a typing card rather than
@@ -944,18 +1302,29 @@ ready.then(() => setTimeout(async () => {
 
   /* ---- the toggle itself ---- */
   const seg = document.getElementById('lang-seg');
-  const segBtn = (id) => seg.querySelector(`[data-lang="${id}"]`);
-  check('both registered packs get a segment, labelled with their short name',
-        !seg.hidden && seg.children.length === 2
-        && segBtn('en')?.textContent === 'EN' && segBtn('ko')?.textContent === '한',
-        [...seg.children].map((b) => b.textContent).join());
-  check('and the active one is the pressed segment',
-        segBtn('ko').getAttribute('aria-pressed') === 'true'
-        && segBtn('en').getAttribute('aria-pressed') === 'false');
+  const langSel = document.getElementById('lang-select');
+  const choose = async (id) => {
+    langSel.value = id;
+    langSel.dispatchEvent(new Event('change'));
+    await tick();
+  };
+  check('every registered pack is an option, named in its own language',
+        !seg.hidden && [...langSel.options].map((o) => `${o.value}:${o.textContent}`).join()
+          === 'en:English,ko:한국어,zh:中文',
+        [...langSel.options].map((o) => `${o.value}:${o.textContent}`).join());
+  check('and the active one is selected', langSel.value === 'ko', langSel.value);
   STORE.words = { ...savedWords, ...STORE.words };
-  segBtn('en').click();
-  await tick();
-  check('clicking a segment saves the language', STORE.lang === 'en', STORE.lang);
+  await choose('zh');
+  check('choosing 中文 saves the language', STORE.lang === 'zh', STORE.lang);
+  check('and the level bars use HSK',
+        [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join()
+          === `HSK 1,HSK 2,HSK 3,HSK 4,HSK 5,HSK 6,${DASH}`,
+        [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join());
+  check('and the session queue holds no English or Korean card',
+        queue.every((e) => LANG.of(e).id === 'zh'),
+        queue.map((e) => e.word).join());
+  await choose('en');
+  check('choosing English saves the language', STORE.lang === 'en', STORE.lang);
   check('and the words view is back to the English set',
         document.getElementById('ov-total').textContent === String(Object.keys(savedWords).length),
         document.getElementById('ov-total').textContent);
@@ -982,7 +1351,7 @@ ready.then(() => setTimeout(async () => {
         queue.length > 0 && queue.every((e) => LANG.of(e).id === 'ko'),
         queue.map((e) => e.word).join());
   check('so the card on screen is in the language the toggle now reads',
-        segBtn('ko').getAttribute('aria-pressed') === 'true'
+        langSel.value === 'ko'
         && LANG.of(queue[0]).id === activeLang,
         document.getElementById('rv-input').placeholder);
 
@@ -1124,37 +1493,66 @@ ready.then(() => setTimeout(async () => {
         !gifEvil.querySelector('.wc-gif img'));
   giphyKey = '';
 
+  /* ---- the translation key is saved, trimmed, and never exported ---- */
+  const tkey = document.getElementById('translate-key');
+  check('the translation key field is under Import & export',
+        !!tkey && !!tkey.closest('.iocard') && /Translation key/.test(tkey.closest('.iocard').textContent));
+  tkey.value = '  K1SECRET  ';
+  tkey.dispatchEvent(new Event('input'));
+  await new Promise((r) => setTimeout(r, 0));
+  check('typing a key saves it trimmed', STORE.translateKey === 'K1SECRET', String(STORE.translateKey));
+  const realBlobUrl = URL.createObjectURL;
+  const realAnchorClick = HTMLAnchorElement.prototype.click;
+  let exported = null;
+  URL.createObjectURL = (blob) => { exported = blob; return 'blob:probe'; };
+  HTMLAnchorElement.prototype.click = () => {};
+  document.getElementById('export-btn').click();
+  for (let i = 0; i < 20 && !exported; i++) await new Promise((r) => setTimeout(r, 10));
+  URL.createObjectURL = realBlobUrl;
+  HTMLAnchorElement.prototype.click = realAnchorClick;
+  const exportedText = exported ? await exported.text() : '';
+  check('and an export does not carry it',
+        !!exportedText && !exportedText.includes('K1SECRET'), exportedText.slice(0, 60));
+  delete STORE.translateKey;
+
   // An estimated level shows with a trailing ~ on the card; an exact one is bare.
   check('an estimated level renders with a ~',
         wordCard(mk('estword', { level: 'C1', levelEst: true })).querySelector('.lvl')?.textContent === 'C1~');
   check('an exact level renders bare',
         wordCard(mk('exactword', { level: 'B2' })).querySelector('.lvl')?.textContent === 'B2');
 
-  /* ---- CEFR backfill gives a level to English words that lost it ----------
-     The lookup stopped carrying a CEFR level, so words saved in between sit under
-     "—". backfillCefr reads the level from the bundled list (lang/en/cefr.js)
-     once, keyed by a stored version flag; a word outside the list is left alone. */
-  // Drain the boot's floating refresh().then(backfillCefr) first: it is pure
+  /* ---- the level backfill gives a level to words that lost it ------------
+     The English lookup stopped carrying a CEFR level, and Chinese words saved
+     before the HSK list had none, so both sit under "—". backfillLevels reads the
+     level from the word's own language list once, keyed by a stored version
+     flag; a word outside the list is left alone. */
+  // Drain the boot's floating refresh().then(backfillLevels) first: it is pure
   // microtasks, so one macrotask boundary guarantees it has run and written its
   // version flag. Without this, its late write could land after the delete below
   // and this test would pass only by timing.
   await tick();
-  const savedForCefr = STORE.words;
-  delete STORE.cefrBackfill;
+  const savedForLevels = STORE.words;
+  delete STORE.levelBackfill;
   STORE.words = {
     abandon: mk('abandon', { level: null }),
-    frenchtownxyz: mk('frenchtownxyz', { level: null })
+    frenchtownxyz: mk('frenchtownxyz', { level: null }),
+    '学生': mk('学生', { level: null, lang: 'zh' }),
+    '책': mk('책', { level: null, lang: 'ko' })
   };
   await refresh();
-  await backfillCefr();
+  await backfillLevels();
   check('backfill gives a listed English word its CEFR level',
         STORE.words.abandon?.level === 'B1', String(STORE.words.abandon?.level));
+  check('backfill gives a listed Chinese word its HSK level',
+        STORE.words['学生']?.level === 'HSK 1', String(STORE.words['学生']?.level));
   check('backfill leaves an unlisted word with no level',
         !STORE.words.frenchtownxyz?.level);
+  check('and a language with no list (Korean) alone',
+        !STORE.words['책']?.level, String(STORE.words['책']?.level));
   check('backfill records its version so it runs only once',
-        STORE.cefrBackfill === 1, String(STORE.cefrBackfill));
-  STORE.words = savedForCefr;
-  delete STORE.cefrBackfill;
+        STORE.levelBackfill === 1, String(STORE.levelBackfill));
+  STORE.words = savedForLevels;
+  delete STORE.levelBackfill;
   await refresh();
 
   /* ---- the folder GRID is language-scoped, not just the counts on it ------

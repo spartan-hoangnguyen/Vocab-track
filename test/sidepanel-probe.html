@@ -30,7 +30,7 @@
             .replace(/<script[\s\S]*?<\/script>/g, '');
       document.getElementById('app').replaceChildren(...holder.childNodes);
     })
-    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
+    .then(() => ['../lib.js', '../lang/lang.js', '../lang/en/index.js', '../lang/ko/index.js', '../lang/zh/index.js', '../lang/en/dictionary.js', '../lang/ko/dictionary.js', '../lang/zh/dictionary.js', '../store.js', '../lookup.js', '../sidepanel.js']
       // Serial, not Promise.all: each of these reads the one before it at load.
       .reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
         const tag = document.createElement('script');
@@ -266,7 +266,7 @@ ready.then(() => setTimeout(async () => {
      meant Rocko about as often as Yuna. Driven with a hand-made list because
      headless Chrome has no voices at all — getVoices() there is always []. */
   const V = (name, lang, extra = {}) =>
-    ({ name, lang, localService: true, default: false, ...extra });
+    ({ name, lang, voiceURI: name, localService: true, default: false, ...extra });
   const mac = [V('Eddy', 'ko-KR'), V('Flo', 'ko-KR'), V('Grandma', 'ko-KR'),
     V('Rocko', 'ko-KR'), V('Yuna', 'ko-KR', { default: true }),
     V('Alex', 'en-US', { default: true })];
@@ -294,15 +294,103 @@ ready.then(() => setTimeout(async () => {
         bestVoice('ko-KR', []) === null);
   check('the English side is unmoved: Cambridge accents still resolve',
         bestVoice('en-US', mac)?.name === 'Alex', bestVoice('en-US', mac)?.name);
+  // What macOS actually lists: Samantha is the system default and en-US, so a
+  // primary-subtag match handed UK words to her while Daniel went unused.
+  const enMac = [V('Samantha', 'en-US', { default: true }), V('Daniel', 'en-GB'),
+    V('Google UK English Female', 'en-GB', { localService: false })];
+  check('a UK word is read by the en-GB system voice, not the en-US default',
+        bestVoice('en-GB', enMac)?.name === 'Daniel', bestVoice('en-GB', enMac)?.name);
+  check('and a US word still by the en-US one',
+        bestVoice('en-US', enMac)?.name === 'Samantha', bestVoice('en-US', enMac)?.name);
+  check('a system voice beats a Google network voice for the same region',
+        bestVoice('zh-CN', [V('Google 普通话（中国大陆）', 'zh-CN', { localService: false }), V('Tingting', 'zh-CN')], true)?.name === 'Tingting');
+
+  check('voicesFor lists every voice of the language, novelty ones included',
+        voicesFor('ko-KR', mac).map((v) => v.name).join() === 'Eddy,Flo,Grandma,Rocko,Yuna');
+  check('and an exact zh-CN ask lists no Cantonese or Taiwan voice',
+        voicesFor('zh-CN', [V('Sinji', 'zh-HK'), V('Meijia', 'zh-TW'), V('Tingting', 'zh_CN')], true)
+          .map((v) => v.name).join() === 'Tingting');
+
+  /* ---- Chinese: Mandarin from mainland China, never Cantonese ---- */
+  const zhVoice = LANG.get('zh').voices[0];
+  check('the Chinese pack speaks zh-CN, and asks for the region exactly',
+        zhVoice.bcp47 === 'zh-CN' && zhVoice.exact === true, JSON.stringify(zhVoice));
+  const zhMac = [...mac, V('Sinji', 'zh-HK'), V('Meijia', 'zh-TW'), V('Tingting', 'zh_CN')];
+  check('an exact zh-CN ask picks the mainland voice',
+        bestVoice('zh-CN', zhMac, true)?.name === 'Tingting', bestVoice('zh-CN', zhMac, true)?.name);
+  check('and finds none when only Cantonese and Taiwan voices are installed',
+        bestVoice('zh-CN', zhMac.slice(0, -1), true) === null,
+        bestVoice('zh-CN', zhMac.slice(0, -1), true)?.name);
+  // With voices installed and none for zh-CN, nothing is spoken and the
+  // panel's ▶ says why instead.
+  const realGetVoices = speechSynthesis.getVoices;
+  const realSay = speechSynthesis.speak;
+  // A real utterance refuses a hand-made voice object, so a plain one stands in.
+  const RealUtterance = window.SpeechSynthesisUtterance;
+  window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const zhSaid = [];
+  speechSynthesis.getVoices = () => zhMac.slice(0, -1);
+  speechSynthesis.speak = (u) => zhSaid.push(u.lang);
+  const zhEntry = { word: '学生', lang: 'zh', ipa: 'xuésheng', audio: null, ipaUs: null, audioUs: null };
+  check('pronounce answers false for a zh word with no zh-CN voice',
+        pronounce(zhEntry) === false && zhSaid.length === 0, zhSaid.join());
+  speechSynthesis.getVoices = () => zhMac;
+  check('and speaks it in zh-CN once one is installed',
+        pronounce(zhEntry) === true && zhSaid.join() === 'zh-CN', zhSaid.join());
+  speechSynthesis.getVoices = () => zhMac.slice(0, -1);
+  zhSaid.length = 0;
+  renderProns(zhEntry);
+  document.querySelector('#entry-prons .pron button').click();
+  check('the panel ▶ shows the no-voice hint and says nothing',
+        /No Chinese voice is installed/.test(document.getElementById('entry-prons').textContent)
+          && zhSaid.length === 0,
+        document.getElementById('entry-prons').textContent);
+  check('and labels the pinyin', /Pinyin: xuésheng/.test(document.getElementById('entry-prons').textContent));
+
+  /* ---- where to install a voice, per OS ---- */
+  const paths = ['macOS', 'Windows', 'Chrome OS', 'Linux'].map(installPath);
+  check('installPath gives macOS, Windows, ChromeOS and Linux their own path',
+        /System Settings → Accessibility → Spoken Content/.test(paths[0])
+        && /Time & language → Speech → Manage voices/.test(paths[1])
+        && /Text-to-Speech → Speech engine settings/.test(paths[2])
+        && /speech-dispatcher/.test(paths[3]) && new Set(paths).size === 4, paths.join(' | '));
+  check('and the older navigator.platform names land on the same paths',
+        installPath('MacIntel') === paths[0] && installPath('Win32') === paths[1]
+        && installPath('CrOS') === paths[2]);
+  check('an unknown platform gets the Linux/other text',
+        installPath('Plan 9') === paths[3] && installPath(undefined) === paths[3]);
+  check('voiceHint keeps its opening and adds this OS’s path',
+        voiceHint(LANG.get('ko')) === `No Korean voice is installed. ${installPath(navigator.userAgentData?.platform || navigator.platform)}`,
+        voiceHint(LANG.get('ko')));
+  // English voices only: the quiz's ▶ says no Korean voice, in the same words.
+  speechSynthesis.getVoices = () => [V('Alex', 'en-US', { default: true })];
+  quizEntry = { word: '책', lang: 'ko', audio: null };
+  quizAnswered = false;
+  const quizButton = document.createElement('button');
+  quizButton.dataset.correct = '1';
+  document.getElementById('quiz-options').replaceChildren(quizButton);
+  answerQuiz(true, quizButton);
+  check('the quiz shows the same sentence when there is no Korean voice',
+        !document.getElementById('quiz-voice-hint').hidden
+        && document.getElementById('quiz-voice-hint').textContent === voiceHint(LANG.get('ko')),
+        document.getElementById('quiz-voice-hint').textContent);
+  speechSynthesis.getVoices = realGetVoices;
+  speechSynthesis.speak = realSay;
+  window.SpeechSynthesisUtterance = RealUtterance;
 
   /* ---- a gloss that never landed is asked for again ----------------------
      The endpoint is unofficial and rate-limits, and resolveWord's known path
      returns before any network call — so a word saved during one bad minute
      had no meaning for good, and clicking it again could not help, because
      clicking it again landed there too. 동해상 was the one that showed it. */
-  const realVi = window.fetchVietnamese;
+  // Every source in the chain gets the same stub, so a check below that wants
+  // a failure gets it from all of them rather than from Google alone.
+  const realGoogle = window.fetchGoogle;
+  const realMyMemory = window.fetchMyMemory;
+  const stubGloss = (fn) => { window.fetchGoogle = fn; window.fetchMyMemory = fn; };
+  const unpause = () => { for (const src of GLOSS.sources) src.pausedUntil = 0; };
   let asked = 0;
-  window.fetchVietnamese = async () => { asked++; return 'Biển Đông'; };
+  stubGloss(async () => { asked++; return 'Biển Đông'; });
   const thin = {
     word: '동해상', lang: 'ko', vi: null, level: null, ipa: null, def: null, audio: null,
     senses: [], synonyms: [], related: [], folders: ['reading'], context: null,
@@ -320,6 +408,26 @@ ready.then(() => setTimeout(async () => {
   check('and the gloss it has is never overwritten',
         settled.entry.vi === 'Biển Đông', String(settled.entry.vi));
 
+  /* ---- the card says which source gave the gloss ---- */
+  check('a repaired gloss records the source that repaired it',
+        STORE.words['동해상'].viSource === 'google', String(STORE.words['동해상'].viSource));
+  renderEntry(settled.entry, null);
+  await tick();
+  check('and the card names it under the gloss',
+        !$$('entry-vi-src').hidden && $$('entry-vi-src').textContent === 'via Google Translate',
+        $$('entry-vi-src').textContent);
+  renderEntry({ ...settled.entry, viSource: 'mymemory' }, null);
+  await tick();
+  check('a fallback gloss names the fallback', $$('entry-vi-src').textContent === 'via MyMemory',
+        $$('entry-vi-src').textContent);
+  const { viSource: _drop, ...older } = settled.entry;
+  renderEntry(older, null);
+  await tick();
+  check('a word saved before sources were recorded shows no source line', $$('entry-vi-src').hidden);
+  renderEntry({ ...settled.entry, vi: null }, null);
+  await tick();
+  check('and a word with no gloss shows none either', $$('entry-vi-src').hidden);
+
   /* ---- a gloss that COULD NOT be asked for says so ----------------------
      The two were one dash on the card: a rate-limited minute and a word the
      endpoint genuinely has no translation for looked identical, which is why
@@ -329,7 +437,7 @@ ready.then(() => setTimeout(async () => {
   // very object `thin` names, so spreading it alone would hand the known path
   // a word that already has a gloss and skip the branch under test.
   const thinOf = (word) => ({ ...thin, word, vi: null });
-  window.fetchVietnamese = async () => { throw new TypeError('Failed to fetch'); };
+  stubGloss(async () => { throw new TypeError('Failed to fetch'); });
   STORE.words = { '조치': thinOf('조치') };
   const broke = await resolveWord('조치', null, null, null);
   check('a translation that could not be asked for reports itself',
@@ -344,7 +452,7 @@ ready.then(() => setTimeout(async () => {
   check('and pointing at the way out, which is to look it up again',
         /look the word up again/.test($$('entry-warn').textContent));
 
-  window.fetchVietnamese = async () => null;
+  stubGloss(async () => null);
   STORE.words = { '조치': thinOf('조치') };
   const nothing = await resolveWord('조치', null, null, null);
   check('but an endpoint that answers with nothing is not a failure',
@@ -360,9 +468,9 @@ ready.then(() => setTimeout(async () => {
      afterwards came back HTTP 429. Retrying on each one is useless and is part
      of the problem, so the first 429 pauses the asking and the banner says how
      long for. */
-  GLOSS.pausedUntil = 0;
+  unpause();
   let calls = 0;
-  window.fetchVietnamese = async () => { calls++; throw new Error('HTTP 429'); };
+  stubGloss(async () => { calls++; throw new Error('HTTP 429'); });
   STORE.words = { '조치': thinOf('조치') };
   const limited = await resolveWord('조치', null, null, null);
   check('a 429 is reported in words, not as a status code',
@@ -371,19 +479,37 @@ ready.then(() => setTimeout(async () => {
         /\d+ minutes?\./.test(limited.failed?.gloss ?? ''), String(limited.failed?.gloss));
   STORE.words = { '조치': thinOf('조치') };
   const second = await resolveWord('조치', null, null, null);
+  // Two calls: Google and MyMemory each asked once, each paused by its own 429.
   check('the next lookup does not ask again while the pause holds',
-        calls === 1, `${calls} calls`);
+        calls === 2, `${calls} calls`);
   check('but still says why, rather than going quiet',
         /rate-limiting/.test(second.failed?.gloss ?? ''), String(second.failed?.gloss));
-  GLOSS.pausedUntil = 0;
+  unpause();
   STORE.words = { '조치': thinOf('조치') };
-  window.fetchVietnamese = async () => { calls++; return 'hoạt động'; };
+  stubGloss(async () => { calls++; return 'hoạt động'; });
   const after = await resolveWord('조치', null, null, null);
   check('and once the pause is over the gloss lands',
-        after.entry.vi === 'hoạt động' && calls === 2, `${after.entry.vi} / ${calls} calls`);
+        after.entry.vi === 'hoạt động' && calls === 3, `${after.entry.vi} / ${calls} calls`);
 
-  window.fetchVietnamese = realVi;
-  GLOSS.pausedUntil = 0;
+  window.fetchGoogle = realGoogle;
+  window.fetchMyMemory = realMyMemory;
+  unpause();
+
+  /* ---- a Chinese word saves under zh and is glossed from zh-CN ---- */
+  const realFetch = window.fetch;
+  const zhAsked = [];
+  window.fetch = async (url) => {
+    zhAsked.push(String(url));
+    return new Response(JSON.stringify([[['học sinh', '学生']]]));
+  };
+  STORE.words = {};
+  const zhSaved = await resolveWord('学生', null, null, null);
+  window.fetch = realFetch;
+  check('a Chinese word saves under zh', zhSaved.entry?.lang === 'zh', String(zhSaved.entry?.lang));
+  check('with its gloss', zhSaved.entry?.vi === 'học sinh', String(zhSaved.entry?.vi));
+  check('asked from zh-CN, not the pack id',
+        zhAsked.some((u) => u.includes('translate_a') && u.includes('sl=zh-CN&')), zhAsked.join(' '));
+  check('and no lookup-failed warning', !zhSaved.failed?.dict, JSON.stringify(zhSaved.failed));
   STORE.words = WORDS;
 
   /* ---- the not-found sentence, in both dictionaries ----

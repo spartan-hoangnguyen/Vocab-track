@@ -197,6 +197,8 @@
     name: 'Wiktionary',
     base: 'https://api.datamuse.com',
     href: (word) => `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`,
+    // The level alone, for the dashboard's backfill of words saved without one.
+    level: (word) => (typeof cefrLevel === 'function' ? cefrLevel(word) : null),
     lookup,
     parse,
     // Exposed for the test; the pack has no other reason to reach them.

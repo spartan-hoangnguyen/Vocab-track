@@ -19,6 +19,8 @@ let activeLang = LANG.FALLBACK;
 // is what compares the two.
 let queueLang = LANG.FALLBACK;
 let practice = { counts: {}, misses: {} };
+// The last HISTORY_DAYS of grades, every language; render() filters it.
+let reviewLog = [];
 let pins = [];
 // The GIPHY key, mirrored here only so renderCard can decide whether to offer a
 // Find GIF button without an async read per card. giphy.js re-reads storage for
@@ -35,7 +37,8 @@ let ankiReady = false;
 let ankiDeck = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
-const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10 };
+// `voices` is { [packId]: voiceURI }; a language with no key is Automatic.
+const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10, voices: {} };
 let prefs = { ...REVIEW_DEFAULTS };
 
 function showView(name) {
@@ -97,10 +100,10 @@ async function markAnkiReady() {
 }
 
 async function refresh() {
-  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, ankiReady, ankiDeck] =
-    await Promise.all(
-      [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-       getLang(), getGiphyKey(), getAnkiReady(), getAnkiDeck()]);
+  [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, reviewLog, ankiReady,
+   ankiDeck] = await Promise.all(
+    [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
+     getLang(), getGiphyKey(), getHistory(), getAnkiReady(), getAnkiDeck()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -130,25 +133,25 @@ function ownersOf(id) {
   return Object.values(words).filter((e) => VT.foldersOf(e).includes(id));
 }
 
-// Bumped when lang/en/cefr.js is regenerated, so the backfill runs again over
-// words it could not place before.
-const CEFR_VERSION = 1;
+// Bumped when a bundled level list (lang/en/cefr.js, lang/zh/hsk.js) is
+// regenerated, so the backfill runs again over words it could not place before.
+const LEVEL_VERSION = 1;
 
-// Give a level to English words that have none. The dictionary stopped carrying
-// a CEFR level when the lookup moved off Cambridge, so every word saved in
-// between sits under "—" in the level charts. This reads the level from the
-// bundled list for those words, once — a word that genuinely has no level (a
-// proper noun, a word outside the list) is left alone and simply skipped next
-// run by the stored version flag. Runs on boot, after the first load populated
-// `words`, and re-renders only when it actually changed something.
-async function backfillCefr() {
-  if (typeof cefrLevel !== 'function') return;
-  const { cefrBackfill } = await chrome.storage.local.get('cefrBackfill');
-  if (cefrBackfill === CEFR_VERSION) return;
+// Give a level to words that have none, from their language's bundled list.
+// English lost its CEFR level when the lookup moved off Cambridge, and Chinese
+// words saved before the HSK list existed never had one, so both sit under "—"
+// in the level charts. The list comes from the word's dictionary (`level`), so
+// a language without one (Korean) is skipped. Once per version — a word that
+// genuinely has no level (a proper noun, a word outside the list) is left
+// alone. Runs on boot, after the first load populated `words`, and re-renders
+// only when it actually changed something.
+async function backfillLevels() {
+  const { levelBackfill } = await chrome.storage.local.get('levelBackfill');
+  if (levelBackfill === LEVEL_VERSION) return;
   const patches = {};
   for (const [word, entry] of Object.entries(words)) {
-    if (!entry || entry.level || LANG.of(entry).id !== 'en') continue;
-    const level = cefrLevel(word);
+    if (!entry || entry.level) continue;
+    const level = LANG.dict(LANG.of(entry).id)?.level?.(word);
     if (level) patches[word] = { level };
   }
   if (Object.keys(patches).length) {
@@ -158,7 +161,7 @@ async function backfillCefr() {
     }
     render();
   }
-  await chrome.storage.local.set({ cefrBackfill: CEFR_VERSION });
+  await chrome.storage.local.set({ levelBackfill: LEVEL_VERSION });
 }
 
 function render() {
@@ -377,7 +380,8 @@ function renderWords(all) {
   const shown = (term
     ? scope.filter((e) => e.word.includes(term) || (e.vi ?? '').toLowerCase().includes(term))
     : scope
-  ).sort((a, b) => b.added - a.added);
+  // An exact match first: searching "cat" should open cat, not category.
+  ).sort((a, b) => (b.word === term) - (a.word === term) || b.added - a.added);
 
   // An imported word list runs to thousands of entries, and a card is 16
   // elements: 1,900 words measured at 30,578 of them, rebuilt on every
@@ -465,7 +469,7 @@ function wordCard(entry) {
     head.appendChild(lvl);
   }
   if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
-  if (entry.ipa) head.appendChild(el('span', 'wc-ipa', `/${entry.ipa}/`));
+  if (entry.ipa) head.appendChild(el('span', 'wc-ipa', VT.pronText(entry.ipa, LANG.of(entry))));
 
   const spacer = el('span', 'wc-spacer');
   head.appendChild(spacer);
@@ -1138,25 +1142,25 @@ function setTheme(theme) {
 
 /* ---------- the language toggle ---------- */
 
-// Built from the registry, so a third pack appears here the moment its script
-// is loaded. Hidden below two: a segmented control with one segment is not a
-// choice, and every surface downstream already defaults to the one pack.
+// Built from the registry, so a new pack appears here the moment its script
+// is loaded. A dropdown at any count, not a segmented control: three short
+// labels already crowd the top bar, and one path is less to keep in step.
+// Hidden below two: a choice of one is not a choice, and every surface
+// downstream already defaults to the one pack.
 function renderLang() {
   const packs = LANG.list();
-  const seg = $('lang-seg');
-  seg.hidden = packs.length < 2;
-  if (seg.hidden) return;
-  seg.replaceChildren(...packs.map((pack) => {
-    const btn = el('button', 'rvopt', pack.short ?? pack.id.toUpperCase());
-    btn.dataset.lang = pack.id;
-    btn.title = pack.name;
-    // aria-pressed, not a class: it is the state the .rvopt styling already
-    // reads, in both themes, and it is what a screen reader announces.
-    btn.setAttribute('aria-pressed', String(pack.id === activeLang));
-    btn.addEventListener('click', () => setLang(pack.id));
-    return btn;
+  $('lang-seg').hidden = packs.length < 2;
+  if (packs.length < 2) return;
+  const select = $('lang-select');
+  select.replaceChildren(...packs.map((pack) => {
+    const opt = el('option', null, pack.native ?? pack.name);
+    opt.value = pack.id;
+    return opt;
   }));
+  select.value = activeLang;
 }
+
+$('lang-select').addEventListener('change', (e) => setLang(e.target.value));
 
 async function setLang(id) {
   if (id === activeLang) return;
@@ -1189,6 +1193,15 @@ $('giphy-key').addEventListener('input', (event) => {
 });
 chrome.storage.local.get('giphyKey').then(({ giphyKey: stored }) => {
   $('giphy-key').value = stored ?? '';
+});
+
+// The translation key, the same way. lookup.js reads it on every lookup, so
+// nothing here has to hold a copy.
+$('translate-key').addEventListener('input', (event) => {
+  chrome.storage.local.set({ translateKey: event.target.value.trim() });
+});
+chrome.storage.local.get('translateKey').then(({ translateKey: stored }) => {
+  $('translate-key').value = stored ?? '';
 });
 
 $('review-btn').addEventListener('click', () => {
@@ -1267,7 +1280,7 @@ async function drainCaptures() {
   await refresh();
 }
 
-refresh().then(backfillCefr).then(drainCaptures);
+refresh().then(backfillLevels).then(drainCaptures);
 
 
 /* ---------- review ---------- */
@@ -1427,11 +1440,9 @@ function renderCard() {
   // The IPA and the play button are the answer's shape and the answer's sound.
   // Both would hand it to you, so neither appears until you have committed.
   //
-  // ponytail: the /…/ delimiters assume IPA. Nothing to do yet — a Korean entry
-  // has no `ipa` at all while its dictionary is MT-only, so this line is hidden
-  // — but a pack that one day supplies romanisation wants its own delimiters.
+  // IPA between slashes, or the pack's romanisation under its label (Pinyin).
   $('rv-ipa').hidden = !(revealed && entry.ipa);
-  $('rv-ipa').textContent = entry.ipa ? `/${entry.ipa}/` : '';
+  $('rv-ipa').textContent = VT.pronText(entry.ipa, LANG.of(entry));
   $('rv-play').hidden = !revealed;
   $('rv-play').onclick = () => speakWord(entry);
 
@@ -1647,6 +1658,8 @@ async function applyGrade(entry, quality) {
   Object.assign(entry, patch);
   await putWord(entry.word, patch);
   recordReview(entry.word, quality, patch.lastReview);
+  // Mirrored here so Statistics moves without a reload, as `words` does.
+  reviewLog.push({ word: entry.word, quality, at: patch.lastReview });
   words[entry.word] = entry;
   return patch;
 }
@@ -1877,6 +1890,22 @@ function renderPrefs() {
   // silently keep the select empty. The options are built first for the same
   // reason: a value with no matching option does not stick.
   voice.value = voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id;
+
+  // Not the accent's hide rule: Korean has one pack voice and many OS voices.
+  // A stored URI for a voice since uninstalled has no option and reads as
+  // Automatic, which is also what speak() falls back to.
+  const installed = globalThis.speechSynthesis?.getVoices() ?? [];
+  const os = voicesFor(voices[0].bcp47, installed, voices[0].exact);
+  const speaker = $('rv-speaker');
+  // Voices, but none for this language: say so where the select was. An empty
+  // list is not that — it may still be filling in — so it keeps Automatic.
+  const none = installed.length > 0 && !os.length;
+  speaker.parentElement.hidden = none;
+  $('rv-speaker-none').hidden = !none;
+  $('rv-speaker-none').textContent = none ? voiceHint(LANG.get(activeLang)) : '';
+  speaker.replaceChildren(new Option('Automatic', ''), ...os.map((v) => new Option(v.name, v.voiceURI)));
+  const stored = prefs.voices?.[activeLang];
+  speaker.value = os.some((v) => v.voiceURI === stored) ? stored : '';
 }
 
 // A click moves focus off the typing box; give it back, or the next letters
@@ -1902,6 +1931,27 @@ $('rv-voice').addEventListener('change', (event) => {
   setReviewPrefs({ accent: event.target.value });
   refocusCard();
 });
+$('rv-speaker').addEventListener('change', (event) => {
+  // Merged, never replaced: the other languages keep their choice.
+  const voices = { ...prefs.voices, [activeLang]: event.target.value };
+  if (!event.target.value) delete voices[activeLang];
+  setReviewPrefs({ voices });
+  refocusCard();
+});
+// Always synthesis, never the mp3: it previews the OS voice. The select's
+// value rather than the stored one, which may not have landed yet. The word
+// on screen when there is a card, else the language's own name.
+$('rv-speaker-play').addEventListener('click', (event) => {
+  event.preventDefault();   // inside the label: a click there would open the select
+  const voices = LANG.get(activeLang).voices;
+  const onCard = queue.length && !$('view-review').hidden;
+  speak(onCard ? queue[0].word : voices[0].label,
+    voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id,
+    activeLang, $('rv-speaker').value);
+  refocusCard();
+});
+// getVoices() is [] on a cold load and fills in later.
+globalThis.speechSynthesis?.addEventListener('voiceschanged', renderPrefs);
 
 function renderStar(entry) {
   const on = VT.foldersOf(entry).includes(VT.STARRED);
@@ -1987,9 +2037,25 @@ function speakWord(entry) {
   // and the words-view title click can both be handed a word from outside the
   // current filter. Same fallback as the picker — one stored accent, many
   // languages, and 'uk' means nothing on a Korean voice list.
-  const voices = LANG.of(entry).voices;
-  pronounce(entry, voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id);
+  const pack = LANG.of(entry);
+  const voices = pack.voices;
+  if (!pronounce(entry, voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id)) {
+    showVoiceHint(voiceHint(pack));
+  }
 }
+
+// One line at the bottom of the window, gone after a few seconds: speakWord is
+// reached from the card, the words list and practice, so the hint cannot live
+// in any one of them.
+let voiceHintTimer = 0;
+function showVoiceHint(text) {
+  const box = $('voice-hint');
+  box.textContent = text;
+  box.hidden = false;
+  clearTimeout(voiceHintTimer);
+  voiceHintTimer = setTimeout(() => { box.hidden = true; }, VOICE_HINT_MS);
+}
+const VOICE_HINT_MS = 6000;
 
 // The words a practice mode draws from: the review's folder when it has one,
 // everything otherwise. Skipped words are out, as they are out of review.
@@ -2037,9 +2103,9 @@ PRACTICE.hooks.flashcard = () => {
 
 function dayKey(ts) { return new Date(ts).toDateString(); }
 
-function plotSeries(node, series, caption) {
+// `max` pins the scale (100 for a percentage); by default it is the tallest bar.
+function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) => s.n))) {
   node.replaceChildren();
-  const max = Math.max(1, ...series.map((s) => s.n));
   for (const point of series) {
     const col = document.createElement('span');
     col.className = 'col';
@@ -2065,6 +2131,9 @@ function plotSeries(node, series, caption) {
 }
 
 function renderStats(all) {
+  renderWeak(all);
+  renderRetention(all);
+  renderTime(all);
   $('st-sub').textContent = all.length
     ? `${all.length} words · first saved ${new Date(Math.min(...all.map((e) => e.added)))
         .toLocaleDateString()}`
@@ -2108,40 +2177,170 @@ function renderStats(all) {
   plotSeries($('st-levels'), levelSeries, true);
   $('st-levels-axis').textContent = '';
 
-  // where they came from
+  renderSources(all);
+  renderFolderProgress(all);
+}
+
+// Where they came from, and how many of each site's words you have learned.
+function renderSources(all) {
   const hosts = new Map();
   for (const entry of all) {
     // Deduped by page key: a word clicked twice in one video has two sources
     // that differ only by their timestamp, and that is one place it was met.
+    // Once per host too: two pages of one site are one place it came from.
     const seen = new Set();
+    const met = new Set();
     for (const url of entry.sources ?? []) {
       if (!url || seen.has(VT.pageKey(url))) continue;
       seen.add(VT.pageKey(url));
       let host;
       try { host = new URL(url).hostname.replace(/^www\./, ''); }
       catch { continue; }   // a saved entry may carry a non-URL source
-      hosts.set(host, (hosts.get(host) ?? 0) + 1);
+      if (met.has(host)) continue;
+      met.add(host);
+      const was = hosts.get(host) ?? { n: 0, learned: 0 };
+      was.n++;
+      if (VT.isLearnable(entry) && VT.isMastered(entry)) was.learned++;
+      hosts.set(host, was);
     }
   }
   const list = $('st-sources');
   list.replaceChildren();
-  const ranked = [...hosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const ranked = [...hosts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
   if (!ranked.length) {
     const li = document.createElement('li');
     li.textContent = 'No pages recorded yet.';
     list.appendChild(li);
   }
-  for (const [host, n] of ranked) {
+  for (const [host, { n, learned }] of ranked) {
     const li = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'host';
     name.textContent = host;
     const count = document.createElement('span');
     count.className = 'n';
-    count.textContent = `${n} word${n === 1 ? '' : 's'}`;
+    count.textContent = `${n} word${n === 1 ? '' : 's'} · ${learned} learned`;
     li.append(name, count);
     list.appendChild(li);
   }
+}
+
+// Each folder with words in this language: how many of them are learned,
+// best share first. Skipped words count in neither number (VT.progressOf).
+const FOLDERS_SHOWN = 8;
+
+function renderFolderProgress(all) {
+  const members = {};
+  for (const entry of all) {
+    for (const id of VT.foldersOf(entry)) {
+      if (folders[id]) (members[id] ??= []).push(entry);
+    }
+  }
+  const rows = Object.entries(members).map(([id, entries]) => {
+    const { learned, learning, fresh } = VT.progressOf(entries);
+    return { folder: folders[id], learned, total: learned + learning + fresh };
+  }).filter((r) => r.total)
+    .sort((a, b) => b.learned / b.total - a.learned / a.total || b.total - a.total)
+    .slice(0, FOLDERS_SHOWN);
+  const list = $('st-folders');
+  list.replaceChildren();
+  if (!rows.length) {
+    const li = document.createElement('li');
+    li.textContent = 'No folders with words yet.';
+    list.appendChild(li);
+  }
+  for (const { folder, learned, total } of rows) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = `${folder.icon ?? ''} ${folder.name}`.trim();
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `${learned} of ${total} learned`;
+    li.append(name, count);
+    list.appendChild(li);
+  }
+}
+
+// Words forgotten most often in the window, each one a way back to its card.
+function renderWeak(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const weak = VT.weakWords(reviewLog.filter((row) => mine.has(row.word)));
+  const list = $('st-weak');
+  list.replaceChildren();
+  if (!weak.length) {
+    const li = document.createElement('li');
+    li.textContent = 'Nothing forgotten in the last 13 weeks.';
+    list.appendChild(li);
+  }
+  for (const { word, lapses, last } of weak) {
+    const li = document.createElement('li');
+    const open = document.createElement('button');
+    open.type = 'button';
+    const name = document.createElement('span');
+    name.className = 'host';
+    name.textContent = word;
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = `forgot ${lapses}× · ${relative(last)}`;
+    open.append(name, count);
+    open.addEventListener('click', () => {
+      $('q').value = word;
+      activeFolder = null;
+      showView('words');
+      render();
+    });
+    li.appendChild(open);
+    list.appendChild(li);
+  }
+}
+
+// Retention per week, from the same first-of-day grades as the weak list.
+const RETENTION_WEEKS = 13;
+const FSRS_TARGET = 90;   // the recall VT.schedule aims at
+
+function renderRetention(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const weeks = VT.weeklyRetention(reviewLog.filter((row) => mine.has(row.word)), RETENTION_WEEKS);
+  const pct = (rate) => Math.round(rate * 100);
+  plotSeries($('st-retention'), weeks.map(({ start, reviews, passed, rate }) => {
+    const label = new Date(start).toLocaleDateString();
+    return { label, n: rate == null ? 0 : pct(rate),
+             title: reviews ? `${label}: ${pct(rate)}% · ${passed} of ${reviews} remembered`
+                            : `${label}: no reviews` };
+  }), false, 100);
+  $('st-retention-from').textContent = new Date(weeks[0].start).toLocaleDateString();
+  const seen = weeks.map((w, i) => ({ ...w, ago: weeks.length - 1 - i })).filter((w) => w.reviews);
+  const when = (ago) => (ago === 0 ? 'This week' : ago === 1 ? 'Last week' : `${ago} weeks ago`);
+  const [first, last] = [seen[0], seen[seen.length - 1]];
+  $('st-retention-sum').textContent = seen.length >= 2
+    ? `${when(last.ago)} ${pct(last.rate)}% · ${when(first.ago).toLowerCase()} ${pct(first.rate)}% · ` +
+      `FSRS aims for ${FSRS_TARGET}%`
+    : 'Review for a few weeks to see a trend.';
+}
+
+// Minutes a day spent reviewing, last 30 days, estimated from grade gaps.
+function renderTime(all) {
+  const mine = new Set(all.map((e) => e.word));
+  const minutes = VT.reviewMinutes(reviewLog.filter((row) => mine.has(row.word)));
+  const series = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString();
+    // At least a minute on a day with any review, so a short one is not "none".
+    const raw = minutes.get(VT.dayKey(d.getTime())) ?? 0;
+    const n = raw ? Math.max(1, Math.round(raw)) : 0;
+    series.push({ label, n, title: `${label}: ${n} min` });
+  }
+  plotSeries($('st-time'), series, false);
+  const from = new Date(); from.setDate(from.getDate() - 29);
+  $('st-time-from').textContent = from.toLocaleDateString();
+  const total = series.reduce((sum, d) => sum + d.n, 0);
+  const span = total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} min` : `${total} min`;
+  $('st-time-sum').textContent = total
+    ? `${total < series.length ? 'Under a minute' : `About ${Math.round(total / series.length)} min`} a day`
+      + ` · ${span} in 30 days`
+    : 'No reviews in the last 30 days.';
 }
 
 /* ---------- writing ---------- */

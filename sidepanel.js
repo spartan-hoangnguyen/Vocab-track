@@ -32,6 +32,12 @@ function renderEntry(entry, failed) {
   $('entry-pos').textContent = entry.pos ?? '';
   $('entry-gram').textContent = entry.gram ?? '';
   $('entry-vi').textContent = entry.vi ?? DASH;
+  // Where the gloss came from, because a fallback's is often rougher than
+  // Google's. No line for a word with no gloss, or one saved before the
+  // source was recorded.
+  const viSource = entry.vi ? glossSourceName(entry.viSource) : null;
+  $('entry-vi-src').textContent = viSource ? `via ${viSource}` : '';
+  $('entry-vi-src').hidden = !viSource;
 
   renderProns(entry);
   renderContext(entry);
@@ -95,11 +101,20 @@ function renderProns(entry) {
     label.className = 'tag';
     label.textContent = tag;
     const text = document.createElement('span');
-    text.textContent = ipa ? `/${ipa}/` : DASH;
+    text.textContent = VT.pronText(ipa, LANG.of(entry)) || DASH;
     const play = document.createElement('button');
     play.textContent = '▶';
     play.setAttribute('aria-label', `Pronounce ${entry.word} (${tag})`);
-    play.addEventListener('click', () => pronounce({ ...entry, audio: audio ?? entry.audio }));
+    play.addEventListener('click', () => {
+      if (pronounce({ ...entry, audio: audio ?? entry.audio })) return;
+      // No voice for this language on this machine: say why, once, under the rows.
+      if (box.querySelector('.hint')) return;
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.setAttribute('role', 'status');
+      hint.textContent = voiceHint(LANG.of(entry));
+      box.appendChild(hint);
+    });
     row.append(label, text, play);
     box.appendChild(row);
   }
@@ -408,6 +423,7 @@ async function startQuiz(entry) {
   showView('quiz');
   quizEntry = entry;
   quizAnswered = false;
+  $('quiz-voice-hint').hidden = true;
   $('quiz-empty').hidden = true;
   $('quiz-card').hidden = false;
   $('quiz-word').textContent = entry.word;
@@ -452,7 +468,10 @@ function answerQuiz(correct, button) {
   // Deliberately no putWord and no VT.sm2. This is self-testing while you
   // read; ease, interval and due only move in the dashboard's review, where
   // you chose to sit down and be graded.
-  pronounce(quizEntry);
+  if (!pronounce(quizEntry)) {
+    $('quiz-voice-hint').textContent = voiceHint(LANG.of(quizEntry));
+    $('quiz-voice-hint').hidden = false;
+  }
 }
 
 $('quiz-full').addEventListener('click', () => {

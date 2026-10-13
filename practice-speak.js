@@ -59,9 +59,6 @@ const SPEAK = (() => {
     return best;
   }
 
-  function wordCount(sentence) {
-    return String(sentence ?? '').trim().split(/\s+/).filter(Boolean).length;
-  }
 
   // Both rules answered at once, which is the one thing grade() cannot say: it
   // stops at the first failure so that it can name a single reason. The
@@ -70,7 +67,7 @@ const SPEAK = (() => {
   // grade() having never reached it.
   function coverage(sentence, word, pack) {
     const hit = findWord(sentence, word, pack);
-    const words = wordCount(sentence);
+    const words = (pack ?? LANG.pick(null, word)).wordCount(sentence);
     return { hit, used: !!hit, words, long: words >= MIN_WORDS };
   }
 
@@ -100,7 +97,7 @@ const SPEAK = (() => {
 
     const root = node('div', 'pr-speak');
     root.appendChild(node('p', 'prask', entry.word));
-    if (entry.ipa) root.appendChild(node('p', 'prhint', `/${entry.ipa}/`));
+    if (entry.ipa) root.appendChild(node('p', 'prhint', VT.pronText(entry.ipa, LANG.of(entry))));
     const gloss = VT.glossOf(entry);
     if (gloss) root.appendChild(node('p', 'prhint', gloss));
     root.appendChild(node('p', 'prhint pr-speak-task', 'Make a sentence with this word and say it aloud.'));

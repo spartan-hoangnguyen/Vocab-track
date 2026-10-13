@@ -14,14 +14,15 @@ the word's CMU pronunciation. There is no recorded audio from this source. The
 play button speaks the word with the system voice, and the **Wiktionary ↗** link
 opens the full entry.
 Cambridge put a bot wall in front of its pages that a background request cannot
-pass, so the lookup moved to a keyless source. Saved words are highlighted when
-you revisit the page, and reviewed as flashcards on a spaced-repetition schedule.
+pass, so the lookup moved to a keyless source. Saved words are highlighted on
+every page you read, not only the one you saved them from, and reviewed as
+flashcards on a spaced-repetition schedule.
 
 Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, with no dictionary behind it yet. See
 *Languages* below, which says plainly what it does and does not do.
 
-Built for one person. No accounts, no sync, no server.
+No accounts, no sync, no server. Your words stay in your own Chrome profile.
 
 | Side panel | Dashboard |
 |---|---|
@@ -54,6 +55,11 @@ Built for one person. No accounts, no sync, no server.
   in place; click one for the fix. The dashboard's *Writing* view keeps a count
   of the rules you break most often, which is the part a grammar checker does
   not normally tell you. See *Writing* below.
+- **See what keeps slipping.** The dashboard's *Statistics* lists the words
+  you forgot most often in the last 13 weeks (click one for its card), charts
+  your retention week by week against FSRS's 90% target, estimates the minutes
+  you spent reviewing each day, and counts the words learned per site and per
+  folder — all for the language the dropdown is on.
 - **Organise.** Everything lands in *From reading* automatically; create your
   own folders on top.
 - **Review by typing.** The card shows the meaning and you type the word back
@@ -80,6 +86,11 @@ Built for one person. No accounts, no sync, no server.
 
 ## Install
 
+To use it, follow [INSTALL.md](INSTALL.md): add it from the Chrome Web Store,
+no Developer mode.
+
+### For development
+
 No build step, and nothing to install first.
 
 1. Clone or download this repository, then `chrome://extensions` → enable
@@ -87,7 +98,7 @@ No build step, and nothing to install first.
 2. **Load unpacked** → select this folder
 3. Pin it. The toolbar icon toggles the side panel; the dashboard is one click
    further, from the panel's **Open dashboard →**.
-4. Open the dashboard. **EN / 한** sits in the top bar, beside Review. That is
+4. Open the dashboard. The language dropdown sits in the top bar, beside Review. That is
    the whole of the setup — there is nothing to configure per language. Korean
    is keyless too, in the sense that it works without one; what a krdict key
    would buy it is under *Known limits*.
@@ -96,14 +107,15 @@ Requires Chrome 116 or later (`chrome.sidePanel.open` from a content script).
 
 ## Languages
 
-**EN / 한** in the dashboard's top bar decides which language you are studying
-*right now*. It filters the words list, the folders, the level bars, the
-statistics and the review queue, and it swaps the CEFR scale for 초급/중급/고급.
-Flip it mid-review and the session rebuilds against the other language. It is
+The **language dropdown** (English / 한국어 / 中文) in the dashboard's top bar
+decides which language you are studying *right now*. It filters the words
+list, the folders, the level bars, the statistics and the review queue, and it
+swaps the CEFR scale for 초급/중급/고급 or HSK 1–6. Switch it mid-review and
+the session rebuilds against the other language. It is
 saved, so the dashboard opens where you left it, and it is hidden altogether
 while only one language pack is loaded.
 
-**Saving a word ignores the toggle**, on purpose. The 📘 button and the panel
+**Saving a word ignores the dropdown**, on purpose. The 📘 button and the panel
 route on the script of what you selected, so a Korean word saves as Korean
 while the dashboard is showing English — and the dashboard follows it, rather
 than dropping the word into a list it is filtering out.
@@ -124,8 +136,18 @@ only real one. The extension now names the voice it wants instead of letting
 Chrome pick among the nine, but it can only pick from what is installed:
 **System Settings → Accessibility → Spoken Content → System Voice → Manage
 Voices → Korean → Yuna (Enhanced)** is the download that makes the difference.
+Then pick it in **Review → Speaker** with Korean active (the ▶ beside the
+select plays a sample first), so ▶ uses it on purpose rather than because the
+automatic pick happened to land on it. The choice is per language and holds
+on every surface: the review card, practice and the side panel.
 An enhanced recording is preferred over the system default automatically once
 it is there.
+On other systems the voice comes from elsewhere: **Windows** — Settings →
+Time & language → Speech → Manage voices → Add voices; **ChromeOS** —
+Settings → Accessibility → Text-to-Speech → Speech engine settings; **Linux** —
+a speech-dispatcher voice for the language (espeak-ng, for example), then
+restart Chrome. With no voice for the language, the Speaker select is replaced
+by a line that says so and gives this path for the OS you are on.
 
 **Folders belong to a language too.** The toggle filters the folder grid, not
 just the words in it, so *IELTS C1* is not sitting empty in your Korean
@@ -144,6 +166,29 @@ Hangul syllable block plus a per-particle minimum length, not a dictionary, and
 the classes it gets wrong are listed under *Known limits* — they are written
 into the pack's own tests as the values it actually produces, so they are facts
 under test rather than surprises.
+
+**What Chinese gives you today.** Simplified Chinese is the third language, and
+it has the most complete card of the three non-English sides: a lookup carries
+**pinyin and up to three English senses** from a bundled CC-CEDICT, a
+**Vietnamese gloss**, and an **HSK 2.0 level** (HSK 1–6) from a bundled list —
+no API key and no dictionary call, since both files ship with the extension.
+Highlighting, the sentence you met it in (split on 。！？；), Fill the gap,
+the typing card, every practice mode, and a starter list of 4,991 HSK words
+(see *Word lists*) all work. ▶ speaks with a **zh-CN** voice (Tingting on a
+Mac); without one installed, nothing is spoken and a line says where to add it.
+
+**Matching asks the segmenter.** Chinese writes no spaces, so a saved word is
+found with `Intl.Segmenter` and only where it is a whole word: a saved 学 does
+not light up inside 学生. A word ICU splits in two (图书馆 → 图书 + 馆) still
+matches as a run of segments.
+
+What Chinese does not do, all listed under *Known limits*: **Traditional
+characters** route to Chinese and get the gloss, but no pinyin, definition or
+level, because nothing converts them; a **Japanese** selection written only in
+kanji (学生 is Japanese too) is treated as Chinese; a one-character word ICU
+glues to its neighbour (我 in 我是, 在 in 他在) is not highlighted there; the
+speed reader flashes a whole clause at a time, because it splits on spaces; and
+there is no writing check, since LanguageTool's Chinese is out of scope.
 
 ## Saving from outside Chrome
 
@@ -328,8 +373,10 @@ with a cache in `/tmp/vocab-track-phrasal`. Cambridge gives each sense of a phra
 verb its own entry block, so the parse page folds them into one, easiest band
 first — otherwise `give up` would teach "to stop guessing".
 
-A phrasal verb is a multi-word key, so it reviews like any word but is not
-highlighted on pages or offered as a lookup — those match single words only.
+A phrasal verb is a multi-word key. It reviews like any word and is
+highlighted on pages, with its first word in any form: `give up` lights up
+"gave up" and "giving up". It is not offered as a lookup, because a lookup
+takes one word.
 
 ### Korean
 
@@ -374,17 +421,68 @@ Sources: the word list is
 built from, though the band mapping is unofficial, which is why the folders
 carry the 초급/중급/고급 names and not TOPIK levels.
 
+### Chinese (HSK)
+
+`data/zh/hsk.json` imports the same way: **4,991 Simplified words** in six
+folders, **HSK 1 150, HSK 2 147, HSK 3 298, HSK 4 598, HSK 5 1,298, HSK 6
+2,500**, the HSK 2.0 levels the Chinese level bars are drawn against. Every card
+carries pinyin and the source's English meanings; the Vietnamese gloss is
+fetched the first time you click the word, so the build makes no MT calls.
+Twenty a day, HSK 1 first, so the last card is due in 249 days.
+
+The same builder writes `lang/zh/hsk.js`, the word → level table a Chinese
+lookup reads its HSK level from, the way English reads `lang/en/cefr.js`. It
+loads in the side panel and the dashboard, never the content script. Words
+saved before it existed get their level from the dashboard's one-time backfill.
+
+```bash
+python3 tools/zh/build-hsk-list.py
+```
+
+Source: [drkameleon/complete-hsk-vocabulary](https://github.com/drkameleon/complete-hsk-vocabulary)
+(MIT). Its `old-1` … `old-6` tags are HSK 2.0; a word on two levels keeps the
+easier. HSK 3.0 is not used.
+
+### Chinese dictionary (CC-CEDICT)
+
+`data/zh/cedict.json` is the dictionary a Chinese lookup reads its pinyin and
+senses from: **113,483 Simplified headwords, 7.9 MB** (3.2 MB gzipped, which is
+roughly what it adds to the packed extension). Each reading of a word keeps its
+pinyin with tone marks (`xuésheng`) and up to three senses; a word with two
+readings (行 háng / xíng) keeps both. Cross-references (*variant of*, *see*,
+*used in*), classifier lines and headwords longer than six characters, which
+the pack never offers a lookup for, are left out. Traditional headwords are
+not keyed.
+
+It is over the 4 MB the plan aimed for. Getting there means dropping about
+half the headwords, and CC-CEDICT carries no frequency to choose which half,
+so the file keeps them all.
+
+```bash
+python3 tools/zh/build-cedict.py
+```
+
+Source: [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict),
+published by MDBG under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), based on CEDICT
+© 1997, 1998 Paul Andrew Denisowski. The trimmed file is a derived work under
+the same licence.
+
 ## Privacy
 
 No account, no server, no analytics. Your words live in `chrome.storage.local`
 on your own machine and are never uploaded anywhere.
+The policy for the store version, written for someone who did not build it,
+is [PRIVACY.md](PRIVACY.md).
 
-Six things leave your browser, each only when you do something that needs it:
+Eight things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
 | You click an English word | `api.datamuse.com` | the word |
 | You click any word | `translate.googleapis.com` | the word, for the Vietnamese gloss |
+| Google Translate fails, and you set a translation key | `translation.googleapis.com` | the word and your key, for the same gloss |
+| Google Translate fails or rate-limits that lookup | `api.mymemory.translated.net` | the word, for the same gloss |
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
@@ -396,6 +494,12 @@ under **Import & export**, in **GIFs on cards**. The key is kept in
 is sent to GIPHY until you press the button on a review card. A found GIF is then
 stored by its URL, so a word is never searched twice.
 
+The Google Cloud Translation key is optional too. Its field is under **Import &
+export**, in **Translation key**. It is kept in `chrome.storage.local` on this
+machine and is never part of an export. With a key set, the official API
+answers when the free endpoint fails, before MyMemory. Its free tier is 500,000
+characters a month, and the Cloud project needs billing turned on.
+
 Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
 click it, and nothing is fetched in the background. Opening the dashboard makes
 no third-party request at all — the fonts are vendored under `fonts/`.
@@ -405,7 +509,8 @@ Two permissions look broader than they are:
 - **`<all_urls>`** — the content script has to be on the page you are reading
   for a click to look a word up, and there is no way to know in advance which
   page that is. It reads the word you clicked. It sends nothing on its own.
-- **`nativeMessaging`** — macOS capture only. It talks to `tools/vocab-host.py`
+- **`nativeMessaging`** — developer install only: `tools/package.sh` drops it
+  from the store build. macOS capture only. It talks to `tools/vocab-host.py`
   on your own machine, which is a queue file the Quick Action writes to. It is
   inert until you run `tools/install-macos.sh`, and nothing leaves the machine.
 
@@ -420,6 +525,7 @@ Two permissions look broader than they are:
 | `content-script.js` | The floating button, highlighting, scroll-to-word, YouTube captions |
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
+| `tools/package.sh` | Builds the Chrome Web Store zip in `dist/`: tracked runtime files only, `nativeMessaging` dropped from the zipped manifest |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
@@ -458,7 +564,10 @@ manual checklist for it.
 - **Cambridge is scraped, not an API.** Selector changes will break fields one
   at a time; each degrades to `—` rather than failing the lookup.
 - **The translation endpoint is unofficial** and keyless. It works today and
-  will stop one day; the replacement goes behind one function.
+  will stop one day. When it fails or rate-limits, the gloss comes from
+  MyMemory, a second keyless source. MyMemory has a daily free quota, so on a
+  day both are out the card says why, and looking the word up again later
+  fills the gloss in.
 - **A card with no meaning saved cannot ask you to type.** If the dictionary
   and the translator were both down when the word was saved it has neither a
   definition nor a gloss, so it falls back to showing the word and asking you
@@ -473,8 +582,17 @@ manual checklist for it.
   view re-renders on every keystroke in the search box, so with a couple of
   thousand words saved it shows the newest 300 and the count says so. Search
   and folders reach the rest.
-- **Highlighting is exact-match.** `resilient` does not highlight `resilience`.
-- **Highlights paint once at page load**, so infinite-scroll content is missed.
+- **Highlighting knows a fixed list of English forms.** `resilient` lights up
+  "resilience", `run` lights up "ran", `study` lights up "studied". A form
+  outside the suffix rules and the irregular-verb table in `lang/en/irregular.js`
+  stays dark: `decide` does not highlight "decision". Practice (Fill the gap,
+  Speak) still matches the exact word.
+- **A phrasal verb split by its object is not highlighted.** `give up` lights
+  up "gave up" but not "give it up". A phrase that a link or bold text cuts in
+  two ("gave **up**") is not found either.
+- **Highlighting reaches the page's own DOM only.** Content that loads later
+  (infinite scroll, "load more", an SPA route change) is highlighted within a
+  third of a second, but text inside Shadow DOM or a cross-origin iframe is not.
 - **Korean has no dictionary behind it.** There is no krdict key, so `lookup()`
   in `lang/ko/dictionary.js` returns level, pronunciation, definition, senses
   and audio as `null` for every Korean word, and the card carries the
@@ -543,14 +661,13 @@ manual checklist for it.
   the `\p{L}` pivot classes both hold on Hangul, but the focal-letter formula is
   calibrated to Latin letter widths and the long-word beat never fires on an
   어절, which is rarely over four characters.
-- **The voice is chosen by name, and the name list is macOS's.** Chrome picks
-  a voice for you when an utterance names only a language, and it picks badly
-  where a language has novelty voices installed. The pick is now explicit —
-  an enhanced recording, then the system default, then anything local — with
-  the known macOS novelty names filtered out. That list goes stale when Apple
-  renames one, and it says nothing about Windows or Linux, where the rest of
-  the ordering still applies. A real voice picker in the review preferences is
-  the upgrade path.
+- **Automatic voice choice filters by name, and the name list is macOS's.**
+  The review preferences have a **Speaker** select per language, listing the
+  voices the machine actually has. A language left on *Automatic* gets an
+  explicit pick — an enhanced recording, then the system default, then
+  anything local — with the known macOS novelty names filtered out. That list
+  goes stale when Apple renames one, and it says nothing about Windows or
+  Linux, where the rest of the ordering still applies.
 - **A gloss that never arrived is re-asked on every click.** The translation
   endpoint rate-limits, so a word saved during a bad minute keeps no meaning —
   looking it up again now retries rather than answering from storage. The cost
@@ -571,12 +688,12 @@ manual checklist for it.
   banner naming the reason and saying to look the word up again, while an
   endpoint that answers with nothing stays quiet, because that is a real answer
   about the word.
-- **Nothing tells you the OS has no voice for a language.** Chrome neither
-  throws nor reports it — it simply stays silent, and a Mac ships no Korean
-  voice until one is downloaded. Listening checks and hides the word rather
-  than playing nothing, but a machine with a genuinely empty voice list is
-  indistinguishable from one still filling it in, so on those the card is still
-  offered. The review card's play button has no such check and is just quiet.
+- **An empty voice list stays quiet.** When the OS has voices but none for
+  the language, every ▶ and the review preferences say so and name where to
+  install one. A machine whose voice list is genuinely empty cannot be told
+  apart from one still filling it in, so there ▶ still speaks and lets Chrome
+  choose, the preferences offer only *Automatic*, and Listening still offers
+  the card.
 - **A Listening card you could not hear still counts as a miss.** The verdict
   names the missing voice instead of blaming you, but the practice loop records
   every answer and a mode has no way to opt out.
@@ -650,3 +767,15 @@ manual checklist for it.
 - **Captures resolve when the dashboard opens**, not instantly. They queue
   offline in the meantime, so nothing is lost if Chrome is shut.
 - Roughly 1 word in 8 has no synonyms on Cambridge.
+- **Chinese is Simplified only.** Traditional characters route to Chinese and
+  get the Vietnamese gloss, but CC-CEDICT and the HSK list are keyed on the
+  Simplified form and nothing converts, so there is no pinyin, definition or
+  level. HSK 3.0 is not used.
+- **A Japanese word written only in kanji is taken for Chinese.** Script alone
+  cannot tell 学生 in a Japanese sentence from 学生 in a Chinese one; a
+  selection with kana in it is not offered a lookup.
+- **Chinese matching is only as good as ICU's segmenter.** A one-character word
+  ICU joins to its neighbour (我 in 我是, 在 in 他在) is not highlighted there.
+  `lang/zh/index.js` pins these as the values it actually produces.
+- **The speed reader is not tuned for Chinese.** It splits on spaces, so a
+  Chinese paragraph flashes a clause at a time.
