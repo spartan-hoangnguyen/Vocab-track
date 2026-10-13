@@ -25,7 +25,7 @@ else.
 
 ## What leaves your browser
 
-Six things leave your browser, each only when you do something that needs it:
+Seven things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -34,6 +34,7 @@ Six things leave your browser, each only when you do something that needs it:
 | You stop typing, with the writing check on | `api.languagetool.org` | the sentence you typed |
 | You play a pronunciation | the host on the card | nothing — the audio file is streamed from the URL stored with the word |
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
+| You click a Korean word, with a krdict key saved | `krdict.korean.go.kr` | the word and your key |
 | You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, through AnkiConnect |
 
 Each of these services gets the request directly from your browser, so it also
@@ -53,9 +54,10 @@ under **Off on these sites** on the same page.
 `chrome.storage.local` and is never part of an export. Nothing is sent to
 GIPHY until you press the button on a review card.
 
-Korean sends nothing to krdict: the **krdict ↗** link opens a tab when you
-click it. Opening the dashboard makes no third-party request; its fonts ship
-inside the extension.
+**Korean sends nothing to krdict until you add your own krdict key.** The key
+stays in `chrome.storage.local` and is never part of an export. Without a key,
+the **krdict ↗** link opens a tab when you click it. Opening the dashboard
+makes no third-party request; its fonts ship inside the extension.
 
 ## What it does not do
 

@@ -1224,6 +1224,15 @@ chrome.storage.local.get('translateKey').then(({ translateKey: stored }) => {
   $('translate-key').value = stored ?? '';
 });
 
+// The krdict key, the same way. No module copy: lang/ko/dictionary.js reads it
+// from storage on every lookup.
+$('krdict-key').addEventListener('input', (event) => {
+  chrome.storage.local.set({ krdictKey: event.target.value.trim() });
+});
+chrome.storage.local.get('krdictKey').then(({ krdictKey }) => {
+  $('krdict-key').value = krdictKey ?? '';
+});
+
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');

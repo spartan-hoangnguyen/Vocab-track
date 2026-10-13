@@ -1,8 +1,8 @@
 // Korean. The pure half: what counts as a word, how to strip a 조사 off it,
 // and how to find it again in a page. No network here — krdict and the
-// Vietnamese gloss belong in lang/ko/dictionary.js, which stays a stub until
-// a krdict key exists — until then the MT gloss is the only meaning a word
-// carries.
+// Vietnamese gloss belong in lang/ko/dictionary.js, which reaches krdict only
+// when the user has saved a krdict key — without one the MT gloss is the only
+// meaning a word carries.
 //
 // This is the pack the range-returning match() seam exists for. Korean is
 // agglutinative: 책 appears on the page as 책을, 책이, 책에서는, and \b is an
@@ -132,6 +132,10 @@
     // 초급≈TOPIK 1-2 mapping is unofficial. Ungraded krdict entries come back
     // blank and simply do not rank — medianLevel already filters those out.
     levels: ['초급', '중급', '고급'],
+
+    // krdict's pronunciation is Hangul (책, 읽다 → 익따), not IPA, so it is
+    // printed under its own label rather than between slashes.
+    pronLabel: '발음',
 
     // Normalise is deliberately NOT overridden: LANG.register's default is
     // VT.normaliseWord, whose NFC step was written for Hangul in the first
