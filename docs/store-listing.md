@@ -64,11 +64,18 @@ manifest, and no others:
 |---|---|
 | `storage` | Keeps your saved words, their sentences and review schedule, and your settings in `chrome.storage.local` on this device. Nothing is synced or uploaded. |
 | `sidePanel` | The side panel is where a looked-up word's entry is shown and saved. |
+| `downloads` | Writes the automatic backup of your words to `Downloads/vocab-track/backup-<date>.json` on this device, and removes backups older than the last seven. |
+| `downloads.ui` | Keeps the browser's download bubble from opening each time the automatic backup is written. |
+| `alarms` | Writes the automatic backup a minute after your last change, and keeps one backup per day. |
+| `offscreen` | A service worker cannot make a file to download. An offscreen document makes the backup file for `downloads`. |
 | Content script on `<all_urls>` | The content script has to be on the page you are reading for a click to look a word up, and there is no way to know in advance which page that is. It reads the word you clicked and its sentence, highlights words you saved, and runs the writing check in text boxes. It sends nothing on its own. |
 | `api.datamuse.com` | When you click an English word, the word is sent here for its meanings, part of speech and synonyms. |
 | `translate.googleapis.com` | When you click any word, the word is sent here for its Vietnamese translation. |
+| `translation.googleapis.com` | Only after you add your own Google Cloud Translation key, and only when the free endpoint above fails: the word and your key are sent here for the same translation. |
+| `api.mymemory.translated.net` | Only when the endpoints above fail or are rate-limited: the word is sent here for the same translation. |
 | `api.languagetool.org` | With the writing check on, a sentence you type into a text box on a page is sent here to be checked. Password, email, URL, phone, number, search and `autocomplete="off"` fields are never read, nor any field under 40 characters. |
 | `api.giphy.com` | Only after you add your own GIPHY API key and press **Find GIF** on a review card: the word, or its Vietnamese gloss, is sent here to find a GIF for the card. |
+| `krdict.korean.go.kr` | Only after you add your own krdict API key: when you click a Korean word, the word and your key are sent here for its definition, pronunciation and level. |
 | `127.0.0.1:8765` | Only when you press **Push to Anki**: the word, its meaning, example and GIF are sent to the AnkiConnect add-on of the Anki app on your own machine. Nothing leaves the machine. |
 
 **Remote code:** No. All JavaScript ships inside the package.

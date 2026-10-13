@@ -1,3 +1,6 @@
+// lib.js is only `const VT = {...}`: the backup's payload and file name.
+importScripts('lib.js');
+
 // At top level, not in onInstalled: the setting persists per extension, so an
 // install that set it once would keep the old behaviour until it was
 // reinstalled. Running on every worker wake is cheap and makes a plain reload
@@ -180,3 +183,113 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch((err) => sendResponse({ error: String(err?.message ?? err) }));
   return true;
 });
+
+
+/* ---------- automatic backup ---------- */
+
+
+// A dated file in Downloads/vocab-track, written a minute after the last
+// change to anything you would miss: re-creating the alarm resets it, so a
+// review session ends in one backup, not one per grade. One file per day and
+// seven days kept — a single rolling file would let a fresh profile overwrite
+// the only backup with a one-word store before you restore it. Nothing leaves
+// the machine. Registered at top level so a worker woken by the event sees it.
+const BACKUP_ALARM = 'backup';
+const BACKUP_KEEP = 7;
+const BACKUP_DELAY_MIN = 1;
+const BACKUP_TIMEOUT_MS = 60000;
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  // lastBackup is not watched, so recording a backup cannot schedule another.
+  if (!Object.keys(changes).some((key) => ['words', 'folders', 'pins'].includes(key)
+      || key.startsWith('history:'))) return;
+  chrome.alarms.create(BACKUP_ALARM, { delayInMinutes: BACKUP_DELAY_MIN })
+    .catch((err) => console.error('[vocab-track] backup alarm failed', err));
+});
+
+// A worker evicted mid-backup never reached its `finally`; a fresh one turns
+// the bubble back on, since no backup can be running in a worker just started.
+chrome.downloads.setUiOptions({ enabled: true })
+  .catch((err) => console.error('[vocab-track] could not re-enable the download bubble', err));
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === BACKUP_ALARM) backup();
+});
+
+// Resolves with the download's end state: 'complete' or 'interrupted'.
+function downloadSettled(id) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => finish('timeout'), BACKUP_TIMEOUT_MS);
+    function finish(state) {
+      clearTimeout(timer);
+      chrome.downloads.onChanged.removeListener(onChanged);
+      resolve(state);
+    }
+    function onChanged(delta) {
+      if (delta.id === id && delta.state && delta.state.current !== 'in_progress') {
+        finish(delta.state.current);
+      }
+    }
+    chrome.downloads.onChanged.addListener(onChanged);
+    // It may have finished before the listener was attached.
+    chrome.downloads.search({ id }).then(([item]) => {
+      if (item && item.state !== 'in_progress') finish(item.state);
+    });
+  });
+}
+
+async function backup() {
+  let offscreen = false;
+  let uiHidden = false;
+  try {
+    const dump = await chrome.storage.local.get(null);
+    const words = Object.keys(dump.words ?? {}).length;
+    if (!words) return;
+    const now = Date.now();
+    const file = VT.backupFileName(now);
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html', reasons: ['BLOBS'], justification: 'Write the backup file'
+    }).catch((err) => {
+      // Left open by a backup the worker was evicted in the middle of.
+      if (!String(err?.message).includes('single offscreen')) throw err;
+    });
+    offscreen = true;
+    const url = await chrome.runtime.sendMessage({
+      type: 'backup-blob', json: JSON.stringify(VT.backupPayload(dump, now))
+    });
+    // Browser-wide while off, so it goes back on in `finally` whatever happens.
+    await chrome.downloads.setUiOptions({ enabled: false });
+    uiHidden = true;
+    const id = await chrome.downloads.download({
+      url, filename: file, conflictAction: 'overwrite', saveAs: false
+    });
+    const state = await downloadSettled(id);
+    if (state !== 'complete') throw new Error(`backup download ${state}`);
+    await chrome.storage.local.set({ lastBackup: { at: now, file, words } });
+    await pruneBackups();
+  } catch (err) {
+    console.error('[vocab-track] automatic backup failed', err);
+  } finally {
+    if (uiHidden) {
+      await chrome.downloads.setUiOptions({ enabled: true })
+        .catch((err) => console.error('[vocab-track] could not re-enable the download bubble', err));
+    }
+    if (offscreen) {
+      await chrome.offscreen.closeDocument()
+        .catch((err) => console.error('[vocab-track] offscreen close failed', err));
+    }
+  }
+}
+
+async function pruneBackups() {
+  const items = (await chrome.downloads.search({ filenameRegex: 'vocab-track[/\\\\]backup-' }))
+    .filter((item) => item.byExtensionId === chrome.runtime.id);
+  const { remove, erase } = VT.backupsToPrune(items, BACKUP_KEEP);
+  for (const id of remove) {
+    // Several entries can name one old file; after the first the file is gone.
+    await chrome.downloads.removeFile(id)
+      .catch((err) => console.error('[vocab-track] old backup already gone', id, err));
+  }
+  for (const id of [...remove, ...erase]) await chrome.downloads.erase({ id });
+}

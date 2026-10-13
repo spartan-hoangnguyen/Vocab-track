@@ -333,17 +333,20 @@
   <!-- Import / export -->
   <section id="view-io" hidden>
     <h1>Import &amp; export</h1>
-    <div class="sub">Your words live only in this browser profile. Export is the backup.</div>
+    <div class="sub">Your words live only in this browser profile. A backup file is written
+       to Downloads/vocab-track a minute after you change them; seven days are kept.</div>
+    <p class="note" id="backup-status">No automatic backup yet.</p>
     <div class="iocards">
       <div class="iocard">
         <h3>Export</h3>
-        <p>Downloads every word and folder as one JSON file.</p>
+        <p>Downloads your words, folders, pins, review history and practice
+           misses as one JSON file. Your GIPHY key is never included.</p>
         <button class="btn" id="export-btn">Export JSON</button>
       </div>
       <div class="iocard">
         <h3>Import</h3>
-        <p>Merges by word. Existing entries keep their review schedule;
-           folders are combined. Nothing is overwritten.</p>
+        <p>Merges by word. When both sides have a word, the more recently
+           reviewed schedule wins; folders are combined.</p>
         <input type="file" id="import-file" accept="application/json,.json">
         <div class="note" id="io-note"></div>
       </div>
@@ -367,6 +370,17 @@
            <a href="https://console.cloud.google.com/apis/credentials"
            target="_blank" rel="noreferrer">Cloud Console → Credentials</a>.</p>
         <input type="text" id="translate-key" placeholder="Google Cloud Translation API key"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="iocard">
+        <h3>Korean dictionary</h3>
+        <p>Paste a krdict Open API key to give Korean words a definition,
+           pronunciation and 초급/중급/고급 level from 한국어기초사전. Without
+           one, Korean words save with their translation only. The key is kept
+           in this browser only and is never part of an export. Get a free key
+           at <a href="https://krdict.korean.go.kr/kor/openApi/openApiInfo" target="_blank"
+           rel="noreferrer">krdict.korean.go.kr</a> (오픈 API).</p>
+        <input type="text" id="krdict-key" placeholder="krdict API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="iocard">

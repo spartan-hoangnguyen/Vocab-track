@@ -851,11 +851,7 @@ $('folder-dlg').addEventListener('close', async () => {
 /* ---------- import / export ---------- */
 
 $('export-btn').addEventListener('click', async () => {
-  const payload = JSON.stringify({
-    exported: new Date().toISOString(),
-    words: await getWords(),
-    folders: (await chrome.storage.local.get('folders')).folders ?? {}
-  }, null, 2);
+  const payload = JSON.stringify(VT.backupPayload(await chrome.storage.local.get(null)), null, 2);
   const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
@@ -881,13 +877,9 @@ $('import-file').addEventListener('change', async (event) => {
     for (const [word, incoming] of Object.entries(data.words)) {
       const existing = current[word];
       if (existing) {
-        // Merge, never overwrite: the local review schedule is the thing you
-        // cannot get back, so ease/interval/reps/due are left untouched and
-        // only membership and sources are unioned.
-        patches[word] = {
-          folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
-          sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
-        };
+        // Merge, never overwrite blindly: the more recently reviewed schedule
+        // wins, so an older backup cannot roll a word back.
+        patches[word] = VT.mergeWord(existing, incoming);
         merged++;
       } else {
         patches[word] = incoming;
@@ -898,6 +890,26 @@ $('import-file').addEventListener('change', async (event) => {
     for (const folder of Object.values(data.folders ?? {})) {
       if (folder.id !== VT.READING && folder.id !== VT.STARRED) await putFolder(folder);
     }
+    // The rest of a v2 backup. Absent in an old export or a shipped list, and
+    // then nothing below writes.
+    const extra = {};
+    if (Array.isArray(data.pins) && data.pins.length) {
+      extra.pins = [...new Set([...(await getPins()), ...data.pins])];
+    }
+    if (data.history && typeof data.history === 'object') {
+      const keys = Object.keys(data.history).map((day) => 'history:' + day);
+      const local = keys.length ? await chrome.storage.local.get(keys) : {};
+      for (const key of keys) extra[key] = VT.mergeHistory(local[key], data.history[key.slice(8)]);
+    }
+    if (data.practiceMisses && typeof data.practiceMisses === 'object') {
+      // Only misses are restored; today's counts belong to this machine.
+      const practice = await getPractice();
+      for (const [word, n] of Object.entries(data.practiceMisses)) {
+        practice.misses[word] = Math.max(practice.misses[word] ?? 0, Number(n) || 0);
+      }
+      extra.practice = practice;
+    }
+    if (Object.keys(extra).length) await chrome.storage.local.set(extra);
     // Name the language when the file lands somewhere this session is not
     // looking. Folders are language-scoped now, so importing the Korean list
     // from an English session puts 3,900 words and three folders on screen
@@ -918,6 +930,14 @@ $('import-file').addEventListener('change', async (event) => {
     event.target.value = '';
   }
 });
+
+// Written by the service worker's automatic backup (service-worker.js).
+function showBackup(last) {
+  $('backup-status').textContent = last
+    ? `Last automatic backup: ${new Date(last.at).toLocaleString()} \u2014 Downloads/${last.file}`
+    : 'No automatic backup yet.';
+}
+chrome.storage.local.get('lastBackup').then(({ lastBackup }) => showBackup(lastBackup));
 
 /* ---------- push to Anki ---------- */
 
@@ -1204,6 +1224,15 @@ chrome.storage.local.get('translateKey').then(({ translateKey: stored }) => {
   $('translate-key').value = stored ?? '';
 });
 
+// The krdict key, the same way. No module copy: lang/ko/dictionary.js reads it
+// from storage on every lookup.
+$('krdict-key').addEventListener('input', (event) => {
+  chrome.storage.local.set({ krdictKey: event.target.value.trim() });
+});
+chrome.storage.local.get('krdictKey').then(({ krdictKey }) => {
+  $('krdict-key').value = krdictKey ?? '';
+});
+
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');
@@ -1218,6 +1247,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // only way this page ever sees the counts move.
   // Another dashboard tab flipped the theme: follow it.
   if (changes.theme) applyTheme(changes.theme.newValue);
+  if (changes.lastBackup) showBackup(changes.lastBackup.newValue);
   // `lang` for the same reason as the theme, and with more at stake: it governs
   // six views, so a second dashboard tab left on the other language would keep
   // writing words into a list this one is filtering out.
@@ -1305,7 +1335,7 @@ let typed = '';
 // unanswerable — those fall back to the old recognition card.
 let canType = false;
 
-const GRADE_FOR = { exact: 4, near: 3, wrong: 0 };
+const GRADE_FOR = { exact: 4, synonym: 4, near: 3, wrong: 0 };
 // One day's worth, the same pace the imported list arrives at.
 const AHEAD_BATCH = 20;
 
@@ -1493,7 +1523,7 @@ function renderCard() {
   }
   renderFull(revealed ? entry : null);
   renderGif(revealed ? entry : null);
-  renderDiff(revealed && canType ? VT.diffWord(typed, entry.word) : null);
+  renderDiff(revealed && canType ? VT.checkAnswer(typed, entry) : null, entry.word);
   renderGrades(revealed ? suggestedGrade() : null);
 }
 
@@ -1599,13 +1629,14 @@ function kbd(text) {
 // override it.
 function suggestedGrade() {
   if (!canType) return null;
-  const d = VT.diffWord(typed, queue[0]?.word);
+  const d = VT.checkAnswer(typed, queue[0]);
   if (d.exact) return GRADE_FOR.exact;
+  if (d.synonym) return GRADE_FOR.synonym;
   if (d.near) return GRADE_FOR.near;
   return GRADE_FOR.wrong;
 }
 
-function renderDiff(diff) {
+function renderDiff(diff, word) {
   const node = $('rv-diff');
   node.replaceChildren();
   node.hidden = !diff;
@@ -1614,6 +1645,12 @@ function renderDiff(diff) {
   if (diff.exact) {
     node.className = 'rvdiff good';
     node.textContent = 'Correct';
+    return;
+  }
+  // Right word, just not this card's: shown as typed, never as a slip.
+  if (diff.synonym) {
+    node.className = 'rvdiff good';
+    node.textContent = `${typed.trim()} — a synonym of ${word}`;
     return;
   }
   node.className = diff.near ? 'rvdiff near' : 'rvdiff bad';

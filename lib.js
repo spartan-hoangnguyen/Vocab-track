@@ -395,21 +395,30 @@ const VT = {
     // Case and surrounding space are never the point of a vocabulary review.
     const x = a.trim().toLowerCase();
     const y = b.trim().toLowerCase();
-    if (x === y) {
+    // The grade is decided on NFD, where a Hangul syllable is one code point
+    // per jamo: 사고 for 사과 is one jamo out, not one whole syllable.
+    const xd = x.normalize('NFD');
+    const yd = y.normalize('NFD');
+    if (xd === yd) {
       return { exact: true, near: false,
                typed: a ? [{ text: a, ok: true }] : [],
                answer: [{ text: b, ok: true }] };
     }
 
-    // lcs[i][j] = length of the longest common subsequence of x[i:] and y[j:].
-    // Built from the end so the walk below reads forwards, which is the order
-    // the marks have to come out in.
-    const lcs = Array.from({ length: x.length + 1 }, () => new Array(y.length + 1).fill(0));
-    for (let i = x.length - 1; i >= 0; i--) {
-      for (let j = y.length - 1; j >= 0; j--) {
-        lcs[i][j] = x[i] === y[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    // table(p, q)[i][j] = length of the longest common subsequence of p[i:]
+    // and q[j:]. Built from the end so the walk below reads forwards, which
+    // is the order the marks have to come out in.
+    const table = (p, q) => {
+      const t = Array.from({ length: p.length + 1 }, () => new Array(q.length + 1).fill(0));
+      for (let i = p.length - 1; i >= 0; i--) {
+        for (let j = q.length - 1; j >= 0; j--) {
+          t[i][j] = p[i] === q[j] ? t[i + 1][j + 1] + 1 : Math.max(t[i + 1][j], t[i][j + 1]);
+        }
       }
-    }
+      return t;
+    };
+    // The marks stay on the composed strings, so a whole syllable is marked.
+    const lcs = table(x, y);
 
     const typedMarks = [];
     const answerMarks = [];
@@ -421,7 +430,7 @@ const VT = {
       else marks.push({ text: ch, ok });
     };
 
-    let i = 0, j = 0, wrong = 0;
+    let i = 0, j = 0;
     while (i < x.length && j < y.length) {
       if (x[i] === y[j]) {
         push(typedMarks, a[i], true);
@@ -429,28 +438,35 @@ const VT = {
         i++; j++;
       } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
         push(typedMarks, a[i], false);   // typed something that does not belong
-        i++; wrong++;
+        i++;
       } else {
         push(answerMarks, b[j], false);  // missed something that did
-        j++; wrong++;
+        j++;
       }
     }
-    while (i < x.length) { push(typedMarks, a[i], false); i++; wrong++; }
-    while (j < y.length) { push(answerMarks, b[j], false); j++; wrong++; }
+    while (i < x.length) { push(typedMarks, a[i], false); i++; }
+    while (j < y.length) { push(answerMarks, b[j], false); j++; }
 
     // "Near" is what decides whether the UI says "almost" or just "no". Two
     // edits on a long word is a slip; two on a three-letter word is a
     // different word. Requiring an answer of at least 4 characters keeps
-    // `cat`/`cut` out of it.
-    //
-    // ponytail: calibrated in Latin letters, and that shows on a short
-    // Hangul answer — a two- or three-syllable word can never be graded
-    // "almost", which dashboard.js's suggestedGrade turns straight into a 0
-    // rather than a 3. The LCS also runs over composed NFC syllables, so one
-    // wrong jamo reads as a whole-syllable miss. Upgrade path: a per-pack
-    // `near` threshold, or decompose to jamo before the LCS.
-    return { exact: false, near: wrong > 0 && wrong <= 2 && y.length >= 4,
+    // `cat`/`cut` out of it. Counted in jamo for Hangul (see above), where a
+    // substitution is two edits: one out, one in.
+    const wrong = xd.length + yd.length - 2 * table(xd, yd)[0][0];
+    return { exact: false, near: wrong <= 2 && yd.length >= 4,
              typed: typedMarks, answer: answerMarks };
+  },
+
+  // A review answer graded against the card: diffWord against the word, plus
+  // `synonym` — the entry's own synonym you typed, as stored — when it is not
+  // exact. Only an exact match of a synonym counts; a typo in one is just
+  // wrong. Entries without synonyms (Korean, Chinese) get null.
+  checkAnswer(typed, entry) {
+    const diff = VT.diffWord(typed, entry?.word);
+    const key = VT.normaliseWord(typed);
+    const synonym = diff.exact || !key ? null
+      : (entry?.synonyms || []).find((s) => VT.normaliseWord(s) === key) ?? null;
+    return { ...diff, synonym };
   },
 
   // The gloss a quiz asks about: the Vietnamese, or the dictionary definition when
@@ -676,6 +692,79 @@ const VT = {
   foldersOf(entry) {
     const ids = entry?.folders;
     return Array.isArray(ids) && ids.length ? ids : [VT.READING];
+  },
+
+  // The fields VT.schedule() owns. mergeWord is the one place that moves them
+  // between two copies of a word, so the backup and any later sync agree.
+  SCHEDULE_FIELDS: ['interval', 'reps', 'due', 'stability', 'difficulty', 'lastReview'],
+
+  // What Export writes and Import (and the automatic backup) reads, from a
+  // chrome.storage.local.get(null) dump. The v1 keys stay at the top so old
+  // readers still see a word list. Per-machine settings and caches (theme,
+  // lang, giphyKey, ...) are left out on purpose: the GIPHY key never leaves.
+  backupPayload(dump, now = Date.now()) {
+    const history = {};
+    for (const [key, rows] of Object.entries(dump)) {
+      if (key.startsWith('history:') && Array.isArray(rows)) history[key.slice(8)] = rows;
+    }
+    return {
+      version: 2,
+      exported: new Date(now).toISOString(),
+      words: dump.words ?? {},
+      folders: dump.folders ?? {},
+      pins: Array.isArray(dump.pins) ? dump.pins : [],
+      history,
+      practiceMisses: dump.practice?.misses ?? {}
+    };
+  },
+
+  // The patch for a word both sides have. Membership and sources are unioned;
+  // the schedule comes whole from whichever side reviewed it last, so an old
+  // backup never rolls a schedule back. A word list carries no lastReview, so
+  // it never moves a local schedule.
+  mergeWord(existing, incoming) {
+    const patch = {
+      folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
+      sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
+    };
+    if (incoming.lastReview > (existing.lastReview ?? 0)) {
+      for (const f of VT.SCHEDULE_FIELDS) if (f in incoming) patch[f] = incoming[f];
+    }
+    return patch;
+  },
+
+  // The automatic backup's path under Downloads: one file per local day.
+  backupFileName(now = Date.now()) {
+    return `vocab-track/backup-${VT.dayKey(now)}.json`;
+  },
+
+  // Which backup downloads to clean up, from chrome.downloads.search items.
+  // `remove`: every item of a day older than the newest `keep` days (delete the
+  // file and its entry). `erase`: older entries of a kept day — overwriting
+  // today's file adds a download entry each time, and they all name the same
+  // file, so only the entry may go, never the file.
+  backupsToPrune(items, keep = 7) {
+    const dayOf = (item) => /backup-(\d{4}-\d{2}-\d{2})\.json$/.exec(item.filename ?? '')?.[1];
+    const dated = items.filter(dayOf).sort((a, b) => b.id - a.id);
+    const days = [...new Set(dated.map(dayOf))].sort().reverse();
+    const kept = new Set(days.slice(0, keep));
+    const remove = [];
+    const erase = [];
+    const seen = new Set();
+    for (const item of dated) {
+      const day = dayOf(item);
+      if (!kept.has(day)) remove.push(item.id);
+      else if (seen.has(day)) erase.push(item.id);
+      seen.add(day);
+    }
+    return { remove, erase };
+  },
+
+  // One day's review rows ([word, quality, at]) from two sides, deduped.
+  mergeHistory(a = [], b = []) {
+    const seen = new Map();
+    for (const row of [...a, ...b]) seen.set(JSON.stringify(row.slice(0, 3)), row);
+    return [...seen.values()].sort((x, y) => x[2] - y[2]);
   },
 
   // Folder ids are generated, never derived from the name, so renaming a

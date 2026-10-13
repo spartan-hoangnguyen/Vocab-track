@@ -138,9 +138,16 @@ Open it from **Open dashboard →** in the side panel.
     without a reload.
 
 17. **Export, then import the same file back.** Nothing should duplicate, and
-    your review schedules must be unchanged — import merges and deliberately
-    never overwrites `ease`/`interval`/`reps`/`due`. Then edit the JSON to add a
-    word by hand and re-import to confirm new entries are added.
+    your review schedules must be unchanged — for a word both sides have, the
+    more recently reviewed schedule wins, and here they are the same. Then edit
+    the JSON to add a word by hand and re-import to confirm new entries are added.
+
+17a. **Automatic backup.** Grade one card, wait a minute, then
+    `ls -l ~/Downloads/vocab-track/`: `backup-<today>.json` is there, newer than
+    the grade, with no download bubble shown for it. Download any file from a
+    website right after — its bubble must still show. **Import & export** names
+    the file under *Last automatic backup*. Grade twenty cards in a row: one
+    write about a minute after the last, not twenty.
 
 18. **Statistics.** With only a few days of data the charts will be mostly empty;
     that is correct, not a bug. Confirm "Review load" folds everything overdue
@@ -254,6 +261,14 @@ Open it from **Open dashboard →** in the side panel.
 48. **A word with no meaning still works.** Import a word whose `vi` and `def`
     are both null. Its card shows the word with a Show answer button, as it did
     before this change.
+
+108. **Review grading: a synonym, a jamo, a miss.** In one review session:
+     - On an English card whose full entry lists Synonyms (`resilient` →
+       `tough`), type the synonym: it says "tough — a synonym of resilient"
+       in green, and Good is ringed.
+     - On a Korean card for `사과`, type `사고`: `고` is underlined as a whole
+       syllable, it says "almost", and Hard is ringed.
+     - On any card, type an unrelated word: "not this time", Blank is ringed.
 
 ## Practice, and what it does to the schedule
 
@@ -798,6 +813,20 @@ Speaker list per language, the stored choice reaching `speak()` and
 the no-voice line and its return on `voiceschanged`) and
 `test/sidepanel-probe.html` (`voicesFor()`, `installPath()` per OS, the quiz
 hint).
+
+## Review grading: last full run
+
+Run step 108 in a real Chrome profile with English and Korean words saved,
+then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Words: ______ (the synonym card, the Korean card, the wrong answer)
+- Result: ______ (items that failed, with what you saw)
+
+`bash test/run.sh` covers the same grading on 2026-10-12 in headless Chrome
+154.0.8037.98: `VT.diffWord` / `VT.checkAnswer` in `test/test.js`, and a
+synonym answer graded Good on the real review card in
+`test/dashboard-probe.html`.
 
 ## If something fails
 

@@ -273,6 +273,61 @@ async function fixtureJson(name) {
   return res.json();
 }
 
+// --- backup: backupPayload / mergeWord / mergeHistory
+{
+  const dump = {
+    words: { cat: { word: 'cat' } }, folders: { f_a: { id: 'f_a' } }, pins: ['f_a'],
+    giphyKey: 'secret', theme: 'night', 'history:2026-10-01': [['cat', 4, 5]],
+    practice: { day: 'x', counts: { quiz: 1 }, misses: { cat: 2 } }
+  };
+  const p = VT.backupPayload(dump, Date.UTC(2026, 9, 12));
+  eq('backup is version 2', p.version, 2);
+  eq('backup keeps the history day', JSON.stringify(p.history), '{"2026-10-01":[["cat",4,5]]}');
+  check('backup drops giphyKey and theme', !('giphyKey' in p) && !('theme' in p)
+        && !JSON.stringify(p).includes('secret'));
+  eq('backup carries pins', p.pins.join(), 'f_a');
+  eq('backup carries only practice misses', JSON.stringify(p.practiceMisses), '{"cat":2}');
+  check('backup keeps v1 keys', p.words.cat && p.folders.f_a && p.exported === '2026-10-12T00:00:00.000Z');
+
+  const local = { folders: ['a'], sources: ['u1'], due: 10, interval: 1, reps: 1,
+                  stability: 1, difficulty: 5, lastReview: 100 };
+  const newer = { folders: ['b'], sources: ['u2'], due: 99, interval: 9, reps: 4,
+                  stability: 9, difficulty: 3, lastReview: 200 };
+  const m1 = VT.mergeWord(local, newer);
+  check('mergeWord takes a newer schedule',
+        VT.SCHEDULE_FIELDS.every((f) => m1[f] === newer[f]));
+  eq('mergeWord unions folders on newer', m1.folders.join(), 'a,b');
+  const m2 = VT.mergeWord(local, { ...newer, lastReview: 50 });
+  check('mergeWord keeps the local schedule against an older one',
+        VT.SCHEDULE_FIELDS.every((f) => !(f in m2)));
+  eq('mergeWord unions sources on older', m2.sources.join(), 'u1,u2');
+  const m3 = VT.mergeWord(local, { folders: ['c'], due: 1, interval: 0, reps: 0 });
+  check('mergeWord keeps the local schedule for a list entry (no lastReview)',
+        VT.SCHEDULE_FIELDS.every((f) => !(f in m3)));
+  eq('mergeWord unions folders for a list entry', m3.folders.join(), 'a,c');
+  eq('mergeWord on a word with no folders keeps From reading',
+     VT.mergeWord({}, { folders: ['x'] }).folders.join(), 'reading,x');
+
+  const h = VT.mergeHistory([['a', 4, 3], ['b', 3, 1]], [['b', 3, 1], ['c', 5, 2]]);
+  eq('mergeHistory dedupes and sorts', JSON.stringify(h), '[["b",3,1],["c",5,2],["a",4,3]]');
+  eq('mergeHistory with one side missing', VT.mergeHistory(undefined, [['a', 4, 1]]).length, 1);
+
+  eq('backupFileName is a dated file under vocab-track',
+     VT.backupFileName(new Date(2026, 9, 5, 23, 59).getTime()), 'vocab-track/backup-2026-10-05.json');
+  const dl = (id, day) => ({ id, filename: `/Users/me/Downloads/vocab-track/backup-2026-10-${day}.json` });
+  const nine = ['01', '02', '03', '04', '05', '06', '07', '08', '09'].map((d, i) => dl(i + 1, d));
+  const pr = VT.backupsToPrune(nine, 7);
+  eq('backupsToPrune removes the two oldest of nine days', pr.remove.sort().join(), '1,2');
+  eq('backupsToPrune erases nothing else', pr.erase.length, 0);
+  const today = [dl(10, '09'), dl(11, '09'), dl(12, '09'), dl(3, '01')];
+  const pt = VT.backupsToPrune(today, 7);
+  eq('backupsToPrune erases older entries of the same day, keeping the newest',
+     pt.erase.sort().join(), '10,11');
+  eq('backupsToPrune never deletes a kept day\'s file', pt.remove.length, 0);
+  eq('backupsToPrune ignores other files',
+     VT.backupsToPrune([{ id: 1, filename: '/x/vocab-track/notes.json' }], 0).remove.length, 0);
+}
+
 async function parserTests() {
   // --- the Korean dictionary pack. Here rather than at the top level only
   // because lookup() is async and this file is a classic script.
@@ -302,6 +357,79 @@ async function parserTests() {
   const koHref = ko.href('책');
   eq('the full-entry link points at krdict', new URL(koHref).origin, ko.base);
   check('and carries the word percent-encoded', koHref.endsWith('=%EC%B1%85'), koHref);
+
+  // --- krdict's parser, against a 책 response shaped to krdict's documented
+  // schema and a live error response (an unregistered key).
+  const krdictXml = async (name) => (await fetch(`fixtures/${name}.xml`)).text();
+  const chaek = ko.parse(await krdictXml('krdict-chaek'), '책');
+  eq('krdict: the grade is the level', chaek.level, '초급');
+  eq('krdict: the Hangul pronunciation is kept as ipa', chaek.ipa, '책');
+  check('krdict: a Korean definition', /[가-힣]/.test(chaek.def ?? ''), chaek.def);
+  eq('krdict: the first matching homograph wins, not the -책 affix before it', chaek.senses.length, 2);
+  eq('krdict: the definition is the first sense', chaek.def, chaek.senses[0]?.def);
+  eq('krdict: and the part of speech comes through', chaek.pos, '명사');
+  check('krdict: a hit is neither failed nor not-found', !chaek.failed && !chaek.notFound);
+  eq('krdict: an ungraded homograph has no level',
+     ko.parse((await krdictXml('krdict-chaek')).replace('<word_grade>초급</word_grade>', '<word_grade></word_grade>'), '책').level, null);
+  const krErr = ko.parse(await krdictXml('krdict-error'), '책');
+  check('krdict: an error payload sets failed, with krdict\'s code',
+        /020/.test(krErr.failed ?? ''), JSON.stringify(krErr.failed));
+  check('krdict: and is neither not-found nor levelled', !krErr.notFound && krErr.level === null);
+  eq('krdict: no item with that headword is not-found',
+     JSON.stringify(ko.parse(await krdictXml('krdict-chaek'), '책상')), '{"notFound":true}');
+  eq('krdict: its own Vietnamese is the first sense\'s trans_word', chaek.vi, 'sách');
+  eq('krdict: no Vietnamese translation is null, so MT fills in',
+     ko.parse((await krdictXml('krdict-chaek')).replace('<trans_lang>베트남어</trans_lang>', '<trans_lang>영어</trans_lang>'), '책').vi, null);
+
+  // The surface-form retry, with a key and krdict both stubbed: the lemma
+  // (고양) misses, the selected surface (고양이) is asked once more. A failure
+  // on the lemma must not be retried. Real fetch and chrome put back after.
+  {
+    const chaekXml = await krdictXml('krdict-chaek');
+    const errXml = await krdictXml('krdict-error');
+    const empty = '<?xml version="1.0" encoding="UTF-8"?><channel><total>0</total></channel>';
+    const realFetch = globalThis.fetch;
+    const realChrome = globalThis.chrome;
+    const asked = [];
+    let lastUrl = null;
+    let answer = () => empty;
+    globalThis.chrome = { storage: { local: { get: async () => ({ krdictKey: ' k ' }) } } };
+    globalThis.fetch = async (url) => {
+      const q = new URL(url).searchParams;
+      asked.push(q.get('q'));
+      lastUrl = q;
+      return new Response(answer(q.get('q')));
+    };
+    try {
+      answer = (q) => (q === '책' ? chaekXml : empty);
+      const retried = await ko.lookup('채', { surface: '책' });
+      eq('krdict retry: a lemma miss asks the surface form once', asked.join(','), '채,책');
+      eq('krdict retry: and returns the surface form\'s entry', retried.level, '초급');
+      eq('krdict: the request carries the trimmed key', lastUrl?.get('key'), 'k');
+      eq('krdict: and asks for the Vietnamese translation only',
+         `${lastUrl?.get('translated')}/${lastUrl?.get('trans_lang')}`, 'y/7');
+      asked.length = 0;
+      const hit = await ko.lookup('책', { surface: '책을' });
+      eq('krdict retry: a lemma hit asks once', asked.join(','), '책');
+      eq('krdict retry: and keeps the lemma\'s entry', hit.vi, 'sách');
+      asked.length = 0;
+      answer = () => errXml;
+      const failed = await ko.lookup('채', { surface: '책' });
+      eq('krdict retry: a failed lemma lookup is not retried', asked.join(','), '채');
+      check('krdict retry: and reports the failure', /020/.test(failed.failed ?? ''));
+      asked.length = 0;
+      answer = () => empty;
+      const missed = await ko.lookup('책', { surface: '책' });
+      eq('krdict retry: a surface equal to the lemma is not asked twice', asked.join(','), '책');
+      check('krdict retry: and is not-found', missed.notFound === true);
+    } finally {
+      globalThis.fetch = realFetch;
+      globalThis.chrome = realChrome;
+    }
+  }
+  eq('the Korean pack prints krdict\'s Hangul pronunciation under a label',
+     VT.pronText('책', LANG.get('ko')), '발음: 책');
+  eq('while English keeps IPA between slashes', VT.pronText('dɒɡ', LANG.get('en')), '/dɒɡ/');
 
   // --- the Chinese dictionary pack, against a two-word fixture rather than
   // the 8 MB CC-CEDICT the extension ships.
@@ -492,6 +620,30 @@ async function parserTests() {
   eq('diffWord: and produces no typed marks at all', blank.typed.length, 0);
   eq('diffWord: an empty answer is not near', blank.near, false);
   eq('diffWord: null is treated as empty', VT.diffWord(null, 'pigeon').typed.length, 0);
+
+  // Hangul is graded in jamo but marked in syllables: 고 for 과 is one jamo out.
+  const jamo = VT.diffWord('사고', '사과');
+  eq('diffWord: one wrong jamo is near', jamo.near, true);
+  eq('diffWord: and not exact', jamo.exact, false);
+  eq('diffWord: the whole wrong syllable is marked on the typed word', shown(jamo.typed), '사[고]');
+  eq('diffWord: and on the answer', shown(jamo.answer), '사[과]');
+  eq('diffWord: a doubled consonant is one jamo out', VT.diffWord('학꾜', '학교').near, true);
+  eq('diffWord: NFD-typed Hangul is still exact', VT.diffWord('책'.normalize('NFD'), '책').exact, true);
+  eq('diffWord: a one-syllable word stays out, like cat/cut', VT.diffWord('착', '책').near, false);
+  eq('diffWord: a different Korean word is not near', VT.diffWord('바나나', '사과').near, false);
+
+  // --- checkAnswer: diffWord plus the entry's own synonyms
+  const toughCard = { word: 'resilient', synonyms: ['tough', 'hardy'] };
+  const syn = VT.checkAnswer('Tough ', toughCard);
+  eq('checkAnswer: a saved synonym is matched, as stored', syn.synonym, 'tough');
+  eq('checkAnswer: and is not exact', syn.exact, false);
+  eq('checkAnswer: a typo in a synonym is not one', VT.checkAnswer('tuogh', toughCard).synonym, null);
+  const listsItself = VT.checkAnswer('resilient', { word: 'resilient', synonyms: ['resilient'] });
+  eq('checkAnswer: exact wins over a word that lists itself', listsItself.exact && listsItself.synonym === null, true);
+  eq('checkAnswer: an empty answer is never a synonym',
+     VT.checkAnswer('', { word: 'x', synonyms: [''] }).synonym, null);
+  eq('checkAnswer: no synonyms field is fine', VT.checkAnswer('cat', { word: 'dog' }).synonym, null);
+  eq('checkAnswer: the diff is still there', VT.checkAnswer('pidgeon', { word: 'pigeon' }).near, true);
 
   // --- schedule (FSRS-6). Expected numbers come from ts-fsrs 's own
   // FSRSAlgorithm.next_state with default parameters, run 2026-09-19.
