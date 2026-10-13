@@ -67,6 +67,8 @@ manifest, and no others:
 | Content script on `<all_urls>` | The content script has to be on the page you are reading for a click to look a word up, and there is no way to know in advance which page that is. It reads the word you clicked and its sentence, highlights words you saved, and runs the writing check in text boxes. It sends nothing on its own. |
 | `api.datamuse.com` | When you click an English word, the word is sent here for its meanings, part of speech and synonyms. |
 | `translate.googleapis.com` | When you click any word, the word is sent here for its Vietnamese translation. |
+| `translation.googleapis.com` | Only after you add your own Google Cloud Translation key, and only when the free endpoint above fails: the word and your key are sent here for the same translation. |
+| `api.mymemory.translated.net` | Only when the endpoints above fail or are rate-limited: the word is sent here for the same translation. |
 | `api.languagetool.org` | With the writing check on, a sentence you type into a text box on a page is sent here to be checked. Password, email, URL, phone, number, search and `autocomplete="off"` fields are never read, nor any field under 40 characters. |
 | `api.giphy.com` | Only after you add your own GIPHY API key and press **Find GIF** on a review card: the word, or its Vietnamese gloss, is sent here to find a GIF for the card. |
 | `127.0.0.1:8765` | Only when you press **Push to Anki**: the word, its meaning, example and GIF are sent to the AnkiConnect add-on of the Anki app on your own machine. Nothing leaves the machine. |
