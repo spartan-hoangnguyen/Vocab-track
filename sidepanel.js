@@ -430,6 +430,9 @@ async function startQuiz(entry) {
   $('quiz-verdict').hidden = true;
   $('quiz-full').hidden = true;
   $('quiz-next').hidden = true;
+  $('quiz-unmark').hidden = true;
+  $('quiz-forget').hidden = true;
+  $('quiz-done').hidden = true;
 
   const list = $('quiz-options');
   list.replaceChildren();
@@ -465,6 +468,9 @@ function answerQuiz(correct, button) {
   verdict.textContent = correct ? 'Correct' : 'Not this time';
   $('quiz-full').hidden = false;
   $('quiz-next').hidden = false;
+  // Knowing it is what earns the way out: stop painting it, or drop it.
+  $('quiz-unmark').hidden = !correct || !!quizEntry.noHighlight;
+  $('quiz-forget').hidden = !correct;
   // Deliberately no putWord and no VT.sm2. This is self-testing while you
   // read; ease, interval and due only move in the dashboard's review, where
   // you chose to sit down and be graded.
@@ -479,6 +485,46 @@ $('quiz-full').addEventListener('click', () => {
   if (quizEntry) renderEntry(quizEntry);
 });
 $('quiz-next').addEventListener('click', () => quizRandom());
+
+function quizDone(text, undo) {
+  $('quiz-unmark').hidden = true;
+  $('quiz-forget').hidden = true;
+  const done = $('quiz-done');
+  done.replaceChildren(text);
+  if (undo) {
+    const button = document.createElement('button');
+    button.textContent = 'Undo';
+    button.addEventListener('click', undo, { once: true });
+    done.appendChild(button);
+  }
+  done.hidden = false;
+}
+
+// Still saved and still reviewed; the content script just stops painting it.
+$('quiz-unmark').addEventListener('click', async () => {
+  const word = quizEntry.word;
+  await putWord(word, { noHighlight: true });
+  quizEntry = { ...quizEntry, noHighlight: true };
+  quizDone('No longer highlighted. Turn it back on from its card in the dashboard.',
+    async () => {
+      await putWord(word, { noHighlight: false });
+      quizEntry = { ...quizEntry, noHighlight: false };
+      quizDone('Highlighted again.');
+    });
+});
+
+// Undo instead of confirm(): a correct answer is the reason to forget it, and
+// the snapshot puts back every field, review history included.
+$('quiz-forget').addEventListener('click', async () => {
+  const gone = { ...quizEntry };
+  await removeWord(gone.word);
+  $('quiz-full').hidden = true;
+  quizDone('Removed from your list.', async () => {
+    await putWord(gone.word, gone);
+    $('quiz-full').hidden = false;
+    quizDone('Back in your list.');
+  });
+});
 
 
 

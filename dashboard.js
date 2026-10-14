@@ -559,6 +559,17 @@ function wordCard(entry) {
     });
     foot.appendChild(back);
   }
+  // Switched off from the side panel's quiz after a right answer; this is the
+  // only way back on.
+  if (entry.noHighlight) {
+    const relight = el('span', 'tag clickable', 'Not highlighted ↩');
+    relight.title = 'Highlight this word on pages again';
+    relight.addEventListener('click', async () => {
+      await putWord(entry.word, { noHighlight: false });
+      await refresh();
+    });
+    foot.appendChild(relight);
+  }
 
   for (const id of VT.foldersOf(entry)) {
     const tag = el('span', 'tag clickable', folders[id]?.name ?? id);

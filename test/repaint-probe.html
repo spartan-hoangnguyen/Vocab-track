@@ -93,6 +93,15 @@ const feed = document.getElementById('feed');
   check('and "gave up" belongs to the saved give up',
         inLate.some((range) => range.toString() === 'gave up' && rangeEntry.get(range)?.word === 'give up'));
 
+  // Remove highlight from the quiz: still saved, no longer painted anywhere.
+  const communityLit = () => lit().filter((range) => rangeEntry.get(range)?.word === 'community').length;
+  check('community is painted before it is switched off', communityLit() > 0, communityLit());
+  STORE.words.community = { ...STORE.words.community, noHighlight: true };
+  onChanged.forEach((listener) => listener({ words: { newValue: STORE.words } }, 'local'));
+  await wait(50);
+  check('a word switched off from the quiz is not painted', communityLit() === 0, communityLit());
+  check('and the other words still are', lit().some((range) => rangeEntry.get(range)?.word === 'resilient'));
+
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
 })();

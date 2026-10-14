@@ -178,7 +178,10 @@ async function applyHighlights() {
   const { words } = await chrome.storage.local.get('words');
   // Every saved word, on every page: the point is to meet a word again away
   // from where you saved it, and an imported list has no page at all.
-  pageIndex = words ? VT.wordIndex(Object.values(words)) : null;
+  // ...except one you switched off after answering its quiz (noHighlight):
+  // still saved, still reviewed, just not painted.
+  const painted = Object.values(words ?? {}).filter((entry) => !entry.noHighlight);
+  pageIndex = painted.length ? VT.wordIndex(painted) : null;
   if (!pageIndex) {
     CSS.highlights.delete(HIGHLIGHT_NAME);
     return;
@@ -190,7 +193,7 @@ async function applyHighlights() {
 
 applyHighlights();
 
-// A saved, retired or deleted word repaints the whole page: the index itself
+// A saved, unhighlighted or deleted word repaints the whole page: the index itself
 // changed, so every range may be stale.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.words) applyHighlights();

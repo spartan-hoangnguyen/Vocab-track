@@ -141,6 +141,8 @@ ready.then(() => setTimeout(async () => {
   check('the rest are frozen', options.every((b) => b.disabled));
   check('the verdict says so', !$$('quiz-verdict').hidden && $$('quiz-verdict').className === 'bad');
   check('there is a way on', !$$('quiz-full').hidden && !$$('quiz-next').hidden);
+  check('a wrong answer offers no way to drop the word',
+        $$('quiz-unmark').hidden && $$('quiz-forget').hidden);
 
   /* ---- answering must not move the review schedule ----
      The decision this pins: the quiz is self-testing while you read. ease,
@@ -166,6 +168,44 @@ ready.then(() => setTimeout(async () => {
   await quizRandom();
   check('a thin word store tells the tab there is nothing to ask',
         !$$('view-quiz').hidden && $$('quiz-card').hidden && !$$('quiz-empty').hidden);
+  STORE.words = WORDS;
+
+  /* ---- a right answer earns: stop highlighting it, or drop it ----
+     On a copy: putWord and removeWord write through to the shared WORDS. */
+  STORE.words = structuredClone(WORDS);
+  const answerRight = async () => {
+    await startQuiz(STORE.words.strategy);
+    $$('quiz-options').querySelector('[data-correct]').click();
+  };
+  await answerRight();
+  check('a right answer offers both',
+        !$$('quiz-unmark').hidden && !$$('quiz-forget').hidden && $$('quiz-done').hidden);
+  $$('quiz-unmark').click();
+  await writeQueue;
+  check('Remove highlight keeps the word, unpainted',
+        STORE.words.strategy?.noHighlight === true && STORE.words.strategy.vi === WORDS.strategy.vi);
+  check('and says where to turn it back on',
+        !$$('quiz-done').hidden && /dashboard/.test($$('quiz-done').textContent)
+        && $$('quiz-unmark').hidden && $$('quiz-forget').hidden);
+  $$('quiz-done').querySelector('button').click();
+  await writeQueue;
+  check('its Undo paints it again', STORE.words.strategy.noHighlight === false);
+  STORE.words.strategy.noHighlight = true;
+  await answerRight();
+  check('an unhighlighted word is not offered Remove highlight again',
+        $$('quiz-unmark').hidden && !$$('quiz-forget').hidden);
+  delete STORE.words.strategy.noHighlight;
+  await answerRight();
+  const before = structuredClone(STORE.words.strategy);
+  $$('quiz-forget').click();
+  await writeQueue;
+  check('Remove from list deletes it', !('strategy' in STORE.words));
+  check('and hides Full entry, which has nothing to show',
+        $$('quiz-full').hidden && /Removed/.test($$('quiz-done').textContent));
+  $$('quiz-done').querySelector('button').click();
+  await writeQueue;
+  check('its Undo brings back every field',
+        JSON.stringify(STORE.words.strategy) === JSON.stringify(before));
   STORE.words = WORDS;
 
   /* ---- a stale highlight must not re-save a deleted word ----

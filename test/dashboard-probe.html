@@ -360,6 +360,18 @@ ready.then(() => setTimeout(async () => {
   await new Promise((r) => setTimeout(r, 30));
   check('clicking it puts the word back in the rotation',
         STORE.words[skipped].skipped === false);
+
+  // Remove highlight in the side panel's quiz: the card is the way back.
+  STORE.words[skipped].noHighlight = true;
+  await refresh();
+  const relight = [...document.querySelectorAll('#w-cards .tag.clickable')]
+    .find((t) => t.textContent.startsWith('Not highlighted'));
+  check('an unhighlighted word offers the way back', !!relight);
+  relight?.click();
+  await new Promise((r) => setTimeout(r, 30));
+  check('clicking it paints the word again', STORE.words[skipped].noHighlight === false);
+  check('and the tag goes', ![...document.querySelectorAll('#w-cards .tag.clickable')]
+    .some((t) => t.textContent.startsWith('Not highlighted')));
   startReview(null);
   check('and the next session asks about it again',
         queue.some((e) => e.word === skipped));
