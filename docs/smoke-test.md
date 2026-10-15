@@ -828,6 +828,44 @@ then fill this in.
 synonym answer graded Good on the real review card in
 `test/dashboard-probe.html`.
 
+## Cloud sync: two profiles
+
+Needs the real OAuth client id in `manifest.json` (T180); with the
+`REPLACE_WITH_CLIENT_ID` placeholder only 109 can pass. Use two Chrome
+profiles, **A** and **B**, each signed in to Chrome with the same Google
+account, each with the unpacked extension loaded. Give A a few words first and
+leave B empty or with different words.
+
+109. **Signed out, nothing changes.** In a fresh profile, save ten words and
+     open the dashboard. The overview suggests signing in; **Not now** hides
+     it and it stays hidden after a reload. Save and review a word: DevTools →
+     Network on the service worker shows no request to `www.googleapis.com`.
+     With the placeholder client id, **Sign in with Google** shows "Could not
+     sign in with Google: …" on the card, and nothing else changes.
+110. **First sign-in merges.** In A: **Import & export** → **Cloud sync** →
+     **Sign in with Google**. The card shows the account email and a "Last
+     synced" time. Do the same in B: B now holds A's words and its own, and
+     for a word both had, the schedule of the one reviewed last.
+111. **A change follows you.** In A, save a new word and review another. Wait
+     half a minute, then open B's dashboard: the new word is there, and the
+     reviewed one has A's next due date.
+112. **A delete stays deleted.** In A, delete a word and a folder. Sync B
+     (open its dashboard, or **Sync now**): both are gone. Press **Sync now**
+     in A and again in B: neither comes back.
+113. **The Drive copy is hidden.** Open drive.google.com: no `vocab-track.json`
+     in My Drive. Settings → **Manage apps** lists Vocab-track with hidden app
+     data.
+114. **Sign out keeps your words.** In B, **Sign out**. The card returns to
+     **Sign in with Google**, every word is still there, and saving a word
+     makes no request to `www.googleapis.com`. A still syncs.
+
+## Cloud sync: last full run
+
+Run items 109–114 with the real client id, then fill this in.
+
+- Date: ______  Chrome version: ______  macOS: ______
+- Result: ______ (items that failed, with what you saw)
+
 ## If something fails
 
 The extension card's **service worker** link opens the worker's console (gesture
