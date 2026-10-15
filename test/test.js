@@ -367,7 +367,19 @@ async function fixtureJson(name) {
   check('mergePayload keeps a word re-added after its delete (undo-forget)', !!ab.words.undone);
   check('mergePayload strips a deleted folder from words and pins',
         !ab.words.both.folders.includes('f_gone') && !ab.pins.includes('f_gone'));
-  eq('mergePayload unions the remaining folders', ab.words.both.folders.sort().join(), 'f_x,f_y');
+  eq('mergePayload takes folders from the newer write', ab.words.both.folders.join(), 'f_x');
+  eq('mergePayload keeps an unstar made after the remote copy',
+     VT.mergePayload({ words: { cat: { word: 'cat', folders: ['reading'], updated: 200 } } },
+                     { words: { cat: { word: 'cat', folders: ['starred'], updated: 100 } } }, NOW)
+       .words.cat.folders.join(), 'reading');
+  eq('mergePayload unions folders when neither side is stamped',
+     VT.mergePayload({ words: { cat: { folders: ['a'] } } }, { words: { cat: { folders: ['b'] } } }, NOW)
+       .words.cat.folders.sort().join(), 'a,b');
+  eq('mergePayload keeps an unpin made after the remote pin',
+     VT.mergePayload({ pins: [], pinsUpdated: 200 }, { pins: ['f_a'], pinsUpdated: 100 }, NOW).pins.join(), '');
+  eq('mergePayload takes the newer remote pins',
+     VT.mergePayload({ pins: [], pinsUpdated: 100 }, { pins: ['f_a'], pinsUpdated: 200 }, NOW).pins.join(), 'f_a');
+  eq('mergePayload unions unstamped pins', ab.pins.sort().join(), 'f_x,f_y');
   eq('mergePayload takes the newer folder (a rename converges)', ab.folders.f_x.name, 'New name');
   eq('mergePayload merges history per day',
      JSON.stringify(ab.history), '{"2026-10-01":[["both",4,1],["theirs",3,2]],"2026-10-02":[["theirs",5,3]]}');

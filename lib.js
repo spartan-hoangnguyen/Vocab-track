@@ -713,6 +713,7 @@ const VT = {
       words: dump.words ?? {},
       folders: dump.folders ?? {},
       pins: Array.isArray(dump.pins) ? dump.pins : [],
+      pinsUpdated: dump.pinsUpdated,
       history,
       practiceMisses: dump.practice?.misses ?? {},
       deleted: { words: { ...dump.deleted?.words }, folders: { ...dump.deleted?.folders } }
@@ -788,9 +789,15 @@ const VT = {
       const b = rw[word];
       // Merged from both directions, so neither side's field order decides
       // which schedule or which fields survive.
-      const entry = a && b
-        ? (stamp(b) > stamp(a) ? { ...b, ...VT.mergeWord(b, a) } : { ...a, ...VT.mergeWord(a, b) })
-        : { ...(a ?? b) };
+      let entry = { ...(a ?? b) };
+      if (a && b) {
+        const [win, lose] = stamp(b) > stamp(a) ? [b, a] : [a, b];
+        entry = { ...win, ...VT.mergeWord(win, lose) };
+        // mergeWord unions membership, which suits an import but would undo
+        // every unstar and unfile here: folders come from the newer write too.
+        // Only two unstamped copies (old exports) keep the union.
+        if (win.updated != null || lose.updated != null) entry.folders = VT.foldersOf(win);
+      }
       if (!alive(entry, deleted.words[word])) continue;
       if (Array.isArray(entry.folders)) {
         const kept = entry.folders.filter((id) => !deleted.folders[id]);
@@ -799,8 +806,14 @@ const VT = {
       words[word] = entry;
     }
 
-    const pins = [...new Set([...(local.pins ?? []), ...(remote.pins ?? [])])]
+    // The whole list from the side that pinned or unpinned last (togglePin
+    // stamps `pinsUpdated`), so an unpin sticks. Unstamped on both: union.
+    const lp = local.pinsUpdated ?? 0;
+    const rp = remote.pinsUpdated ?? 0;
+    const pinsFrom = lp || rp ? [rp > lp ? remote.pins : local.pins] : [local.pins, remote.pins];
+    const pins = [...new Set(pinsFrom.flatMap((p) => p ?? []))]
       .filter((id) => !deleted.folders[id]);
+    const pinsUpdated = Math.max(lp, rp) || undefined;
 
     const history = {};
     for (const day of new Set([...Object.keys(local.history ?? {}), ...Object.keys(remote.history ?? {})])) {
@@ -815,7 +828,7 @@ const VT = {
     return {
       version: 2,
       exported: new Date(now).toISOString(),
-      words, folders, pins, history, practiceMisses, deleted
+      words, folders, pins, pinsUpdated, history, practiceMisses, deleted
     };
   },
 
@@ -828,6 +841,7 @@ const VT = {
       words: payload.words ?? {},
       folders: payload.folders ?? {},
       pins: payload.pins ?? [],
+      pinsUpdated: payload.pinsUpdated,
       deleted: payload.deleted ?? { words: {}, folders: {} },
       practice: { ...dump.practice, misses: payload.practiceMisses ?? {} }
     };

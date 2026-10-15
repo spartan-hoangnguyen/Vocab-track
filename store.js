@@ -138,7 +138,9 @@ function togglePin(id) {
     try {
       const pins = await getPins();
       await chrome.storage.local.set({
-        pins: pins.includes(id) ? pins.filter((p) => p !== id) : [...pins, id]
+        pins: pins.includes(id) ? pins.filter((p) => p !== id) : [...pins, id],
+        // What VT.mergePayload compares to pick a side's pins.
+        pinsUpdated: Date.now()
       });
     } catch (err) {
       console.error('[vocab-track] pin failed for', id, err);

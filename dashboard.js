@@ -908,6 +908,7 @@ $('import-file').addEventListener('change', async (event) => {
     const extra = {};
     if (Array.isArray(data.pins) && data.pins.length) {
       extra.pins = [...new Set([...(await getPins()), ...data.pins])];
+      extra.pinsUpdated = Date.now();
     }
     if (data.history && typeof data.history === 'object') {
       const keys = Object.keys(data.history).map((day) => 'history:' + day);
