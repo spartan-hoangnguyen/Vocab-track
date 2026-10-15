@@ -964,6 +964,10 @@ function showCloud(cloud) {
   $('cloud-error').textContent = cloud?.error ?? '';
 }
 chrome.storage.local.get('cloud').then(({ cloud }) => showCloud(cloud));
+// Pull what other machines saved since. Fire and forget: the result lands in
+// `cloud`, which the onChanged listener below draws; signed out it does nothing.
+chrome.runtime.sendMessage({ type: 'cloud-sync' })
+  ?.catch((err) => console.error('[vocab-track] cloud sync on open got no answer', err));
 
 async function cloudPress(button, type, busy) {
   const label = button.textContent;
