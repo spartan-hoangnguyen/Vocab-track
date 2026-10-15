@@ -1,5 +1,6 @@
 // lib.js is only `const VT = {...}`: the backup's payload and file name.
-importScripts('lib.js');
+// cloud.js is Google Drive sync, and needs VT, so it comes second.
+importScripts('lib.js', 'cloud.js');
 
 // At top level, not in onInstalled: the setting persists per extension, so an
 // install that set it once would keep the old behaviour until it was
@@ -182,6 +183,69 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // collected, which surfaces as "message port closed" with no clue why.
     .catch((err) => sendResponse({ error: String(err?.message ?? err) }));
   return true;
+});
+
+
+/* ---------- cloud sync ---------- */
+
+
+// The dashboard's Cloud sync card. Every handler catches its own failures and
+// records them in `cloud.error`, so the reply is always the state to show.
+// Returns true for the same reason as the grammar listener above.
+const CLOUD_HANDLERS = {
+  'cloud-signin': signIn,
+  'cloud-signout': signOut,
+  'cloud-sync': sync,
+  'cloud-status': async () => {}
+};
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const handler = CLOUD_HANDLERS[message?.type];
+  if (!handler) return;
+  handler()
+    .catch((err) => console.error('[vocab-track]', message.type, 'failed', err))
+    .then(() => chrome.storage.local.get('cloud'))
+    .then(({ cloud }) => sendResponse(cloud ?? { signedIn: false }))
+    .catch((err) => sendResponse({ signedIn: false, error: String(err?.message ?? err) }));
+  return true;
+});
+
+// Automatic sync, so a signed-in user never has to press Sync now. Alarms,
+// not setTimeout: the worker can be evicted between a change and its push.
+// sync() is a no-op when signed out, so these fire either way and stay quiet.
+//
+// cloud-push: half a minute after the last change (Chrome's minimum delay).
+// Re-creating the alarm resets it, so a review session ends in one push.
+// cloud-pull: every 30 minutes, for changes made on another machine. The
+// dashboard and side panel also ask for a sync when they open.
+const CLOUD_PUSH_ALARM = 'cloud-push';
+const CLOUD_PULL_ALARM = 'cloud-pull';
+const CLOUD_PUSH_DELAY_MIN = 0.5;
+const CLOUD_PULL_PERIOD_MIN = 30;
+
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'local') return;
+  // `cloud` is not watched, so recording a sync cannot schedule another.
+  if (!Object.keys(changes).some((key) => ['words', 'folders', 'pins', 'deleted'].includes(key)
+      || key.startsWith('history:'))) return;
+  // A sync writing its merge back: pushing that again would loop every 30 s.
+  // Chrome dispatches this event before the write's own promise resolves, so
+  // this read is queued ahead of runSync clearing the flag.
+  const { syncing } = await chrome.storage.session.get('syncing');
+  if (syncing) return;
+  chrome.alarms.create(CLOUD_PUSH_ALARM, { delayInMinutes: CLOUD_PUSH_DELAY_MIN })
+    .catch((err) => console.error('[vocab-track] cloud push alarm failed', err));
+});
+
+function scheduleCloudPull() {
+  chrome.alarms.create(CLOUD_PULL_ALARM, { periodInMinutes: CLOUD_PULL_PERIOD_MIN })
+    .catch((err) => console.error('[vocab-track] cloud pull alarm failed', err));
+}
+chrome.runtime.onInstalled.addListener(scheduleCloudPull);
+chrome.runtime.onStartup.addListener(scheduleCloudPull);
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === CLOUD_PUSH_ALARM || alarm.name === CLOUD_PULL_ALARM) sync();
 });
 
 

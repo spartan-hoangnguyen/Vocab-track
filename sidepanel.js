@@ -347,6 +347,11 @@ async function lookup(pending) {
   renderEntry(entry, failed);
 }
 
+// Pull what other machines saved since, so the lookup below sees their words.
+// Fire and forget, as on the dashboard; signed out it does nothing.
+chrome.runtime.sendMessage({ type: 'cloud-sync' })
+  ?.catch((err) => console.error('[vocab-track] cloud sync on open got no answer', err));
+
 // Single read of `pending` on load. Present: the panel was opened by a
 // lookup (button click) that reached storage before this script started, so
 // run it (lookup() itself clears the key once consumed, so a later

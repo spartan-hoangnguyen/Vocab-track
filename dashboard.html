@@ -60,6 +60,14 @@
   <!-- Overview -->
   <section id="view-overview">
       <p class="capnote" id="capture-note" hidden></p>
+    <div class="cloudhint" id="cloud-hint" hidden>
+      <p>Use your words on another computer: sign in with Google and they sync to your own Drive.</p>
+      <div class="cloudbtns">
+        <button class="btn small" id="cloud-hint-signin">Sign in</button>
+        <button class="btn small ghost" id="cloud-hint-dismiss">Not now</button>
+      </div>
+      <p class="cloudhint-err" id="cloud-hint-error" hidden></p>
+    </div>
     <h1>Your vocabulary</h1>
     <div class="sub" id="ov-sub"></div>
     <div class="stats">
@@ -337,6 +345,24 @@
        to Downloads/vocab-track a minute after you change them; seven days are kept.</div>
     <p class="note" id="backup-status">No automatic backup yet.</p>
     <div class="iocards">
+      <div class="iocard" id="cloud-card">
+        <h3>Cloud sync</h3>
+        <div id="cloud-out">
+          <p>Sign in to keep your words, folders and review schedule the same in
+             every Chrome you use. They are kept in a hidden folder of your own
+             Google Drive that only Vocab-track can read.</p>
+          <button class="btn" id="cloud-signin">Sign in with Google</button>
+        </div>
+        <div id="cloud-in" hidden>
+          <p id="cloud-email" hidden></p>
+          <p id="cloud-last">Not synced yet.</p>
+          <div class="cloudbtns">
+            <button class="btn" id="cloud-sync">Sync now</button>
+            <button class="btn ghost" id="cloud-signout">Sign out</button>
+          </div>
+        </div>
+        <div class="note" id="cloud-error"></div>
+      </div>
       <div class="iocard">
         <h3>Export</h3>
         <p>Downloads your words, folders, pins, review history and practice

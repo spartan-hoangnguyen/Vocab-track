@@ -169,6 +169,8 @@ function render() {
   // makes the toggle reach all of them. The exception is the streak below.
   const all = Object.values(words).filter((e) => LANG.of(e).id === activeLang);
   renderOverview(all);
+  // Every language: the hint is about the whole profile being worth syncing.
+  showCloudHint();
   renderWords(all);
   renderLang();
   // The Push to Anki card names the language it will push, so it follows the
@@ -906,6 +908,7 @@ $('import-file').addEventListener('change', async (event) => {
     const extra = {};
     if (Array.isArray(data.pins) && data.pins.length) {
       extra.pins = [...new Set([...(await getPins()), ...data.pins])];
+      extra.pinsUpdated = Date.now();
     }
     if (data.history && typeof data.history === 'object') {
       const keys = Object.keys(data.history).map((day) => 'history:' + day);
@@ -949,6 +952,77 @@ function showBackup(last) {
     : 'No automatic backup yet.';
 }
 chrome.storage.local.get('lastBackup').then(({ lastBackup }) => showBackup(lastBackup));
+
+// The Cloud sync card. cloud.js does the work in the service worker and keeps
+// its state in `cloud`, so this only draws that and sends the button presses.
+// Mirrored here, with the hint's dismissal, so render() can redraw the overview
+// banner when the word count moves without another storage read.
+let cloudState = null;
+let cloudHintDismissed = false;
+// Below this an empty-ish profile has nothing worth syncing yet.
+const CLOUD_HINT_WORDS = 10;
+
+// The overview banner suggesting sign-in: signed out, enough words, and not
+// dismissed. The dashboard only; the side panel is used mid-reading.
+function showCloudHint() {
+  $('cloud-hint').hidden = !!cloudState?.signedIn || cloudHintDismissed
+    || Object.keys(words).length < CLOUD_HINT_WORDS;
+  // A failed sign-in from the banner says so here too, not only in the
+  // Cloud sync card two views away.
+  const error = cloudState?.error ?? '';
+  $('cloud-hint-error').hidden = !error;
+  $('cloud-hint-error').textContent = error;
+}
+
+function showCloud(cloud) {
+  cloudState = cloud ?? null;
+  showCloudHint();
+  const signedIn = !!cloud?.signedIn;
+  $('cloud-out').hidden = signedIn;
+  $('cloud-in').hidden = !signedIn;
+  $('cloud-email').hidden = !cloud?.email;
+  $('cloud-email').textContent = cloud?.email ? `Signed in as ${cloud.email}` : '';
+  $('cloud-last').textContent = cloud?.lastSync
+    ? `Last synced ${new Date(cloud.lastSync).toLocaleString()}`
+    : 'Not synced yet.';
+  $('cloud-error').textContent = cloud?.error ?? '';
+}
+chrome.storage.local.get(['cloud', 'cloudHintDismissed']).then((got) => {
+  cloudHintDismissed = got.cloudHintDismissed === true;
+  showCloud(got.cloud);
+});
+// Pull what other machines saved since. Fire and forget: the result lands in
+// `cloud`, which the onChanged listener below draws; signed out it does nothing.
+chrome.runtime.sendMessage({ type: 'cloud-sync' })
+  ?.catch((err) => console.error('[vocab-track] cloud sync on open got no answer', err));
+
+async function cloudPress(button, type, busy) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = busy;
+  try {
+    await chrome.runtime.sendMessage({ type });
+  } catch (err) {
+    console.error('[vocab-track]', type, 'got no answer', err);
+    const msg = 'Something went wrong. Reload the extension and try again.';
+    $('cloud-error').textContent = msg;
+    $('cloud-hint-error').hidden = false;
+    $('cloud-hint-error').textContent = msg;
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+$('cloud-signin').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-signin', 'Signing in\u2026'));
+$('cloud-sync').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-sync', 'Syncing\u2026'));
+$('cloud-signout').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-signout', 'Signing out\u2026'));
+$('cloud-hint-signin').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-signin', 'Signing in\u2026'));
+$('cloud-hint-dismiss').addEventListener('click', () => {
+  cloudHintDismissed = true;
+  showCloudHint();
+  chrome.storage.local.set({ cloudHintDismissed: true })
+    .catch((err) => console.error('[vocab-track] could not save the sign-in hint dismissal', err));
+});
 
 /* ---------- push to Anki ---------- */
 
@@ -1259,6 +1333,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // Another dashboard tab flipped the theme: follow it.
   if (changes.theme) applyTheme(changes.theme.newValue);
   if (changes.lastBackup) showBackup(changes.lastBackup.newValue);
+  if (changes.cloud) showCloud(changes.cloud.newValue);
+  if (changes.cloudHintDismissed) {
+    cloudHintDismissed = changes.cloudHintDismissed.newValue === true;
+    showCloudHint();
+  }
   // `lang` for the same reason as the theme, and with more at stake: it governs
   // six views, so a second dashboard tab left on the other language would keep
   // writing words into a list this one is filtering out.
