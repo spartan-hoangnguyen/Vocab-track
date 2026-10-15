@@ -308,9 +308,78 @@ async function fixtureJson(name) {
   eq('mergeWord on a word with no folders keeps From reading',
      VT.mergeWord({}, { folders: ['x'] }).folders.join(), 'reading,x');
 
+  eq('mergeWord takes fields from a newer write',
+     VT.mergeWord({ def: 'old', updated: 100 }, { def: 'new', updated: 200 }).def, 'new');
+  check('mergeWord keeps fields against an older write',
+        !('def' in VT.mergeWord({ def: 'mine', updated: 300 }, { def: 'theirs', updated: 200 })));
+  check('mergeWord keeps fields against a file with no updated stamp',
+        !('def' in VT.mergeWord({ def: 'mine', added: 1 }, { def: 'theirs' })));
+  check('backup carries tombstones',
+        VT.backupPayload({ deleted: { words: { cat: 5 } } }).deleted.words.cat === 5
+        && JSON.stringify(VT.backupPayload({}).deleted) === '{"words":{},"folders":{}}');
+
   const h = VT.mergeHistory([['a', 4, 3], ['b', 3, 1]], [['b', 3, 1], ['c', 5, 2]]);
   eq('mergeHistory dedupes and sorts', JSON.stringify(h), '[["b",3,1],["c",5,2],["a",4,3]]');
   eq('mergeHistory with one side missing', VT.mergeHistory(undefined, [['a', 4, 1]]).length, 1);
+
+  // mergePayload: what cloud sync writes to both sides.
+  // Small stamps, so the 90-day prune keeps every tombstone but 'ancient'.
+  const NOW = 1000;
+  const DAY = 24 * 60 * 60 * 1000;
+  const sched = (t) => ({ due: t + 9, interval: t, reps: t, stability: t, difficulty: 5, lastReview: t });
+  const A = {
+    words: {
+      mine: { word: 'mine', added: 10, updated: 10 },
+      both: { word: 'both', context: 'local note', updated: 500, folders: ['f_x', 'f_gone'], ...sched(100) },
+      killed: { word: 'killed', added: 10, updated: 20 }
+    },
+    folders: { f_x: { id: 'f_x', name: 'Old name', updated: 10 } },
+    pins: ['f_x'],
+    history: { '2026-10-01': [['both', 4, 1]] },
+    practiceMisses: { both: 1 },
+    deleted: { words: {}, folders: {} }
+  };
+  const B = {
+    words: {
+      theirs: { word: 'theirs', added: 30, updated: 30 },
+      both: { word: 'both', context: 'remote note', updated: 400, folders: ['f_y'], ...sched(300) },
+      undone: { word: 'undone', added: 1, updated: 900 }
+    },
+    folders: {
+      f_x: { id: 'f_x', name: 'New name', updated: 50 },
+      f_y: { id: 'f_y', name: 'Y', added: 5 }
+    },
+    pins: ['f_y', 'f_gone'],
+    history: { '2026-10-01': [['both', 4, 1], ['theirs', 3, 2]], '2026-10-02': [['theirs', 5, 3]] },
+    practiceMisses: { both: 3, theirs: 1 },
+    deleted: {
+      words: { killed: 100, undone: 800, ancient: NOW - 91 * DAY },
+      folders: { f_gone: 200 }
+    }
+  };
+  const ab = VT.mergePayload(A, B, NOW);
+  const ba = VT.mergePayload(B, A, NOW);
+  check('mergePayload keeps a word only on local and one only on remote',
+        ab.words.mine && ab.words.theirs);
+  eq('mergePayload takes the newer schedule (remote reviewed later)', ab.words.both.lastReview, 300);
+  eq('mergePayload takes fields from the newer write (local)', ab.words.both.context, 'local note');
+  check('mergePayload drops a word whose tombstone is newer than its last write', !('killed' in ab.words));
+  check('mergePayload keeps a word re-added after its delete (undo-forget)', !!ab.words.undone);
+  check('mergePayload strips a deleted folder from words and pins',
+        !ab.words.both.folders.includes('f_gone') && !ab.pins.includes('f_gone'));
+  eq('mergePayload unions the remaining folders', ab.words.both.folders.sort().join(), 'f_x,f_y');
+  eq('mergePayload takes the newer folder (a rename converges)', ab.folders.f_x.name, 'New name');
+  eq('mergePayload merges history per day',
+     JSON.stringify(ab.history), '{"2026-10-01":[["both",4,1],["theirs",3,2]],"2026-10-02":[["theirs",5,3]]}');
+  eq('mergePayload takes max practice misses', JSON.stringify(ab.practiceMisses), '{"both":3,"theirs":1}');
+  check('mergePayload prunes tombstones older than 90 days',
+        !('ancient' in ab.deleted.words) && ab.deleted.words.killed === 100);
+  const shape = (p) => JSON.stringify(Object.keys(p.words).sort().map((w) =>
+    [w, ...VT.SCHEDULE_FIELDS.map((f) => p.words[w][f]), p.words[w].context]));
+  eq('mergePayload is symmetric', shape(ab), shape(ba));
+  eq('mergePayload of two empty sides is empty', Object.keys(VT.mergePayload({}, {}, NOW).words).length, 0);
+  eq('pruneTombstones keeps a recent one',
+     Object.keys(VT.pruneTombstones({ words: { a: NOW - DAY } }, NOW).words).join(), 'a');
 
   eq('backupFileName is a dated file under vocab-track',
      VT.backupFileName(new Date(2026, 9, 5, 23, 59).getTime()), 'vocab-track/backup-2026-10-05.json');
