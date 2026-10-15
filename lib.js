@@ -819,6 +819,26 @@ const VT = {
     };
   },
 
+  // The chrome.storage.local writes that make a dump hold a merged payload
+  // (VT.mergePayload): only the keys whose value changed, so a sync that
+  // brought nothing new writes nothing and wakes no listener. Today's practice
+  // counts belong to this machine and are kept; only the misses are synced.
+  payloadWrites(payload, dump = {}) {
+    const next = {
+      words: payload.words ?? {},
+      folders: payload.folders ?? {},
+      pins: payload.pins ?? [],
+      deleted: payload.deleted ?? { words: {}, folders: {} },
+      practice: { ...dump.practice, misses: payload.practiceMisses ?? {} }
+    };
+    for (const [day, rows] of Object.entries(payload.history ?? {})) next['history:' + day] = rows;
+    const writes = {};
+    for (const [key, value] of Object.entries(next)) {
+      if (JSON.stringify(value) !== JSON.stringify(dump[key])) writes[key] = value;
+    }
+    return writes;
+  },
+
   // The automatic backup's path under Downloads: one file per local day.
   backupFileName(now = Date.now()) {
     return `vocab-track/backup-${VT.dayKey(now)}.json`;

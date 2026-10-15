@@ -381,6 +381,21 @@ async function fixtureJson(name) {
   eq('pruneTombstones keeps a recent one',
      Object.keys(VT.pruneTombstones({ words: { a: NOW - DAY } }, NOW).words).join(), 'a');
 
+  // payloadWrites: what a sync writes back to chrome.storage.local.
+  const dumpA = {
+    words: A.words, folders: A.folders, pins: A.pins, 'history:2026-10-01': A.history['2026-10-01'],
+    practice: { day: 'Thu Oct 15 2026', counts: { quiz: { right: 1, total: 2 } }, misses: { both: 1 } },
+    deleted: A.deleted, theme: 'night'
+  };
+  const w = VT.payloadWrites(ab, dumpA);
+  check('payloadWrites writes the merged words and the new history day',
+        w.words === ab.words && w['history:2026-10-02'] === ab.history['2026-10-02']);
+  check('payloadWrites keeps today\'s practice counts and syncs the misses',
+        w.practice.counts.quiz.total === 2 && w.practice.misses.theirs === 1);
+  check('payloadWrites never touches per-machine settings', !('theme' in w));
+  eq('payloadWrites of an unchanged store writes nothing',
+     Object.keys(VT.payloadWrites(ab, { ...dumpA, ...w })).join(), '');
+
   eq('backupFileName is a dated file under vocab-track',
      VT.backupFileName(new Date(2026, 9, 5, 23, 59).getTime()), 'vocab-track/backup-2026-10-05.json');
   const dl = (id, day) => ({ id, filename: `/Users/me/Downloads/vocab-track/backup-2026-10-${day}.json` });

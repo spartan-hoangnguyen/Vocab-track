@@ -950,6 +950,39 @@ function showBackup(last) {
 }
 chrome.storage.local.get('lastBackup').then(({ lastBackup }) => showBackup(lastBackup));
 
+// The Cloud sync card. cloud.js does the work in the service worker and keeps
+// its state in `cloud`, so this only draws that and sends the button presses.
+function showCloud(cloud) {
+  const signedIn = !!cloud?.signedIn;
+  $('cloud-out').hidden = signedIn;
+  $('cloud-in').hidden = !signedIn;
+  $('cloud-email').hidden = !cloud?.email;
+  $('cloud-email').textContent = cloud?.email ? `Signed in as ${cloud.email}` : '';
+  $('cloud-last').textContent = cloud?.lastSync
+    ? `Last synced ${new Date(cloud.lastSync).toLocaleString()}`
+    : 'Not synced yet.';
+  $('cloud-error').textContent = cloud?.error ?? '';
+}
+chrome.storage.local.get('cloud').then(({ cloud }) => showCloud(cloud));
+
+async function cloudPress(button, type, busy) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = busy;
+  try {
+    await chrome.runtime.sendMessage({ type });
+  } catch (err) {
+    console.error('[vocab-track]', type, 'got no answer', err);
+    $('cloud-error').textContent = 'Something went wrong. Reload the extension and try again.';
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+$('cloud-signin').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-signin', 'Signing in\u2026'));
+$('cloud-sync').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-sync', 'Syncing\u2026'));
+$('cloud-signout').addEventListener('click', (e) => cloudPress(e.currentTarget, 'cloud-signout', 'Signing out\u2026'));
+
 /* ---------- push to Anki ---------- */
 
 // The origin AnkiConnect must whitelist. Shown in the settings card so the user
@@ -1259,6 +1292,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // Another dashboard tab flipped the theme: follow it.
   if (changes.theme) applyTheme(changes.theme.newValue);
   if (changes.lastBackup) showBackup(changes.lastBackup.newValue);
+  if (changes.cloud) showCloud(changes.cloud.newValue);
   // `lang` for the same reason as the theme, and with more at stake: it governs
   // six views, so a second dashboard tab left on the other language would keep
   // writing words into a list this one is filtering out.

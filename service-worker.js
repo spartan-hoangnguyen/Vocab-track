@@ -1,5 +1,6 @@
 // lib.js is only `const VT = {...}`: the backup's payload and file name.
-importScripts('lib.js');
+// cloud.js is Google Drive sync, and needs VT, so it comes second.
+importScripts('lib.js', 'cloud.js');
 
 // At top level, not in onInstalled: the setting persists per extension, so an
 // install that set it once would keep the old behaviour until it was
@@ -181,6 +182,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // failed to call sendResponse leaves the caller waiting until the port is
     // collected, which surfaces as "message port closed" with no clue why.
     .catch((err) => sendResponse({ error: String(err?.message ?? err) }));
+  return true;
+});
+
+
+/* ---------- cloud sync ---------- */
+
+
+// The dashboard's Cloud sync card. Every handler catches its own failures and
+// records them in `cloud.error`, so the reply is always the state to show.
+// Returns true for the same reason as the grammar listener above.
+const CLOUD_HANDLERS = {
+  'cloud-signin': signIn,
+  'cloud-signout': signOut,
+  'cloud-sync': sync,
+  'cloud-status': async () => {}
+};
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const handler = CLOUD_HANDLERS[message?.type];
+  if (!handler) return;
+  handler()
+    .catch((err) => console.error('[vocab-track]', message.type, 'failed', err))
+    .then(() => chrome.storage.local.get('cloud'))
+    .then(({ cloud }) => sendResponse(cloud ?? { signedIn: false }))
+    .catch((err) => sendResponse({ signedIn: false, error: String(err?.message ?? err) }));
   return true;
 });
 

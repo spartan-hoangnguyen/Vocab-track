@@ -160,6 +160,7 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #anki-deck{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);
            border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
+.cloudbtns{display:flex;gap:8px;flex-wrap:wrap}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
        color:var(--ink);width:min(420px,92vw);box-shadow:0 24px 60px -20px var(--shade)}

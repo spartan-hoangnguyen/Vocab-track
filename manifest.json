@@ -11,7 +11,8 @@
     "downloads",
     "downloads.ui",
     "alarms",
-    "offscreen"
+    "offscreen",
+    "identity"
   ],
   "host_permissions": [
     "https://api.datamuse.com/*",
@@ -21,10 +22,17 @@
     "https://api.languagetool.org/*",
     "https://api.giphy.com/*",
     "https://krdict.korean.go.kr/*",
+    "https://www.googleapis.com/*",
     "http://127.0.0.1:8765/*"
   ],
   "background": {
     "service_worker": "service-worker.js"
+  },
+  "oauth2": {
+    "client_id": "REPLACE_WITH_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.appdata"
+    ]
   },
   "side_panel": {
     "default_path": "sidepanel.html"
