@@ -32,8 +32,10 @@ three.
 > on web pages. It is on when you install, and can be turned off in the
 > dashboard, everywhere or per site.
 >
-> English and Korean. Korean is newer and thinner: a Vietnamese gloss, the
-> sentence, highlighting and review, with no dictionary behind it yet.
+> English, Korean and Simplified Chinese. Korean is thinner: a Vietnamese gloss,
+> the sentence, highlighting and review, plus definitions, pronunciation and
+> level once you add a free krdict key. Chinese adds pinyin, English senses and
+> an HSK level from bundled data, with no key.
 >
 > No Vocab-track account and no Vocab-track server. Your words stay in this
 > Chrome profile, unless you choose to sign in with Google: then they sync to
