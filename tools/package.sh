@@ -42,6 +42,10 @@ import json, sys
 p = sys.argv[1]
 m = json.load(open(p))
 m["permissions"] = [x for x in m["permissions"] if x != "nativeMessaging"]
+# `key` only pins the unpacked build to the store item's ID, so the OAuth
+# client (bound to that ID) works in development. The store keeps the ID
+# itself and documents `key` as a development field.
+m.pop("key", None)
 json.dump(m, open(p, "w"), indent=2, ensure_ascii=False)
 EOF
 
@@ -63,6 +67,7 @@ EOF
 )
 [ -z "$MISSING" ] || fail "files named in manifest.json are missing:"$'\n'"$MISSING"
 grep -q nativeMessaging "$STAGE/manifest.json" && fail "nativeMessaging is still in the zipped manifest"
+grep -q '"key"' "$STAGE/manifest.json" && fail "key is still in the zipped manifest"
 
 # Zip from inside the stage so manifest.json sits at the root of the zip;
 # the store rejects one that does not.
