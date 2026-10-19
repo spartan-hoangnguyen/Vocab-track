@@ -22,7 +22,10 @@ Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, plus krdict's definition, pronunciation
 and level once you paste a free krdict key. See *Languages* below, which says plainly what it does and does not do.
 
-No accounts, no sync, no server. Your words stay in your own Chrome profile.
+There is no Vocab-track server and no Vocab-track account. Your words stay in
+your own Chrome profile unless you choose to sign in with Google: then they
+sync, through your own Google Drive, to every Chrome you sign in to. See
+*Privacy* below for exactly what that sends.
 
 | Side panel | Dashboard |
 |---|---|
@@ -88,6 +91,14 @@ No accounts, no sync, no server. Your words stay in your own Chrome profile.
   review schedules, folders, pins, review history and practice misses (never
   your GIPHY key). Import merges it back: when both sides have a word, the more
   recently reviewed schedule wins, so an old backup never rolls a word back.
+- **Take it to another computer.** Optional: **Sign in with Google** under
+  **Import & export** and the same words, folders and review schedule follow
+  you to every Chrome you sign in to. They are kept in a hidden app folder of
+  your own Google Drive that only Vocab-track can read. A change goes up half a
+  minute after you make it; another machine picks it up when its dashboard or
+  panel opens, or within 30 minutes. A word deleted on one machine stays
+  deleted on the others. Sign out and your local words stay; the Drive copy is
+  left as it was.
 
 ## Install
 
@@ -480,15 +491,15 @@ the same licence.
 
 ## Privacy
 
-No account, no server, no analytics. Your words live in `chrome.storage.local`
-on your own machine and are never uploaded anywhere. The automatic backup is a
-file in your own Downloads folder (`Downloads/vocab-track/backup-<date>.json`),
-written by the extension a minute after you change your words; nothing is sent
-anywhere.
+No Vocab-track account, no server, no analytics. Your words live in
+`chrome.storage.local` on your own machine, and are uploaded only if you sign in
+for cloud sync (below). The automatic backup is a file in your own Downloads
+folder (`Downloads/vocab-track/backup-<date>.json`), written by the extension a
+minute after you change your words; nothing is sent anywhere.
 The policy for the store version, written for someone who did not build it,
 is [PRIVACY.md](PRIVACY.md).
 
-Nine things leave your browser, each only when you do something that needs it:
+Ten things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -501,6 +512,7 @@ Nine things leave your browser, each only when you do something that needs it:
 | You press **Find GIF** on a review card | `api.giphy.com` | the word, or its Vietnamese gloss for a Korean card |
 | You click a Korean word, with a krdict key saved | `krdict.korean.go.kr` | the word and your key |
 | You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, so nothing leaves it |
+| You signed in for cloud sync | `www.googleapis.com`, your own Google Drive | your whole word store, including page URLs and sentences — see below |
 
 GIFs on cards are off until you add your own GIPHY API key. The key field is
 under **Import & export**, in **GIFs on cards**. The key is kept in
@@ -521,6 +533,23 @@ word and your key to `krdict.korean.go.kr`; the key is kept in
 **krdict ↗** link opens a tab when you click it, and nothing is fetched in the
 background. Opening the dashboard makes
 no third-party request at all — the fonts are vendored under `fonts/`.
+
+**Cloud sync is off until you sign in.** Once you do, the whole sync file goes
+to your own Google Drive: every word with its meanings, **the sentence you met
+it in**, and **the address of every page you looked a word up on** — in effect
+a list of pages you read — plus your review schedule and history, folders,
+pins, practice misses and the list of what you deleted. Settings and API keys
+are not in it. It lives in Drive's hidden `appDataFolder`, which only this
+extension can read; the `drive.appdata` scope reaches nothing else in your
+Drive. Sign out to stop it. To delete the Drive copy: Google Drive → gear →
+**Settings** → **Manage apps** → **Vocab-track** → **Options** → **Delete
+hidden app data**. [PRIVACY.md](PRIVACY.md) has the details.
+
+Cloud sync needs **`identity`**, for Chrome's own Google sign-in
+(`chrome.identity.getAuthToken`, so Chrome holds the token and Vocab-track
+never sees a password), and the **`www.googleapis.com`** host, for the Drive
+API calls that read and write that one file. It does not ask for
+`identity.email`: the email on the card comes from Drive itself.
 
 The automatic backup needs four permissions: **`downloads`** writes the file
 (and deletes this extension's own backups older than seven days),
@@ -550,7 +579,8 @@ Two permissions look broader than they are:
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
 | `tools/package.sh` | Builds the Chrome Web Store zip in `dist/`: tracked runtime files only, `nativeMessaging` dropped from the zipped manifest |
-| `service-worker.js` | Opens the panel and the dashboard, hands words over, writes the automatic backup (`offscreen.*` makes its file) |
+| `service-worker.js` | Opens the panel and the dashboard, hands words over, writes the automatic backup (`offscreen.*` makes its file), schedules cloud sync |
+| `cloud.js` | Cloud sync: Google sign-in, and the one `vocab-track.json` file in your Drive's `appDataFolder`. The only file that talks to Drive; the merge itself is `VT.mergePayload` in `lib.js` |
 | `sidepanel.*` | The lookup surface |
 | `dashboard.*` | Folders, all words, review, statistics, import/export |
 
@@ -730,7 +760,13 @@ manual checklist for it.
   language toggle deliberately does not govern it.
 - **Storage is local to this Chrome profile.** The backup is a file per day
   in `Downloads/vocab-track/`, the last seven days kept; restore one with
-  **Import**. Nothing syncs between machines on its own — carry the file.
+  **Import**. Without signing in, nothing syncs between machines — carry the
+  file. Signed in, cloud sync carries it, with three limits: it is Chrome-only
+  (`chrome.identity.getAuthToken` does not exist in Edge, Brave or Firefox);
+  settings, theme, voices and keys stay per machine; and the store stops
+  syncing past 4.5 MB (well over ten thousand words) with an error instead.
+  Two machines syncing in the same moment do not lose anything, but one side's
+  change can arrive a sync late.
 - **A folder's language is inferred from the words in it**, not stored, for
   every folder made before folders had a language — which is why nothing had
   to be migrated. The cost is that a folder holding both languages shows in

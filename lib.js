@@ -713,24 +713,144 @@ const VT = {
       words: dump.words ?? {},
       folders: dump.folders ?? {},
       pins: Array.isArray(dump.pins) ? dump.pins : [],
+      pinsUpdated: dump.pinsUpdated,
       history,
-      practiceMisses: dump.practice?.misses ?? {}
+      practiceMisses: dump.practice?.misses ?? {},
+      deleted: { words: { ...dump.deleted?.words }, folders: { ...dump.deleted?.folders } }
     };
   },
 
   // The patch for a word both sides have. Membership and sources are unioned;
   // the schedule comes whole from whichever side reviewed it last, so an old
   // backup never rolls a schedule back. A word list carries no lastReview, so
-  // it never moves a local schedule.
+  // it never moves a local schedule. Every other field (def, context, gif,
+  // noHighlight, ...) comes from the side written last — store.js stamps
+  // `updated` on every put — so two machines editing one word end up agreeing.
+  // An old export or a word list has no `updated`, so it never overwrites them.
   mergeWord(existing, incoming) {
-    const patch = {
-      folders: [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])],
-      sources: [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])]
-    };
+    const patch = {};
+    if ((incoming.updated ?? 0) > (existing.updated ?? existing.added ?? 0)) {
+      for (const [k, v] of Object.entries(incoming)) {
+        if (!VT.SCHEDULE_FIELDS.includes(k)) patch[k] = v;
+      }
+    }
+    patch.folders = [...new Set([...VT.foldersOf(existing), ...VT.foldersOf(incoming)])];
+    patch.sources = [...new Set([...(existing.sources ?? []), ...(incoming.sources ?? [])])];
     if (incoming.lastReview > (existing.lastReview ?? 0)) {
       for (const f of VT.SCHEDULE_FIELDS) if (f in incoming) patch[f] = incoming[f];
     }
     return patch;
+  },
+
+  // Tombstones older than `days` are dropped: by then every machine that
+  // syncs at all has seen the delete. A machine away longer than that can
+  // bring a deleted word back once — the cost of not keeping them forever.
+  pruneTombstones(deleted = {}, now = Date.now(), days = 90) {
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    const keep = (map) => Object.fromEntries(Object.entries(map ?? {}).filter(([, at]) => at >= cutoff));
+    return { words: keep(deleted.words), folders: keep(deleted.folders) };
+  },
+
+  // Two backup payloads (VT.backupPayload) made into one: what cloud sync
+  // writes to both this machine and the Drive copy. Keeps what both sides
+  // keep whichever is `local` — merge(a, b) and merge(b, a) hold the same
+  // words and schedules — so two machines converge even when one's upload
+  // overwrites the other's: the overwritten side still has its copy, and its
+  // next sync puts its changes back. A record is dropped when its tombstone
+  // is newer than its last write (`updated`, else `added`).
+  mergePayload(local = {}, remote = {}, now = Date.now()) {
+    const newest = (a = {}, b = {}) => {
+      const out = { ...a };
+      for (const [id, at] of Object.entries(b)) out[id] = id in out ? Math.max(out[id], at) : at;
+      return out;
+    };
+    const deleted = VT.pruneTombstones({
+      words: newest(local.deleted?.words, remote.deleted?.words),
+      folders: newest(local.deleted?.folders, remote.deleted?.folders)
+    }, now);
+    const stamp = (rec) => rec.updated ?? rec.added ?? 0;
+    const alive = (rec, at) => !(at > stamp(rec));
+
+    const folders = {};
+    const lf = local.folders ?? {};
+    const rf = remote.folders ?? {};
+    for (const id of new Set([...Object.keys(lf), ...Object.keys(rf)])) {
+      const a = lf[id];
+      const b = rf[id];
+      const pick = a && b ? (stamp(b) > stamp(a) ? b : a) : (a ?? b);
+      if (alive(pick, deleted.folders[id])) folders[id] = pick;
+    }
+
+    const words = {};
+    const lw = local.words ?? {};
+    const rw = remote.words ?? {};
+    for (const word of new Set([...Object.keys(lw), ...Object.keys(rw)])) {
+      const a = lw[word];
+      const b = rw[word];
+      // Merged from both directions, so neither side's field order decides
+      // which schedule or which fields survive.
+      let entry = { ...(a ?? b) };
+      if (a && b) {
+        const [win, lose] = stamp(b) > stamp(a) ? [b, a] : [a, b];
+        entry = { ...win, ...VT.mergeWord(win, lose) };
+        // mergeWord unions membership, which suits an import but would undo
+        // every unstar and unfile here: folders come from the newer write too.
+        // Only two unstamped copies (old exports) keep the union.
+        if (win.updated != null || lose.updated != null) entry.folders = VT.foldersOf(win);
+      }
+      if (!alive(entry, deleted.words[word])) continue;
+      if (Array.isArray(entry.folders)) {
+        const kept = entry.folders.filter((id) => !deleted.folders[id]);
+        entry.folders = kept.length ? kept : [VT.READING];
+      }
+      words[word] = entry;
+    }
+
+    // The whole list from the side that pinned or unpinned last (togglePin
+    // stamps `pinsUpdated`), so an unpin sticks. Unstamped on both: union.
+    const lp = local.pinsUpdated ?? 0;
+    const rp = remote.pinsUpdated ?? 0;
+    const pinsFrom = lp || rp ? [rp > lp ? remote.pins : local.pins] : [local.pins, remote.pins];
+    const pins = [...new Set(pinsFrom.flatMap((p) => p ?? []))]
+      .filter((id) => !deleted.folders[id]);
+    const pinsUpdated = Math.max(lp, rp) || undefined;
+
+    const history = {};
+    for (const day of new Set([...Object.keys(local.history ?? {}), ...Object.keys(remote.history ?? {})])) {
+      history[day] = VT.mergeHistory(local.history?.[day], remote.history?.[day]);
+    }
+
+    const practiceMisses = { ...local.practiceMisses };
+    for (const [word, n] of Object.entries(remote.practiceMisses ?? {})) {
+      practiceMisses[word] = Math.max(practiceMisses[word] ?? 0, Number(n) || 0);
+    }
+
+    return {
+      version: 2,
+      exported: new Date(now).toISOString(),
+      words, folders, pins, pinsUpdated, history, practiceMisses, deleted
+    };
+  },
+
+  // The chrome.storage.local writes that make a dump hold a merged payload
+  // (VT.mergePayload): only the keys whose value changed, so a sync that
+  // brought nothing new writes nothing and wakes no listener. Today's practice
+  // counts belong to this machine and are kept; only the misses are synced.
+  payloadWrites(payload, dump = {}) {
+    const next = {
+      words: payload.words ?? {},
+      folders: payload.folders ?? {},
+      pins: payload.pins ?? [],
+      pinsUpdated: payload.pinsUpdated,
+      deleted: payload.deleted ?? { words: {}, folders: {} },
+      practice: { ...dump.practice, misses: payload.practiceMisses ?? {} }
+    };
+    for (const [day, rows] of Object.entries(payload.history ?? {})) next['history:' + day] = rows;
+    const writes = {};
+    for (const [key, value] of Object.entries(next)) {
+      if (JSON.stringify(value) !== JSON.stringify(dump[key])) writes[key] = value;
+    }
+    return writes;
   },
 
   // The automatic backup's path under Downloads: one file per local day.

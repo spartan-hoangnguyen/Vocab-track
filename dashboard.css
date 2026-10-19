@@ -160,6 +160,7 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #anki-deck{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);
            border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
+.cloudbtns{display:flex;gap:8px;flex-wrap:wrap}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
        color:var(--ink);width:min(420px,92vw);box-shadow:0 24px 60px -20px var(--shade)}
@@ -419,6 +420,14 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 /* Words that arrived from another Mac app while the dashboard was shut. */
 .capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);
   border-radius:11px;background:var(--ochre);color:var(--ochre-ink);font-size:13px}
+
+/* The one-time sign-in suggestion on the overview. `display` is set, so the
+   [hidden] rule has to be restated or the UA's display:none loses. */
+.cloudhint{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;margin:0 0 18px;
+  padding:12px 14px;border:1px solid var(--rule);border-radius:11px;background:var(--card)}
+.cloudhint[hidden]{display:none}
+.cloudhint p{margin:0;flex:1 1 280px;font-size:13.5px;color:var(--ink2)}
+.cloudhint .cloudhint-err{flex-basis:100%;color:#c0392b;font-size:13px}
 
 /* ---- writing ----
    No `display` on #view-writing: the section must stay a plain block so the UA

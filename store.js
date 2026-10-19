@@ -7,6 +7,16 @@ async function getWords() {
   return words ?? {};
 }
 
+// When a word or folder was deleted, so sync (cloud.js) can tell "deleted
+// here" from "not seen here yet" — without it the other side's copy brings a
+// deleted word straight back. A put clears its own tombstone: that is what
+// lets undo-forget (sidepanel.js), which re-puts the old snapshot, win over the
+// delete it undoes. Pruned by VT.mergePayload, not here.
+async function getDeleted() {
+  const { deleted } = await chrome.storage.local.get('deleted');
+  return { words: { ...deleted?.words }, folders: { ...deleted?.folders } };
+}
+
 // Writes are serialised: putWord read-modify-writes the whole `words` map,
 // and a lookup's fetches can finish while another is still in flight.
 // Without this, the second write clobbers the first and the word is lost.
@@ -22,8 +32,12 @@ function putWord(word, patch) {
   writeQueue = writeQueue.then(async () => {
     try {
       const words = await getWords();
-      words[word] = Object.assign(words[word] ?? {}, patch);
-      await chrome.storage.local.set({ words });
+      // `updated` is what VT.mergeWord compares to pick a side's fields.
+      words[word] = Object.assign(words[word] ?? {}, patch, { updated: Date.now() });
+      const deleted = await getDeleted();
+      const revived = word in deleted.words;
+      delete deleted.words[word];
+      await chrome.storage.local.set(revived ? { words, deleted } : { words });
     } catch (err) {
       // Caught here, not rethrown: a rejected link in this chain would skip
       // every later queued write's callback, silently dropping them too.
@@ -42,10 +56,17 @@ function putWords(patches) {
   writeQueue = writeQueue.then(async () => {
     try {
       const words = await getWords();
+      const deleted = await getDeleted();
+      const now = Date.now();
+      let revived = false;
       for (const [word, patch] of Object.entries(patches)) {
-        words[word] = Object.assign(words[word] ?? {}, patch);
+        words[word] = Object.assign(words[word] ?? {}, patch, { updated: now });
+        if (word in deleted.words) {
+          delete deleted.words[word];
+          revived = true;
+        }
       }
-      await chrome.storage.local.set({ words });
+      await chrome.storage.local.set(revived ? { words, deleted } : { words });
     } catch (err) {
       console.error('[vocab-track] bulk save failed', err);
     }
@@ -58,7 +79,9 @@ function removeWord(word) {
     try {
       const words = await getWords();
       delete words[word];
-      await chrome.storage.local.set({ words });
+      const deleted = await getDeleted();
+      deleted.words[word] = Date.now();
+      await chrome.storage.local.set({ words, deleted });
     } catch (err) {
       console.error('[vocab-track] delete failed for', word, err);
     }
@@ -90,8 +113,11 @@ function putFolder(folder) {
     try {
       const { folders } = await chrome.storage.local.get('folders');
       const next = folders ?? {};
-      next[folder.id] = Object.assign(next[folder.id] ?? {}, folder);
-      await chrome.storage.local.set({ folders: next });
+      next[folder.id] = Object.assign(next[folder.id] ?? {}, folder, { updated: Date.now() });
+      const deleted = await getDeleted();
+      const revived = folder.id in deleted.folders;
+      delete deleted.folders[folder.id];
+      await chrome.storage.local.set(revived ? { folders: next, deleted } : { folders: next });
     } catch (err) {
       console.error('[vocab-track] folder save failed for', folder.id, err);
     }
@@ -112,7 +138,9 @@ function togglePin(id) {
     try {
       const pins = await getPins();
       await chrome.storage.local.set({
-        pins: pins.includes(id) ? pins.filter((p) => p !== id) : [...pins, id]
+        pins: pins.includes(id) ? pins.filter((p) => p !== id) : [...pins, id],
+        // What VT.mergePayload compares to pick a side's pins.
+        pinsUpdated: Date.now()
       });
     } catch (err) {
       console.error('[vocab-track] pin failed for', id, err);
@@ -137,7 +165,9 @@ function removeFolder(id) {
         }
       }
       const pins = (await getPins()).filter((p) => p !== id);
-      await chrome.storage.local.set({ folders: next, words, pins });
+      const deleted = await getDeleted();
+      deleted.folders[id] = Date.now();
+      await chrome.storage.local.set({ folders: next, words, pins, deleted });
     } catch (err) {
       console.error('[vocab-track] folder delete failed for', id, err);
     }
