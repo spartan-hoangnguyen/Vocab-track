@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "description": "Look up words while reading, and review them as flashcards.",
   "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxRVmd0Ga5GKGGyqJTeXjhBVQoGNCwIi9vJXMgJNA53mOjlhmcYuF+mcETOW0HbXfn5AsxFbofW48QsEAyZZEruF1JrT2mTg+XY6+k0fd2cOpXWauR3Ug0UBPynT5LQDGEfgkrE0U+ePU+dq3rYnOWZQCBfH4cGzJpF2gmLrwKA3o/3cxzC7xwk9OqESNpCaVim/CrpFY6nO3dxqeuNnqdyySiIabr7s03qZnW52wuG9K4WDg8OsfeU13MWhLPEejA7FDU8SSLQLRfHNRA/MztJIKb73Q1//jX3ijddIKtbMFUlfxvF9RsVislPpneos97eL+w7lW8GJ3/ItmNZTAyQIDAQAB",
   "permissions": [
     "storage",
     "sidePanel",
@@ -29,7 +30,7 @@
     "service_worker": "service-worker.js"
   },
   "oauth2": {
-    "client_id": "REPLACE_WITH_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "1041853444560-lraltlkbatonto7dn46rrsls0lfo5clc.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/drive.appdata"
     ]
