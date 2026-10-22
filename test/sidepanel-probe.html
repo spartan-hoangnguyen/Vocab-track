@@ -72,7 +72,8 @@ window.chrome = {
                onChanged: { addListener() {} } },
     onChanged: { addListener() {} }
   },
-  runtime: { sendMessage() {}, onMessage: { addListener() {} } },
+  runtime: { sendMessage() {}, onMessage: { addListener() {} },
+             getManifest: () => ({ version: '0.0.0' }) },
   tabs: { query: async () => [], sendMessage: async () => null,
           onActivated: { addListener() {} } }
 };

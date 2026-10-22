@@ -24,6 +24,7 @@ body{margin:0;padding:14px 14px 22px;background:var(--paper);color:var(--ink);
                 background:transparent;color:var(--ink2);font-weight:500;font-size:12.5px;
                 cursor:pointer;text-decoration:none}
 #open-dashboard:hover{background:var(--panel);color:var(--ink)}
+#feedback{display:block;margin-top:6px;text-align:right;color:var(--ink2);font-size:12px}
 
 h1{font:600 23px/1.2 system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.015em}
 

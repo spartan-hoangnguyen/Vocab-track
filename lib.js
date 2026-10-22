@@ -1226,5 +1226,23 @@ const VT = {
       reps: 0,
       due: Date.now()   // due immediately, so a new word appears in the first review
     };
+  },
+
+  // The Google Form feedback goes to (T187). Entry ids come from the form's
+  // "Get pre-filled link"; TYPES must match its Type options word for word.
+  FEEDBACK: {
+    url: 'https://docs.google.com/forms/d/e/1FAIpQLScXikAaOrWaOsggED-1N-WtkiBMU6Cd9AOgQAOoRj9oehsa7g/viewform',
+    entry: { type: 'entry.815136095', version: 'entry.1220647931', browser: 'entry.25929234' },
+    TYPES: { feature: 'Feature request', bug: 'Bug report' }
+  },
+
+  // A pre-filled link to that form. A null kind leaves Type for the user to
+  // pick. Nothing is sent by opening it: only the form's own Submit does.
+  feedbackUrl(kind, version, browser, form = VT.FEEDBACK) {
+    const q = new URLSearchParams({ usp: 'pp_url' });
+    if (form.TYPES[kind]) q.set(form.entry.type, form.TYPES[kind]);
+    q.set(form.entry.version, version);
+    q.set(form.entry.browser, browser);
+    return `${form.url}?${q}`;
   }
 };

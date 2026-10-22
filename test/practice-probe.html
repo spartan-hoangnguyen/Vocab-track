@@ -132,7 +132,8 @@ window.chrome = {
       },
       set: async (patch) => { Object.assign(STORE, patch); } },
     onChanged: { addListener() {} } },
-  runtime: { sendNativeMessage: async () => { throw new Error('no host'); },
+  runtime: { getManifest: () => ({ version: '0.0.0' }),
+             sendNativeMessage: async () => { throw new Error('no host'); },
              sendMessage() {}, onMessage: { addListener() {} } }
 };
 // Nothing in a headless probe should make a sound or wait on one.

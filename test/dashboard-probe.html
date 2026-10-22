@@ -131,7 +131,8 @@ window.chrome = {
       set: async (patch) => { Object.assign(STORE, patch); } },
     onChanged:{ addListener:(f)=>listeners.push(f) } },
   runtime:{ sendNativeMessage: async () => { throw new Error('no host'); },
-            sendMessage(){}, onMessage:{ addListener(){} } }
+            sendMessage(){}, onMessage:{ addListener(){} },
+            getManifest:()=>({ version:'0.0.0' }) }
 };
 </script>
 
@@ -171,6 +172,18 @@ ready.then(() => setTimeout(async () => {
   check('the review CTA is hidden inside the review', document.getElementById('review-btn').hidden);
   showView('overview');
   check('the review CTA is back outside it', !document.getElementById('review-btn').hidden);
+
+  // The Help links are real links to the feedback form, not views.
+  for (const kind of ['feature', 'bug']) {
+    const a = document.getElementById(`fb-${kind}`);
+    check(`the ${kind} link opens the feedback form in a new tab`,
+          a.href.includes('usp=pp_url') && a.target === '_blank', a.href);
+    a.removeAttribute('target');   // keep a click in this frame from navigating anywhere
+    a.addEventListener('click', (e) => e.preventDefault(), { once: true });
+    a.click();
+    check(`clicking the ${kind} link leaves the overview showing`,
+          !document.getElementById('view-overview').hidden);
+  }
 
   /* ---- the search placeholder must not run under the shortcut badge ---- */
   const input = document.getElementById('q');
@@ -444,7 +457,7 @@ ready.then(() => setTimeout(async () => {
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
   check('every nav item has its own icon',
-        icons.length === 6 && new Set(icons).size === 6, `${new Set(icons).size} distinct of ${icons.length}`);
+        icons.length === 8 && new Set(icons).size === 8, `${new Set(icons).size} distinct of ${icons.length}`);
 
   /* ---- writing: the settings and the mistake list ----
      Driven through STORE + refresh() rather than the initial load, so each

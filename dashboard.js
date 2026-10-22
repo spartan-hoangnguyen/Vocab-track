@@ -50,12 +50,12 @@ function showView(name) {
   // Redundant once you are in the review, and it competes with Show answer
   // for the same attention and roughly the same click.
   $('review-btn').hidden = name === 'review';
-  for (const a of document.querySelectorAll('nav a')) {
+  for (const a of document.querySelectorAll('nav a[data-view]')) {
     a.classList.toggle('on', a.dataset.view === name);
   }
 }
 
-for (const a of document.querySelectorAll('nav a')) {
+for (const a of document.querySelectorAll('nav a[data-view]')) {
   a.addEventListener('click', (event) => {
     event.preventDefault();
     if (a.dataset.view === 'words') activeFolder = null;
@@ -63,6 +63,12 @@ for (const a of document.querySelectorAll('nav a')) {
     showView(a.dataset.view);
     render();
   });
+}
+
+// The Help links leave for the feedback form, so they are real links rather
+// than views, and the handler above skips them.
+for (const kind of ['feature', 'bug']) {
+  $(`fb-${kind}`).href = VT.feedbackUrl(kind, chrome.runtime.getManifest().version, navigator.userAgent);
 }
 
 // A flat key of its own, like `theme`, not a field of reviewPrefs: reviewPrefs
