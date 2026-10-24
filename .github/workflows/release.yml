@@ -1,0 +1,75 @@
+# Releases to the Chrome Web Store on every push to main. The decision
+# (pending review, which version, retry) lives in tools/release.py; this file
+# only gets it a tested checkout and a store token. One-time setup:
+# docs/release.md.
+name: release
+
+on:
+  push:
+    branches: [main]
+  # A merge that lands while a version is in review is released by the first
+  # run after the review clears.
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Check auth, store status and packaging, then stop'
+        type: boolean
+        default: true
+
+# Two merges in a row must not both compute the same next version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # the version commit and tag
+  id-token: write   # Workload Identity Federation
+
+jobs:
+  release:
+    # Until the one-time setup in docs/release.md sets these variables, a
+    # push to main does nothing rather than fail.
+    if: vars.GCP_WIF_PROVIDER != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tags and the commit range since the last one
+
+      - name: Check the release logic
+        run: python3 tools/release.py selftest
+
+      # test/run.sh drives headless Chrome on a virtual clock, and a slow
+      # runner sometimes leaves one page "running…". A real failure fails
+      # all three tries.
+      - name: Test
+        run: |
+          for try in 1 2 3; do
+            PORT=$((8120 + try)) bash test/run.sh && exit 0
+            echo "test run $try failed"
+          done
+          exit 1
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+
+      - name: Release
+        env:
+          CWS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_ITEM_ID: peeekjnmhnjbpbkaodhhffhehmhdnlnm
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python3 tools/release.py run --dry-run
+          else
+            python3 tools/release.py run
+          fi
