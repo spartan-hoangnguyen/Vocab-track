@@ -32,7 +32,11 @@ jobs:
     # Until the one-time setup in docs/release.md sets these variables, a
     # push to main does nothing rather than fail.
     if: vars.GCP_WIF_PROVIDER != ''
-    runs-on: ubuntu-latest
+    # macOS, not Linux: the layout probes (writer, reader, dashboard) measure
+    # text in pixels, and their numbers are the Mac's. On Linux the fonts set
+    # differently and the writer probe's underline lands 4px low. Public repo,
+    # so the macOS runner costs nothing.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
