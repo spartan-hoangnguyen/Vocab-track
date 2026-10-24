@@ -40,10 +40,14 @@
 .prtab[aria-selected="true"].blue{background:var(--blue);color:var(--blue-ink);border-color:var(--blue-ink)}
 .prtab[aria-selected="true"].magenta{background:var(--magenta);color:var(--magenta-ink);border-color:var(--magenta-ink)}
 .prtab:focus-visible{outline:2px solid var(--bar);outline-offset:2px}
-.prtabglyph{font-size:14px;line-height:1}
+.prtabglyph{display:inline-flex}
+.prtabglyph .ic{width:14px;height:14px;margin:0}
 .prbadge{font:600 10px Inter;letter-spacing:.06em;text-transform:uppercase;
          padding:2px 7px;border-radius:999px;background:var(--panel);color:var(--ink2)}
 .prbadge[hidden]{display:none}
+/* The daily goal's check, built into every badge and shown once it is met. */
+.prbadge .ic{width:11px;height:11px;margin-right:3px;vertical-align:-1.5px;stroke-width:2}
+.prbadge:not(.done) .ic{display:none}
 
 /* ---- the panel ---- */
 /* :not([hidden]) on purpose: the UA sheet's [hidden]{display:none} loses to any
@@ -58,6 +62,7 @@
 /* display:grid above beats [hidden]{display:none}, so a tile the shell hides
    would keep its 40px box and push the title across. */
 .pricon[hidden]{display:none}
+.pricon .ic{width:20px;height:20px;margin:0}
 .pricon.amber{color:var(--amber-ink)}
 .pricon.green{color:var(--green-ink)}
 .pricon.red{color:var(--red-ink)}
@@ -67,7 +72,6 @@
 .prptitle{flex:1;min-width:0}
 .prptitle h2{margin:0;font:600 19px var(--serif)}
 .prptitle p{margin:1px 0 0;font-size:13px;color:var(--ink2)}
-.prphead .rvcount{white-space:nowrap}
 .prpbtn{padding:5px 10px;font-size:12.5px}
 .prstatus{color:var(--ink2);font-size:13px;font-variant-numeric:tabular-nums;
           margin:0;min-height:18px;text-align:center}
@@ -94,11 +98,14 @@
 .propts button kbd{margin-right:8px;border-color:var(--rule);color:var(--ink2);background:var(--panel)}
 .propts button.right{border-color:var(--good);background:var(--good-bg)}
 .propts button.wrong{border-color:var(--bad);background:var(--bad-bg)}
-/* A glyph, not only the green and the red: about one man in twelve cannot tell
+/* An icon, not only the green and the red: about one man in twelve cannot tell
    these two borders apart, and the marked option is the whole answer. Drawn
    from CSS so no mode has to append it. */
-.propts button.right::after{content:" \2713";color:var(--good);font-weight:700}
-.propts button.wrong::after{content:" \2715";color:var(--bad);font-weight:700}
+.propts button.right::after,.propts button.wrong::after{content:"";display:inline-block;flex:none;
+       width:16px;height:16px;margin-left:8px;vertical-align:-3px;background:currentColor;
+       -webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+.propts button.right::after{--ic:var(--ic-check);color:var(--good)}
+.propts button.wrong::after{--ic:var(--ic-x);color:var(--bad)}
 .prinput{width:100%;max-width:380px;padding:12px 14px;border:1px solid var(--rule);border-radius:12px;
          background:var(--card);font:400 18px Inter;color:var(--ink);text-align:center}
 .prinput:focus{outline:2px solid var(--bar);outline-offset:-1px}

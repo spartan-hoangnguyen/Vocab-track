@@ -115,11 +115,6 @@ const BLAST = (() => {
     return card;
   }
 
-  const hearts = (lives) => {
-    const left = Math.max(lives, 0);
-    return '♥'.repeat(left) + '♡'.repeat(LIVES - left);
-  };
-
   // The best score, kept per language beside the words. One global number
   // measured a five-card round of Korean against a hundred cards of English
   // and called the smaller one a failure. A storage hiccup must not cost you
@@ -156,8 +151,16 @@ const BLAST = (() => {
 
       const root = node('div', 'pr-blast');
       const hud = node('div', 'blhud');
+      // Drawn once and only restyled: paint() runs every frame. A filled
+      // heart is a life left; the count is the label, for a screen reader.
       const life = node('span', 'bllives');
+      life.setAttribute('role', 'img');
+      const hearts = Array.from({ length: LIVES }, () => VT.icon('heart'));
+      life.append(...hearts);
       const hold = node('button', 'btn ghost blhold');
+      const holdIcon = VT.icon('pause');
+      const holdText = document.createTextNode('');
+      hold.append(holdIcon, holdText);
       hold.type = 'button';
       hold.title = 'p — the window losing focus pauses too';
       const points = node('span', 'blscore');
@@ -217,9 +220,15 @@ const BLAST = (() => {
       const keep = () => best(lang, state.score).then((t) => { top = t; paint(); });
 
       const paint = () => {
-        life.textContent = hearts(state.lives);
+        const left = Math.max(state.lives, 0);
+        hearts.forEach((heart, i) => heart.classList.toggle('on', i < left));
+        life.setAttribute('aria-label', `${left} of ${LIVES} lives left`);
         points.textContent = `Score ${state.score} · Best ${Math.max(top, state.score)}`;
-        hold.textContent = state.paused ? '▶ Resume' : '⏸ Pause';
+        const holdLabel = state.paused ? 'Resume' : 'Pause';
+        if (holdText.data !== holdLabel) {
+          holdText.data = holdLabel;
+          holdIcon.innerHTML = VT.ICONS[state.paused ? 'play' : 'pause'];
+        }
         // The status line is the shell's one polite live region
         // (practice.js:478), so saying it here is also how a pause is
         // announced to a screen reader.
@@ -329,7 +338,7 @@ const BLAST = (() => {
 PRACTICE.register('blast', {
   title: 'Card Blast',
   blurb: 'Type the word before it lands',
-  icon: '◎',
+  icon: 'target',
   color: 'blue',
   min: 5,
   why: 'Needs five words with a meaning',

@@ -102,7 +102,8 @@ const SPEAK = (() => {
     if (gloss) root.appendChild(node('p', 'prhint', gloss));
     root.appendChild(node('p', 'prhint pr-speak-task', 'Make a sentence with this word and say it aloud.'));
 
-    const mic = node('button', 'pr-speak-mic', '🎙');
+    const mic = node('button', 'pr-speak-mic');
+    mic.appendChild(VT.icon('mic'));
     mic.type = 'button';
     mic.setAttribute('aria-label', 'Speak your sentence');
     // The seconds left of the listening window. Before this the mic simply went
@@ -288,7 +289,8 @@ const SPEAK = (() => {
     } else {
       p.textContent = text;
     }
-    const hear = node('button', 'btn ghost', '🔊 Hear it');
+    const hear = node('button', 'btn ghost', 'Hear it');
+    hear.prepend(VT.icon('speaker'));
     hear.type = 'button';
     // Through ctx.speak, so it keeps the UK/US voice you picked: an entry with
     // no recording is read by speechSynthesis, and the sentence is just that.
@@ -303,7 +305,7 @@ const SPEAK = (() => {
 PRACTICE.register('speak', {
   title: 'Speak',
   blurb: 'Make a sentence, say it',
-  icon: '🎙',
+  icon: 'mic',
   color: 'purple',
   // A sentence of your own is production at its hardest.
   produces: true,
@@ -313,6 +315,8 @@ PRACTICE.register('speak', {
   // true by accident, and reading as a bug the first time someone timed it.
   // Zero says it on purpose: this mode tops out at Good.
   fast: 0,
+  // Any word can be put in a sentence, so the only thing it waits for is one.
+  why: 'Needs one saved word',
   eligible: (entry) => !!entry.word,
   ask: SPEAK.ask,
   async selfTest() {

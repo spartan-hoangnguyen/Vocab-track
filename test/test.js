@@ -18,6 +18,21 @@ function eq(name, actual, expected) {
 eq('normalise trims', VT.normaliseWord('  Resilient '), 'resilient');
 eq('normalise lowercases', VT.normaliseWord('HAPPY'), 'happy');
 
+// --- feedbackUrl
+{
+  const form = { url: 'https://f.test/viewform', entry: { type: 'entry.1', version: 'entry.2', browser: 'entry.3' },
+                 TYPES: VT.FEEDBACK.TYPES };
+  const p = (u) => new URL(u).searchParams;
+  eq('feedback bug sets type', p(VT.feedbackUrl('bug', '0.2.0', 'UA', form)).get('entry.1'), 'Bug report');
+  eq('feedback feature sets type', p(VT.feedbackUrl('feature', '0.2.0', 'UA', form)).get('entry.1'), 'Feature request');
+  check('feedback null kind leaves type unset', !p(VT.feedbackUrl(null, '0.2.0', 'UA', form)).has('entry.1'));
+  const ua = 'Mozilla/5.0 (Mac; x) Chrome/140 & more';
+  const u = VT.feedbackUrl('bug', '0.2.0', ua, form);
+  check('feedback url targets the form with prefill', u.startsWith('https://f.test/viewform?usp=pp_url&'), u);
+  eq('feedback version round-trips', p(u).get('entry.2'), '0.2.0');
+  eq('feedback browser is encoded and round-trips', p(u).get('entry.3'), ua);
+}
+
 // --- isLookupCandidate
 check('accepts a plain word', VT.isLookupCandidate('resilient'));
 check('accepts a hyphenated word', VT.isLookupCandidate('well-known'));
@@ -987,8 +1002,10 @@ async function parserTests() {
     const got = VT.suggestFolders(list, now, { c: 1 }, ['pinned']);
     eq('suggestFolders ranks by score and skips pinned and idle folders',
        got.map((s) => s.folder.id).join(), 'due,missed,half');
-    eq('each suggestion says why', got.map((s) => s.reason).join(' | '),
-       '2 due today | 1 miss in practice | 1 in progress · 50% learned');
+    // A folder suggested for its progress has no reason: its card already
+    // prints learned · learning · new.
+    eq('each suggestion says why, unless the card already does',
+       got.map((s) => s.reason ?? '-').join(' | '), '2 due today | 1 miss in practice | -');
     eq('suggestFolders stops at n', VT.suggestFolders(list, now, { c: 1 }, [], 2).length, 2);
   }
 

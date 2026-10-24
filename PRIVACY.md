@@ -27,7 +27,7 @@ else.
 
 ## What leaves your browser
 
-Ten things leave your browser, each only when you do something that needs it:
+Eleven things leave your browser, each only when you do something that needs it:
 
 | When | Goes to | What is sent |
 |---|---|---|
@@ -41,6 +41,7 @@ Ten things leave your browser, each only when you do something that needs it:
 | You click a Korean word, with a krdict key saved | `krdict.korean.go.kr` | the word and your key |
 | You press **Push to Anki** | `127.0.0.1:8765` | the word, meaning, example and GIF — to the Anki app on your own machine, through AnkiConnect |
 | You signed in for cloud sync | `www.googleapis.com`, your own Google Drive | your whole word store, including the address of every page you saved a word on — see *Cloud sync* below |
+| You press **Submit** on the feedback form | `docs.google.com`, a Google Form owned by the developer | what you typed, plus the extension version and browser name the form fills in for you — you can see and edit them before sending. Opening the form sends nothing |
 
 Each of these services gets the request directly from your browser, so it also
 sees your IP address, as with any web request. Their own privacy policies

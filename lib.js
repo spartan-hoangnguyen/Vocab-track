@@ -9,6 +9,49 @@ const VT = {
   MAX_CONTEXT: 220,
   FRAGMENT_WORDS: 4,
 
+  // The dashboard's interface icons, in the nav's own drawing: a 16-unit box,
+  // strokes only (dashboard.css .ic sets the 1.5 stroke in currentColor, so
+  // they follow paper and night). Markup, not logic — but every page that
+  // draws a control loads this file, and one map beats a copy per file.
+  ICONS: {
+    pin: '<path d="M9.5 2 14 6.5l-1.5.75-2.25 2.25.25 2.5-1 1L3 6.5l1-1 2.5.25L8.75 3.5z"/><path d="M5.75 10.25 2 14"/>',
+    play: '<path d="M5 3.25v9.5L12.5 8z"/>',
+    pause: '<path d="M5.5 3.5v9M10.5 3.5v9"/>',
+    star: '<path d="m8 1.75 1.9 3.95 4.35.6-3.15 3.05.75 4.3L8 11.6l-3.85 2.05.75-4.3L1.75 6.3l4.35-.6z"/>',
+    shuffle: '<path d="M2 4.5h2.25c3.25 0 4.25 7 7.5 7H14M2 11.5h2.25c1.1 0 1.9-.8 2.5-1.9M9.25 6.4c.6-1.1 1.4-1.9 2.5-1.9H14"/><path d="m12 2.5 2 2-2 2M12 9.5l2 2-2 2"/>',
+    film: '<rect x="1.5" y="3" width="13" height="10" rx="1.5"/><path d="M1.5 6h13M1.5 10h13M5 3v3M5 10v3M11 3v3M11 10v3"/>',
+    folder: '<path d="M1.5 4.5A1.5 1.5 0 0 1 3 3h3l1.5 1.5H13a1.5 1.5 0 0 1 1.5 1.5v5.5A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5z"/>',
+    check: '<path d="M3 8.5 6.5 12 13 4.5"/>',
+    x: '<path d="m4 4 8 8M12 4l-8 8"/>',
+    upload: '<path d="M8 10V2M5.5 4.5 8 2l2.5 2.5"/><path d="M2.5 10v3A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5v-3"/>',
+    external: '<path d="M7 2.5H4A1.5 1.5 0 0 0 2.5 4v8A1.5 1.5 0 0 0 4 13.5h8a1.5 1.5 0 0 0 1.5-1.5V9"/><path d="M10 2.5h3.5V6M13.5 2.5 8 8"/>',
+    back: '<path d="M5.5 3 2.5 6l3 3"/><path d="M2.5 6h7a4 4 0 0 1 0 8H8"/>',
+    mic: '<rect x="5.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/>',
+    speaker: '<path d="M2 6v4h2.5L8 13V3L4.5 6z"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6.5 6.5 0 0 1 0 9"/>',
+    slow: '<path d="M2.5 12a5.5 5.5 0 1 1 11 0"/><path d="M8 12 4.75 9.25"/>',
+    quote: '<path d="M2.5 8h3.5v4H2.5zM2.5 8c0-2.25 1-3.75 3-4.5M9.5 8H13v4H9.5zM9.5 8c0-2.25 1-3.75 3-4.5"/>',
+    expand: '<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>',
+    bulb: '<path d="M5.75 10.5a4.5 4.5 0 1 1 4.5 0V12h-4.5z"/><path d="M6.25 14.5h3.5"/>',
+    cards: '<rect x="1.5" y="3.5" width="10" height="9" rx="2"/><path d="M5 1.5h7.5a2 2 0 0 1 2 2V11"/>',
+    choice: '<circle cx="4" cy="4.5" r="1.75"/><circle cx="4" cy="11.5" r="1.75"/><path d="M8 4.5h6M8 11.5h6"/>',
+    headphones: '<path d="M2.5 11V8.5a5.5 5.5 0 0 1 11 0V11"/><rect x="2.5" y="9.5" width="2.5" height="4.5" rx="1"/><rect x="11" y="9.5" width="2.5" height="4.5" rx="1"/>',
+    type: '<path d="M3 4.5v-2h10v2M8 2.5v11M6 13.5h4"/>',
+    target: '<circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="8" r="3"/><path d="M8 8h.01"/>',
+    sparkle: '<path d="M8 1.5c.4 3.5 1.5 5.6 6.5 6.5-5 .9-6.1 3-6.5 6.5-.4-3.5-1.5-5.6-6.5-6.5 5-.9 6.1-3 6.5-6.5z"/>',
+    heart: '<path d="M8 13.5S2 10 2 6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.5-6 7.5z"/>'
+  },
+
+  // One icon from ICONS as an <svg class="ic">. aria-hidden, always: the
+  // control it sits in carries the name (its text, or an aria-label).
+  icon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('class', 'ic');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = VT.ICONS[name] ?? '';
+    return svg;
+  },
+
   // NFC, because a macOS Quick Action capture can hand back DECOMPOSED
   // Hangul: '책'.normalize('NFD') is three code points and compares unequal to
   // the one-code-point form, so the same word would be saved twice under two
@@ -557,12 +600,19 @@ const VT = {
   progressOf(entries) {
     const out = { learned: 0, learning: 0, fresh: 0 };
     for (const e of entries) {
-      if (!VT.isLearnable(e)) continue;
-      if (VT.isMastered(e)) out.learned++;
-      else if (!e.reps && !e.interval) out.fresh++;
-      else out.learning++;
+      const status = VT.statusOf(e);
+      if (status !== 'skipped') out[status]++;
     }
     return out;
+  },
+
+  // One word's place in progressOf's split, plus 'skipped'. Shared with the
+  // All words status filter, so a folder card's "3 learning" and the Learning
+  // chip cannot count differently.
+  statusOf(e) {
+    if (!VT.isLearnable(e)) return 'skipped';
+    if (VT.isMastered(e)) return 'learned';
+    return !e.reps && !e.interval ? 'fresh' : 'learning';
   },
 
   // Up to n folders worth opening now, each with the reason it was picked.
@@ -582,7 +632,9 @@ const VT = {
       const parts = [
         [due * 3, `${due} due today`],
         [missed * 2, `${missed} miss${missed === 1 ? '' : 'es'} in practice`],
-        [p.learning, `${p.learning} in progress · ${Math.round((p.learned / live.length) * 100)}% learned`]
+        // No words for this one: the card's own learned · learning · new line
+        // already says it, so the card keeps its description instead.
+        [p.learning, null]
       ];
       const reason = parts.reduce((a, b) => (b[0] > a[0] ? b : a))[1];
       scored.push({ folder, reason, score });
@@ -1226,5 +1278,23 @@ const VT = {
       reps: 0,
       due: Date.now()   // due immediately, so a new word appears in the first review
     };
+  },
+
+  // The Google Form feedback goes to (T187). Entry ids come from the form's
+  // "Get pre-filled link"; TYPES must match its Type options word for word.
+  FEEDBACK: {
+    url: 'https://docs.google.com/forms/d/e/1FAIpQLScXikAaOrWaOsggED-1N-WtkiBMU6Cd9AOgQAOoRj9oehsa7g/viewform',
+    entry: { type: 'entry.815136095', version: 'entry.1220647931', browser: 'entry.25929234' },
+    TYPES: { feature: 'Feature request', bug: 'Bug report' }
+  },
+
+  // A pre-filled link to that form. A null kind leaves Type for the user to
+  // pick. Nothing is sent by opening it: only the form's own Submit does.
+  feedbackUrl(kind, version, browser, form = VT.FEEDBACK) {
+    const q = new URLSearchParams({ usp: 'pp_url' });
+    if (form.TYPES[kind]) q.set(form.entry.type, form.TYPES[kind]);
+    q.set(form.entry.version, version);
+    q.set(form.entry.browser, browser);
+    return `${form.url}?${q}`;
   }
 };

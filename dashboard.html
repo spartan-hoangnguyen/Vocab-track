@@ -1,4 +1,5 @@
 <!doctype html>
+<html lang="en">
 <meta charset="utf-8">
   <link rel="icon" href="icons/icon-32.png">
 <title>Vocab-track</title>
@@ -13,17 +14,35 @@
 <body>
 <aside>
   <div class="brand"><span class="mark">V</span><b>Vocab-track</b></div>
+  <!-- Both navs in one box: a column here, and below 900px a band that
+       wraps onto a second line (dashboard.css .navs). -->
+  <div class="navs">
   <div class="navlabel">Learn</div>
   <nav>
-    <a href="#" data-view="overview" class="on"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>Overview</a>
-    <a href="#" data-view="words"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>All words</a>
-    <a href="#" data-view="review"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="10" height="9" rx="2"/><path d="M5 1.5h7.5a2 2 0 0 1 2 2V11"/></svg>Review</a>
-    <a href="#" data-view="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5V8M8 13.5V2.5M13.5 13.5v-3.5"/></svg>Statistics</a>
-    <a href="#" data-view="writing"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 2.5 13.5 6 6.5 13H3v-3.5z"/><path d="M8.75 3.75 12.25 7.25"/></svg>Writing</a>
+    <a href="#overview" data-view="overview" class="on" aria-current="page"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>Overview</a>
+    <a href="#words" data-view="words"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>All words</a>
+    <a href="#review" data-view="review"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="3.5" width="10" height="9" rx="2"/><path d="M5 1.5h7.5a2 2 0 0 1 2 2V11"/></svg>Review</a>
+    <a href="#stats" data-view="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5V8M8 13.5V2.5M13.5 13.5v-3.5"/></svg>Statistics</a>
+    <a href="#writing" data-view="writing"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 2.5 13.5 6 6.5 13H3v-3.5z"/><path d="M8.75 3.75 12.25 7.25"/></svg>Writing</a>
   </nav>
   <div class="navlabel">Library</div>
   <nav>
-    <a href="#" data-view="io"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v7M8 1.5 5.5 4M8 1.5 10.5 4"/><path d="M2.5 10v3a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>Import &amp; export</a>
+    <a href="#io" data-view="io"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v7M8 1.5 5.5 4M8 1.5 10.5 4"/><path d="M2.5 10v3a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>Import &amp; export</a>
+    <a href="#settings" data-view="settings"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h6.5M12.5 4.5H14M2 11.5h1.5M7.5 11.5H14"/><circle cx="10.5" cy="4.5" r="2"/><circle cx="5.5" cy="11.5" r="2"/></svg>Settings</a>
+  </nav>
+  </div>
+  <div class="navlabel">Help</div>
+  <!-- Below 900px the four Help items fold into this one button's menu; at
+       full width the button is not drawn and the menu is an ordinary list. -->
+  <button type="button" class="helptoggle" popovertarget="help-nav">Help</button>
+  <nav id="help-nav" popover aria-label="Help">
+    <!-- Buttons, not links: they open a sheet over the page you are on rather
+         than going anywhere. dashboard.js openHelp; its showModal closes
+         the narrow menu on the way. -->
+    <button type="button" id="help-keys" aria-keyshortcuts="?"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8.5" rx="1.5"/><path d="M4.5 7h.01M7 7h.01M9.5 7h.01M12 7h-.5M5 10h6"/></svg>Keyboard shortcuts</button>
+    <button type="button" id="help-how"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M6.25 6.25a1.75 1.75 0 1 1 2.5 1.6c-.5.25-.75.6-.75 1.15v.25M8 11.25v.25"/></svg>How reviewing works</button>
+    <a id="fb-feature" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5a1.5 1.5 0 0 1 1.5-1.5h8a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H7l-3 2.5V11h0a1.5 1.5 0 0 1-1.5-1.5z"/></svg>Request a feature</a>
+    <a id="fb-bug" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v4M8 11v.5"/></svg>Report a bug</a>
   </nav>
   <div class="streak">
     <div class="d" id="streak-days">—</div>
@@ -70,20 +89,48 @@
     </div>
     <h1>Your vocabulary</h1>
     <div class="sub" id="ov-sub"></div>
-    <div class="stats">
+    <!-- First run: shown in place of the numbers while this language has no
+         words, because 0 / 0 / — reads as a broken page rather than a start.
+         The steps are the real capture flow: content-script.js showButton,
+         then the side panel, then review. -->
+    <div class="start" id="ov-start" hidden>
+      <h2 class="start-title">Words you look up while reading collect here</h2>
+      <ol class="steps">
+        <li><b>Select a word on any web page</b>
+          <span>Then click the 📘 button that appears just below it. On YouTube,
+            click a word in the subtitles.</span></li>
+        <li><b>It is saved with the sentence you met it in</b>
+          <span>The side panel opens with its meaning, and the word keeps that
+            sentence and a link back to the page.</span>
+          <blockquote class="wc-seen">It was pure <mark>serendipity</mark> that
+            we met at the station.</blockquote></li>
+        <li><b>Review it here</b>
+          <span>Saved words come back as flashcards, spaced further apart each
+            time you remember them.</span></li>
+      </ol>
+      <p class="start-alt">Moving from another computer?
+        <button type="button" id="ov-start-import">Import a backup</button></p>
+    </div>
+    <div class="stats" id="ov-stats">
       <div class="stat"><div class="n" id="ov-total">0</div><div class="l">Total words</div></div>
-      <div class="stat"><div class="n" id="ov-due">0</div><div class="l">Due today</div></div>
       <div class="stat"><div class="n" id="ov-median">—</div><div class="l">Median level</div></div>
       <div class="stat push">
         <div class="l tight">By level</div>
         <div class="bars" id="ov-bars"></div>
       </div>
     </div>
+    <!-- The words due now, before any folder: the overview leads with what
+         you are about to be asked. Filled by renderOverview. -->
+    <div class="secthead" id="ov-today-head" hidden>
+      <h2 id="ov-today-title">Due today</h2>
+      <button class="btn" id="ov-today-go">Start review</button>
+    </div>
+    <ul class="today" id="ov-today" hidden></ul>
     <div class="secthead" id="ov-pinned-head" hidden><h2>Pinned</h2></div>
     <div class="grid" id="ov-pinned" hidden></div>
     <div class="secthead" id="ov-suggest-head" hidden><h2>Suggested for you</h2></div>
     <div class="grid" id="ov-suggest" hidden></div>
-    <div class="secthead"><h2>All folders</h2></div>
+    <div class="secthead" id="ov-folders-head"><h2 id="ov-folders-title">All folders</h2></div>
     <div class="grid" id="ov-folders"></div>
   </section>
 
@@ -91,10 +138,52 @@
   <section id="view-words" hidden>
     <div class="secthead">
       <div>
-        <h1 id="w-title">All words</h1>
+        <h1 id="w-title" tabindex="-1">All words</h1>
         <div class="sub" id="w-sub"></div>
       </div>
       <button class="btn" id="w-review" hidden>Review</button>
+    </div>
+    <!-- Narrowing the list, remembered per viewer (dashboard.js wordsView).
+         The status chips are one-of; renderWords writes each one's count and
+         hides the row while the scope holds no words at all. -->
+    <div class="wfilter" id="w-filter">
+      <div class="wgroup" role="group" aria-label="Status">
+        <button type="button" class="rvopt wchip" data-status="all">All <span></span></button>
+        <button type="button" class="rvopt wchip" data-status="due">Due <span></span></button>
+        <button type="button" class="rvopt wchip" data-status="fresh">New <span></span></button>
+        <button type="button" class="rvopt wchip" data-status="learning">Learning <span></span></button>
+        <button type="button" class="rvopt wchip" data-status="learned">Learned <span></span></button>
+        <button type="button" class="rvopt wchip" data-status="skipped">Not asked <span></span></button>
+      </div>
+      <label class="rvopt wchip">Level <select id="w-level"></select></label>
+      <label class="rvopt wchip">Sort
+        <select id="w-sort">
+          <option value="newest">Newest</option>
+          <option value="due">Due soonest</option>
+          <option value="az">A–Z</option>
+        </select>
+      </label>
+      <!-- List density only: every row on this page of the list, ticked or
+           not. Mixed when some are (dashboard.js syncPicked). -->
+      <label class="rvopt wchip wall" id="w-all-wrap" hidden><input type="checkbox" id="w-all"
+        aria-label="Select all shown words"> Select all</label>
+      <div class="wgroup wdensity" role="group" aria-label="Density">
+        <button type="button" class="rvopt wchip" data-density="cards">Cards</button>
+        <button type="button" class="rvopt wchip" data-density="list">List</button>
+      </div>
+    </div>
+    <!-- What to do with the ticked rows, shown while any are. Before the list
+         in the DOM so Tab reaches it without walking 300 rows; drawn pinned to
+         the foot of the window (dashboard.css .wbulk), so ticking the first
+         box does not push the row under the pointer down. -->
+    <div class="wbulk" id="w-bulk" role="group" aria-label="Selected words" hidden>
+      <span class="wbulk-count" id="wb-count"></span>
+      <button type="button" class="btn ghost small" id="wb-folder">Add to folder</button>
+      <button type="button" class="btn ghost small" id="wb-unfile" hidden></button>
+      <button type="button" class="btn ghost small" id="wb-unskip" hidden>Ask again</button>
+      <button type="button" class="btn ghost small" id="wb-anki" hidden>Push to Anki</button>
+      <button type="button" class="btn ghost small wbulk-del" id="wb-delete">Delete</button>
+      <button type="button" class="btn ghost small wbulk-clear" id="wb-clear">Clear selection</button>
     </div>
     <div class="cards" id="w-cards"></div>
     <p class="empty" id="w-empty" hidden></p>
@@ -105,6 +194,13 @@
     <div class="rvhead">
       <div class="rvhead-row">
         <h1 id="rv-title">Review</h1>
+        <!-- The last grade, for five seconds, with the way back. Filled by
+             showUndo in dashboard.js, key hint included: which key undoes
+             depends on whether the next card has a box to type in. Beside the
+             count rather than under the bar, so it costs no height and cannot
+             land on the tab strip at a narrow width. -->
+        <p class="rvundo" id="rv-undo"><span id="rv-undo-text"></span>
+          <button type="button" id="rv-undo-btn"></button></p>
         <div class="rvcount" id="rv-sub"></div>
       </div>
       <div class="rvprog"><span id="rv-prog-fill"></span></div>
@@ -115,11 +211,18 @@
            needs no markup here. In the head rather than the body because the
            strip has to stay put while the thing below it is replaced. -->
       <div class="prtabs" id="pr-tabs" role="tablist" aria-label="Review and practice"></div>
+      <!-- Why a locked tab is locked, written by practice.js pick() when one is
+           pressed: the tab's title says it too, but only on a hover. -->
+      <p class="prwhy" id="pr-why" role="status" hidden></p>
       <!-- How the session runs, not what it asks. Saved as one reviewPrefs
-           key, so they are still set the next time you open a review. -->
+           key, so they are still set the next time you open a review. Folded
+           away by default: set once, then the card is the only thing between
+           the tabs and your answer. Hidden with nothing to review (CSS). -->
+      <details class="rvsettings">
+      <summary>Session settings</summary>
       <div class="rvctl">
         <button class="rvopt" id="rv-shuffle" aria-pressed="false"
-                title="Ask the due cards in a random order">⇄ Shuffle</button>
+                title="Ask the due cards in a random order">Shuffle</button>
         <label class="rvopt">
           <input type="checkbox" role="switch" id="rv-autoplay" checked>
           Auto-play pronunciation
@@ -128,47 +231,57 @@
              fills this from the active language's voices and hides the whole
              label when there is only one to pick. -->
         <label class="rvopt">Voice
-          <select id="rv-voice"></select>
+          <select id="rv-voice" aria-label="Voice"></select>
         </label>
-        <!-- The OS voice ▶ speaks with when there is no recording, per
+        <!-- The OS voice the play button speaks with when there is no recording, per
              language. Filled by renderPrefs from getVoices(). -->
         <label class="rvopt">Speaker
-          <select id="rv-speaker"></select>
-          <button class="rvopt" id="rv-speaker-play" aria-label="Preview this voice">▶</button>
+          <select id="rv-speaker" aria-label="Speaker"></select>
+          <button class="rvopt" id="rv-speaker-play" aria-label="Preview this voice"></button>
         </label>
         <!-- In the Speaker label's place when the OS has voices but none for
              this language. Not for an empty list: that may still be loading. -->
         <p class="rvhint" id="rv-speaker-none" role="status" hidden></p>
       </div>
+      </details>
     </div>
 
     <div class="rvbody">
     <div class="rvempty" id="rv-empty" hidden>
       <p id="rv-empty-text">Nothing due. Come back later.</p>
+      <!-- The practice tabs still locked for this set, each with its reason;
+           renderCard fills it from the modes' own `why`. -->
+      <div class="rvlocked" id="rv-locked" hidden>
+        <p>Practice opens as your list grows:</p>
+        <ul id="rv-locked-list"></ul>
+      </div>
       <button class="btn" id="rv-more" hidden>Learn 20 more</button>
       <button class="btn ghost" id="rv-back">Back to overview</button>
     </div>
 
-    <div class="rvcard" id="rv-card" hidden>
+    <!-- tabindex=-1: where focus goes once the answer shows on a card with no
+         grade buttons, so it does not fall back to <body> (placeFocus). -->
+    <div class="rvcard" id="rv-card" tabindex="-1" hidden>
       <div class="rvmeta">
         <span class="lvl" id="rv-level"></span>
         <span id="rv-ipa" hidden></span>
-        <button class="rvplay" id="rv-play" aria-label="Pronounce" hidden>▶ <kbd>r</kbd></button>
+        <button class="rvplay" id="rv-play" aria-label="Pronounce" hidden><kbd>r</kbd></button>
         <!-- Always on the card, before the answer as well: "I do not need this
              one" is a judgement you make from the prompt. -->
-        <!-- Not "Skip": the diff line under the answer already says "Skipped"
-             for an empty guess, which means grade me Blank, not never ask me
-             again. Two opposite actions on one card cannot share a word. -->
+        <!-- Not "Skip": "Not asked" is what this button makes a word (All
+             words' filter), "Ask again" undoes it, and an empty guess reads "No answer",
+             graded Blank. Two opposite actions on one card cannot share a word. -->
         <!-- Before the answer too: whether a word is worth starring gives
              nothing about it away. -->
         <button class="rvplay rvstar" id="rv-star" aria-pressed="false"
-                title="Star this word (s)">☆</button>
+                aria-label="Star this word" aria-keyshortcuts="s"
+                title="Star this word (s)"></button>
         <button class="rvplay" id="rv-skip"
                 title="Stop asking about this word — it stays in All words">Don't ask again</button>
         <!-- After the answer only, like the play button: a topic name before it
              would be a hint, and you file a word once you have learnt it. -->
-        <button class="rvplay" id="rv-tag" hidden
-                title="Put this word in a topic folder"></button>
+        <button class="rvplay" id="rv-tag" aria-keyshortcuts="t" hidden
+                title="Add this word to a folder (t)"></button>
       </div>
 
       <!-- The prompt. Stays on screen after the answer so you can still see
@@ -186,7 +299,7 @@
              wrong half the time. -->
         <input id="rv-input" type="text" autocapitalize="off" autocorrect="off"
                spellcheck="false" placeholder="type the word">
-        <button class="btn" type="submit">Check <kbd>enter</kbd></button>
+        <button class="btn" type="submit" aria-label="Check" aria-keyshortcuts="Enter">Check <kbd>enter</kbd></button>
       </form>
       <p class="rvtip" id="rv-tip">leave it blank and press <kbd>enter</kbd> if you don't know</p>
 
@@ -228,13 +341,16 @@
       <div class="rvsidecard">
         <div class="rvsidelabel">Keep going</div>
         <p class="rvcheer" id="rv-cheer"></p>
-        <p class="rvleft" id="rv-left"></p>
+        <!-- What one more review would do, not a restatement of the Mastery
+             card's count beside it. -->
+        <p class="rvleft" id="rv-next" hidden></p>
         <svg class="rvmoon" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="#eef1fb"/><circle cx="32" cy="38" r="7" fill="#d6dcf1"/><circle cx="84" cy="88" r="5" fill="#d6dcf1"/><ellipse cx="46" cy="56" rx="4.5" ry="6" fill="#1d2958"/><ellipse cx="74" cy="56" rx="4.5" ry="6" fill="#1d2958"/><path d="M47 72q13 11 26 0" fill="none" stroke="#1d2958" stroke-width="5" stroke-linecap="round"/></svg>
       </div>
       <div class="rvsidecard">
         <div class="rvmasthead">
-          <div class="rvsidelabel">Mastery</div>
-          <span class="rvlevel" id="rv-mlevel"></span>
+          <div class="rvsidelabel">Mastery
+            <button type="button" class="helpq" id="rv-mastery-help"
+                    aria-label="What mastery means">?</button></div>
         </div>
         <div class="rvmastbody">
           <span class="rvringwrap">
@@ -250,8 +366,6 @@
           </span>
           <p class="rvmastered" id="rv-mastered"></p>
         </div>
-        <p class="rvnext" id="rv-next" hidden></p>
-        <div class="rvsegs" id="rv-segs"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
     </div>
     </div>
@@ -265,6 +379,13 @@
     <h1>Statistics</h1>
     <div class="sub" id="st-sub"></div>
     <div class="charts">
+      <!-- Stands in for the three review-history cards below until the first
+           review (renderStats). -->
+      <figure class="chart" id="st-nohistory" hidden>
+        <figcaption>Trends</figcaption>
+        <p class="chartnote">Review for a week to see trends: retention, time
+          spent reviewing and the words that keep slipping.</p>
+      </figure>
       <figure class="chart">
         <figcaption>Keeps slipping · last 13 weeks</figcaption>
         <ul class="sources weak" id="st-weak"></ul>
@@ -290,6 +411,10 @@
         <figcaption>Review load · next 14 days</figcaption>
         <div class="plot" id="st-due"></div>
         <div class="axis"><span>today</span><span id="st-due-to"></span></div>
+        <ul class="legend" id="st-due-legend">
+          <li><i></i>Reviews due</li>
+          <li><i class="new"></i>New words</li>
+        </ul>
         <p class="chartnote" id="st-due-sum"></p>
       </figure>
       <figure class="chart">
@@ -314,19 +439,20 @@
     <div class="sub">Grammar checking in the text boxes you type into.</div>
     <div class="iocards">
       <div class="iocard">
-        <h3>Checking</h3>
+        <h2>Checking</h2>
         <label class="wrtoggle"><input type="checkbox" id="wr-on">Check my writing as I type</label>
         <p class="note">Text you type in a box on a page is sent to languagetool.org
            to be checked.</p>
       </div>
       <div class="iocard">
-        <h3>Off on these sites</h3>
+        <h2>Off on these sites</h2>
         <ul class="wrhosts" id="wr-hosts"></ul>
         <p class="note" id="wr-hosts-empty" hidden>Checking is on everywhere.</p>
         <form class="wradd" id="wr-add">
-          <input id="wr-host" placeholder="mail.google.com" autocomplete="off" maxlength="120">
+          <input id="wr-host" aria-label="Site to turn checking off on" aria-describedby="wr-host-error" placeholder="mail.google.com" autocomplete="off" maxlength="120">
           <button class="btn small">Add</button>
         </form>
+        <div class="note err" id="wr-host-error" role="alert" hidden></div>
       </div>
     </div>
     <div class="secthead wrhead">
@@ -345,8 +471,31 @@
        to Downloads/vocab-track a minute after you change them; seven days are kept.</div>
     <p class="note" id="backup-status">No automatic backup yet.</p>
     <div class="iocards">
+      <div class="iocard">
+        <h2>Export</h2>
+        <p>Downloads your words, folders, pins, review history and practice
+           misses as one JSON file. Your GIPHY key is never included.</p>
+        <button class="btn" id="export-btn">Export JSON</button>
+        <div class="note" id="export-note" role="status"></div>
+      </div>
+      <div class="iocard">
+        <h2>Import</h2>
+        <p>Merges by word. When both sides have a word, the more recently
+           reviewed schedule wins; folders are combined.</p>
+        <input type="file" id="import-file" aria-label="Import a backup file" accept="application/json,.json">
+        <div class="note" id="io-note" role="status"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings: sign-in and keys, kept apart from the backup tasks above -->
+  <section id="view-settings" hidden>
+    <h1>Settings</h1>
+    <div class="sub">Sign-in, API keys and Anki. Keys are kept in this browser only
+       and are never part of an export.</div>
+    <div class="iocards">
       <div class="iocard" id="cloud-card">
-        <h3>Cloud sync</h3>
+        <h2>Cloud sync</h2>
         <div id="cloud-out">
           <p>Sign in to keep your words, folders and review schedule the same in
              every Chrome you use. They are kept in a hidden folder of your own
@@ -361,33 +510,21 @@
             <button class="btn ghost" id="cloud-signout">Sign out</button>
           </div>
         </div>
-        <div class="note" id="cloud-error"></div>
+        <div class="note" id="cloud-error" role="status"></div>
       </div>
       <div class="iocard">
-        <h3>Export</h3>
-        <p>Downloads your words, folders, pins, review history and practice
-           misses as one JSON file. Your GIPHY key is never included.</p>
-        <button class="btn" id="export-btn">Export JSON</button>
-      </div>
-      <div class="iocard">
-        <h3>Import</h3>
-        <p>Merges by word. When both sides have a word, the more recently
-           reviewed schedule wins; folders are combined.</p>
-        <input type="file" id="import-file" accept="application/json,.json">
-        <div class="note" id="io-note"></div>
-      </div>
-      <div class="iocard">
-        <h3>GIFs on cards</h3>
+        <h2>GIFs on cards</h2>
         <p>Paste a GIPHY API key to add a <b>Find GIF</b> button to the back of
            each review card — a picture to remember the word by. The key is kept
            in this browser only and is never part of an export. Get a free key
            at <a href="https://developers.giphy.com/dashboard/" target="_blank"
            rel="noreferrer">developers.giphy.com</a>.</p>
-        <input type="text" id="giphy-key" placeholder="GIPHY API key"
+        <input type="text" class="keyfield" id="giphy-key" aria-describedby="giphy-key-note" placeholder="GIPHY API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="note" id="giphy-key-note" role="status"></div>
       </div>
       <div class="iocard">
-        <h3>Translation key</h3>
+        <h2>Translation key</h2>
         <p>The free translation endpoint rate-limits after many lookups. Paste a
            Google Cloud Translation API key and it answers next, before the
            MyMemory fallback. The free tier is 500,000 characters a month, but
@@ -395,22 +532,24 @@
            browser only and is never part of an export. Create one under
            <a href="https://console.cloud.google.com/apis/credentials"
            target="_blank" rel="noreferrer">Cloud Console → Credentials</a>.</p>
-        <input type="text" id="translate-key" placeholder="Google Cloud Translation API key"
+        <input type="text" class="keyfield" id="translate-key" aria-describedby="translate-key-note" placeholder="Google Cloud Translation API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="note" id="translate-key-note" role="status"></div>
       </div>
       <div class="iocard">
-        <h3>Korean dictionary</h3>
+        <h2>Korean dictionary</h2>
         <p>Paste a krdict Open API key to give Korean words a definition,
            pronunciation and 초급/중급/고급 level from 한국어기초사전. Without
            one, Korean words save with their translation only. The key is kept
            in this browser only and is never part of an export. Get a free key
            at <a href="https://krdict.korean.go.kr/kor/openApi/openApiInfo" target="_blank"
            rel="noreferrer">krdict.korean.go.kr</a> (오픈 API).</p>
-        <input type="text" id="krdict-key" placeholder="krdict API key"
+        <input type="text" class="keyfield" id="krdict-key" aria-describedby="krdict-key-note" placeholder="krdict API key"
                autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="note" id="krdict-key-note" role="status"></div>
       </div>
       <div class="iocard">
-        <h3>Push to Anki</h3>
+        <h2>Push to Anki</h2>
         <p>Create Anki cards (word → meaning) from your
            <b id="anki-lang">English</b> words, through the AnkiConnect add-on.
            Open the Anki desktop app first. One-time setup: add this origin to
@@ -425,7 +564,7 @@
           <button class="btn ghost" id="anki-test">Test connection</button>
           <button class="btn" id="anki-push">Push to Anki</button>
         </div>
-        <div class="note" id="anki-note"></div>
+        <div class="note" id="anki-note" role="status"></div>
       </div>
     </div>
   </section>
@@ -456,8 +595,8 @@
      is only a close button. -->
 <dialog id="tag-dlg">
   <form method="dialog">
-    <h3 id="tag-title">Tags</h3>
-    <input id="tag-q" placeholder="Find or create a tag…" maxlength="40" autocomplete="off">
+    <h3 id="tag-title">Add to folder</h3>
+    <input id="tag-q" aria-label="Find or create a folder" placeholder="Find or create a folder…" maxlength="40" autocomplete="off">
     <div class="taglist" id="tag-list"></div>
     <div class="dlgrow">
       <button value="done" class="btn">Done</button>
@@ -465,6 +604,103 @@
   </form>
 </dialog>
 
+
+<!-- Review's outcomes for a screen reader: the answer, the grade, and "Done"
+     when the session ends. Outside every view, so hiding one never mutes it.
+     dashboard.js announce(). -->
+<p class="vh" id="sr-live" aria-live="polite"></p>
+
+<!-- Reset in Writing is the one action left with no way back, so it asks
+     first; in a dialog of our own rather than confirm(), which is the
+     browser's chrome on a paper page. dashboard.js, #wr-reset. -->
+<dialog id="reset-dlg">
+  <form method="dialog">
+    <h3>Forget every mistake?</h3>
+    <p class="dlgtext">The counts start again from zero. This cannot be undone.</p>
+    <div class="dlgrow">
+      <button value="cancel" class="btn ghost" autofocus>Cancel</button>
+      <button value="reset" class="btn danger">Forget mistakes</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Help, without leaving the page. The close button is first so showModal
+     focuses the top of the sheet, not its foot. Rows are filled by
+     dashboard.js renderKeys from the handlers' own tables (GRADES, MOD_KEY). -->
+<dialog id="keys-dlg" class="helpdlg" aria-labelledby="keys-title">
+  <form method="dialog">
+    <div class="helphead">
+      <h3 id="keys-title">Keyboard shortcuts</h3>
+      <button class="btn ghost small">Close</button>
+    </div>
+    <div id="keys-list"></div>
+  </form>
+</dialog>
+
+<!-- Every sentence here is a rule in the code: lib.js schedule / isMastered /
+     statusOf, dashboard.js grade / suggestedGrade / startReview, store.js
+     getFolders. The probe pins the day counts to VT.schedule. -->
+<dialog id="how-dlg" class="helpdlg" aria-labelledby="how-title">
+  <form method="dialog">
+    <div class="helphead">
+      <h3 id="how-title">How reviewing works</h3>
+      <button class="btn ghost small">Close</button>
+    </div>
+    <section id="how-grades">
+      <h4 tabindex="-1">The four grades</h4>
+      <p>Once the answer shows, tell it how well you knew the word.</p>
+      <dl class="howgrades">
+        <div><dt>Blank</dt><dd>You didn’t know it. It comes back before this
+          session ends, and its spacing starts over.</dd></div>
+        <div><dt>Hard</dt><dd>You got there, with effort. The next gap grows
+          a little.</dd></div>
+        <div><dt>Good</dt><dd>You knew it. The next gap grows more.</dd></div>
+        <div><dt>Easy</dt><dd>You knew it at once. The gap grows the most.</dd></div>
+      </dl>
+      <p>If you typed the word, Enter picks the grade for you: Good when it is
+        right (or one of the word’s synonyms), Hard when one or two letters are
+        off, Blank otherwise. Press 1–4 to pick another. A grade can be undone
+        for five seconds.</p>
+    </section>
+    <section id="how-due">
+      <h4 tabindex="-1">When a word comes back</h4>
+      <p>A word is due as soon as you save it. Each grade then sets its next
+        date, aiming for the point where you would still remember it 9 times
+        in 10. The first time, Blank or Hard brings it back in 1 day, Good in
+        2 and Easy in 8. Every right answer stretches the gap, more slowly for
+        words you find hard.</p>
+      <p><b>Don’t ask again</b> on a card takes the word out of review. It
+        stays in All words, under Not asked. <b>Ask again</b> on the
+        word brings it back.</p>
+    </section>
+    <section id="how-mastery">
+      <h4 tabindex="-1">Mastery and word levels</h4>
+      <p><b>Mastery is about you.</b> A word is mastered once you have got it
+        right three times in a row and its next review is at least 21 days
+        away. Until then it is <i>learning</i>, and a word you have never
+        graded is <i>new</i>. The Mastery card counts the mastered words in
+        the set you are reviewing.</p>
+      <p><b>A1 to C2 is about the word.</b> It is the word’s CEFR level, from
+        A1 (beginner) to C2 (near-native), and it does not change as you
+        learn. A ~ after it means it was estimated from how common the word
+        is. Korean words use 초급 to 고급, Chinese words HSK 1 to 6.</p>
+    </section>
+    <section id="how-folders">
+      <h4 tabindex="-1">Folders made for you, and your own</h4>
+      <p>Folders <b>made for you</b> fill themselves and cannot be edited:
+        <i>From reading</i> holds every word you save, and <i>Starred</i> the
+        words you star on a card. <b>Your folders</b> are the ones you make, with
+        New folder or by pressing t on a card once the answer shows. A word can be
+        in more than one folder.</p>
+    </section>
+  </form>
+</dialog>
+
+<!-- What a delete in All words says, with the way back; dashboard.js
+     showDeleted. Bottom of the window like the voice hint, because the card the
+     button was on is gone. -->
+<p class="voicehint toast" id="toast" role="status" hidden><span id="toast-text"></span>
+  <button type="button" id="toast-undo">Undo</button></p>
 
 <!-- speakWord's "no voice installed" line; dashboard.js showVoiceHint. -->
 <p class="voicehint" id="voice-hint" role="status" hidden></p>

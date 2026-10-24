@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const DASH = VT.DASH;
-const VIEWS = ['overview', 'words', 'review', 'stats', 'writing', 'io'];
+const VIEWS = ['overview', 'words', 'review', 'stats', 'writing', 'io', 'settings'];
 
 // One in-memory snapshot per render pass. Every view reads from this rather
 // than hitting storage per row, and refresh() is the single place that
@@ -40,8 +40,38 @@ let ankiDeck = '';
 // `voices` is { [packId]: voiceURI }; a language with no key is Automatic.
 const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10, voices: {} };
 let prefs = { ...REVIEW_DEFAULTS };
+// How All words is narrowed and drawn, per viewer: a flat key of its own, read
+// with the rest in refresh(). `level` '' is every level; `status` is a
+// VT.statusOf value, 'due' or 'all'. `density` '' is not chosen yet: Cards
+// for a handful of words, List past WORDS_CARDS_UP_TO, where forty cards run
+// to 8,500px of mostly repeated footers.
+const WORDS_VIEW_DEFAULTS = { status: 'all', level: '', sort: 'newest', density: '' };
+const WORDS_CARDS_UP_TO = 12;
+let wordsView = { ...WORDS_VIEW_DEFAULTS };
+// The List rows open right now, by word, so a re-render (a tag click, a word
+// arriving from another tab) does not fold them all shut again.
+const openRows = new Set();
+// The List rows ticked for a bulk action, by word, and the row a shift-click
+// ranges from. Pruned on every render to the rows on screen, so an action
+// never reaches a word a search or filter has hidden (renderWords).
+const pickedRows = new Set();
+let pickAnchor = null;
+// The words on this page of the List, in order: what shift-click ranges over
+// and Select all ticks. Empty in Cards density, which has no selection.
+let pageWords = [];
 
-function showView(name) {
+// The view in the address bar, so a view can be bookmarked, opened in a new
+// tab, and walked back to with the browser's Back. Anything else after the #
+// is not ours and reads as no view at all.
+function viewFromHash() {
+  const name = location.hash.slice(1);
+  return VIEWS.includes(name) ? name : null;
+}
+
+// `push` false is for arriving at a view from the address (boot, Back), which
+// is already in the history; every other call is a step the user took.
+function showView(name, { push = true } = {}) {
+  if (push && location.hash !== `#${name}`) history.pushState(null, '', `#${name}`);
   // A Card Blast round hangs off its own signal and would keep ticking behind
   // whichever view you walked to; nothing else stops it, because the panel
   // going display:none is not an event.
@@ -50,19 +80,47 @@ function showView(name) {
   // Redundant once you are in the review, and it competes with Show answer
   // for the same attention and roughly the same click.
   $('review-btn').hidden = name === 'review';
-  for (const a of document.querySelectorAll('nav a')) {
+  for (const a of document.querySelectorAll('nav a[data-view]')) {
     a.classList.toggle('on', a.dataset.view === name);
+    // .on is the look; aria-current is the same fact for a screen reader.
+    if (a.dataset.view === name) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+  // Below 900px the links are one row that scrolls sideways, and the current
+  // one can be off its end (Settings, opened from a bookmark). At full width
+  // the row is display:contents and never scrolls.
+  const row = document.querySelector('.navs');
+  const current = row.querySelector('a.on');
+  if (current && row.scrollWidth > row.clientWidth) {
+    const box = row.getBoundingClientRect();
+    const link = current.getBoundingClientRect();
+    if (link.left < box.left || link.right > box.right) row.scrollLeft += link.left - box.left - 16;
   }
 }
 
-for (const a of document.querySelectorAll('nav a')) {
+for (const a of document.querySelectorAll('nav a[data-view]')) {
   a.addEventListener('click', (event) => {
+    // A modified click is the browser's: the href is the view, so Cmd-click
+    // opens it in a tab of its own.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     if (a.dataset.view === 'words') activeFolder = null;
     if (a.dataset.view === 'review') startReview(null);
     showView(a.dataset.view);
     render();
   });
+}
+
+// Shown before the first refresh, so a bookmarked view does not flash the
+// overview first. A review reached this way gets its queue once the words are
+// in (see openReviewByAddress, at the boot refresh).
+showView(viewFromHash() ?? 'overview', { push: false });
+window.addEventListener('popstate', () => { routeFromHash(); render(); });
+
+// The Help links leave for the feedback form, so they are real links rather
+// than views, and the handler above skips them.
+for (const kind of ['feature', 'bug']) {
+  $(`fb-${kind}`).href = VT.feedbackUrl(kind, chrome.runtime.getManifest().version, navigator.userAgent);
 }
 
 // A flat key of its own, like `theme`, not a field of reviewPrefs: reviewPrefs
@@ -101,9 +159,9 @@ async function markAnkiReady() {
 
 async function refresh() {
   [words, folders, writing, practice, prefs, pins, activeLang, giphyKey, reviewLog, ankiReady,
-   ankiDeck] = await Promise.all(
+   ankiDeck, wordsView] = await Promise.all(
     [getWords(), getFolders(), getWriting(), getPractice(), getReviewPrefs(), getPins(),
-     getLang(), getGiphyKey(), getHistory(), getAnkiReady(), getAnkiDeck()]);
+     getLang(), getGiphyKey(), getHistory(), getAnkiReady(), getAnkiDeck(), getWordsView()]);
   // `queue` is the one piece of state no render() reaches — it is built once per
   // session from the word map — so the language moving under it leaves the old
   // language's cards on screen beneath a switched toggle. The rebuild belongs
@@ -195,6 +253,10 @@ function dueCount(entries) {
   return entries.filter((e) => VT.isLearnable(e) && e.due <= now).length;
 }
 
+// The folders Suggested for you shows, held until the language changes
+// (renderOverview).
+let suggestPick = null;
+
 function renderOverview(all) {
   // One pass over the words, not one filter per folder. Twice over, because
   // the two maps answer different questions: `members` is what a card COUNTS,
@@ -214,32 +276,45 @@ function renderOverview(all) {
   const shown = Object.values(folders).filter(mine);
 
   const due = dueCount(all);
+  // No words in this language: the three steps instead of the numbers and
+  // the folders, which would only be zeros and "Empty". The numbers below are
+  // still written, just not shown, so they are right the moment a word lands.
+  const first = !all.length;
+  $('ov-start').hidden = !first;
+  for (const id of ['ov-sub', 'ov-stats', 'ov-folders-head', 'ov-folders']) $(id).hidden = first;
   // The active language's scale, read per render rather than closed over: the
   // toggle changes it, and `all` holds only that language's words. Passed
   // explicitly even though lib.js:629 would now default to the same list —
   // the call says which scale it means.
   const levels = LANG.get(activeLang).levels;
   $('ov-total').textContent = all.length;
-  $('ov-due').textContent = due;
   $('ov-median').textContent = VT.medianLevel(all, levels) ?? DASH;
   $('ov-sub').textContent =
     `${all.length} word${all.length === 1 ? '' : 's'} collected while reading · ` +
     `${shown.length} folder${shown.length === 1 ? '' : 's'}`;
+  renderToday(all, due);
   $('review-btn').textContent = due ? `Review ${due} due` : 'Review';
+  // The darkest button on the page only when there is something to review:
+  // with nothing due, or no words yet, it would point at an empty session.
+  $('review-btn').classList.toggle('ghost', !due);
 
   // One hue, not one per level: the axis already names the level, so colouring
   // by level would encode nothing the label does not already say.
-  const buckets = [...levels, DASH].map((l) => [
-    l, all.filter((e) => (e.level ?? DASH) === l).length
-  ]);
-  const max = Math.max(1, ...buckets.map((b) => b[1]));
+  const buckets = levelBuckets(all, levels);
+  const max = Math.max(1, ...buckets.map((b) => b.n));
   const bars = $('ov-bars');
   bars.replaceChildren();
-  for (const [label, n] of buckets) {
+  for (const { label, name, n } of buckets) {
+    // The name and count on the column, not the bar: a level at 0 hides its
+    // bar, and the column still has to say so.
     const wrap = document.createElement('span');
+    wrap.setAttribute('role', 'img');
+    wrap.title = `${name}: ${n} word${n === 1 ? '' : 's'}`;
+    wrap.setAttribute('aria-label', wrap.title);
     const bar = document.createElement('i');
     bar.style.height = `${(n / max) * 26 + 3}px`;
-    bar.title = `${label}: ${n}`;
+    // A level nobody has reached draws no bar: a 3px stub reads as a count.
+    bar.hidden = !n;
     const cap = document.createElement('u');
     cap.textContent = label;
     wrap.append(bar, cap);
@@ -247,20 +322,36 @@ function renderOverview(all) {
   }
 
   const live = pins.filter((id) => folders[id] && mine(folders[id]));
-  fillGrid('ov-pinned', live.map((id) => folderCard(folders[id], members[id])));
+  fillGrid('ov-pinned', first ? [] : live.map((id) => folderCard(folders[id], members[id])));
   // suggestFolders needs no language filter of its own: it drops anything that
-  // scores zero (lib.js:391), and a folder with no words in this language has
+  // scores zero (lib.js:579), and a folder with no words in this language has
   // nothing due, nothing missed and nothing learning. A second guard here
   // would only restate the first.
-  const suggested = VT.suggestFolders(
-    Object.values(folders).map((folder) => ({ folder, members: members[folder.id] })),
+  //
+  // Only folders made for you: one you made yourself is already in your list,
+  // and lifting it out of there is moving your things around. The pick is
+  // held per language, so a grade or a pin a moment later does not reshuffle
+  // the sections under the cursor; the reasons stay live. A reload or the
+  // language toggle picks again, and so does an empty pick, or the first
+  // word saved would never be suggested.
+  const scored = VT.suggestFolders(
+    Object.values(folders).filter((folder) => folder.auto)
+      .map((folder) => ({ folder, members: members[folder.id] })),
     Date.now(), practice.misses, live);
-  fillGrid('ov-suggest',
-    suggested.map(({ folder, reason }) => folderCard(folder, members[folder.id], reason)));
+  if (suggestPick?.lang !== activeLang || !suggestPick.ids.length) {
+    suggestPick = { lang: activeLang, ids: scored.map(({ folder }) => folder.id) };
+  }
+  const reasons = new Map(scored.map(({ folder, reason }) => [folder.id, reason]));
+  const suggested = suggestPick.ids.filter((id) => folders[id] && !live.includes(id));
+  fillGrid('ov-suggest', suggested.map((id) =>
+    folderCard(folders[id], members[id], reasons.get(id))));
 
+  // Each folder once: a pinned or suggested card is already on screen above.
+  const above = new Set([...live, ...suggested]);
+  $('ov-folders-title').textContent = above.size ? 'Other folders' : 'All folders';
   const grid = $('ov-folders');
   grid.replaceChildren(...shown
-    .filter((folder) => !live.includes(folder.id))
+    .filter((folder) => !above.has(folder.id))
     .map((folder) => folderCard(folder, members[folder.id])));
 
   const add = document.createElement('button');
@@ -268,11 +359,36 @@ function renderOverview(all) {
   const plus = document.createElement('span');
   plus.className = 'plus';
   plus.textContent = '+';
+  plus.setAttribute('aria-hidden', 'true');
   const label = document.createElement('b');
   label.textContent = 'New folder';
   add.append(plus, label);
   add.addEventListener('click', () => editFolder(null));
   grid.appendChild(add);
+}
+
+// How many due words the overview names before handing over to the review.
+const TODAY_SHOWN = 6;
+
+// The words due now, in the order the review will ask them (startReview's
+// sort, without its shuffle), each with its meaning and the sentence it came
+// from. A preview, so nothing here is a control except the one Start review.
+function renderToday(all, due) {
+  const now = Date.now();
+  const next = all.filter((e) => VT.isLearnable(e) && e.due <= now)
+    .sort((a, b) => a.due - b.due)
+    .slice(0, TODAY_SHOWN);
+  fillGrid('ov-today', next.map((entry) => {
+    const item = el('li');
+    // The whole word on hover, for one the column cuts short.
+    item.title = entry.word;
+    item.append(inLang(el('b', 'today-word', entry.word), wordLang(entry)),
+      inLang(el('span', 'today-gloss', VT.glossOf(entry) ?? DASH), glossLang(entry)));
+    if (entry.context) item.appendChild(seenQuote(entry));
+    return item;
+  }));
+  $('ov-today-title').textContent = due > next.length
+    ? `Due today · ${next.length} of ${due}` : 'Due today';
 }
 
 // A grid and its heading show only when the grid has cards.
@@ -284,29 +400,62 @@ function fillGrid(id, cards) {
 
 function folderCard(folder, members, reason) {
   const n = members.length;
-  const card = document.createElement('button');
+  // An <article>, not a <button>: the card holds its own pin, Review and Edit
+  // buttons, and a button inside a button is invalid and unreachable by
+  // keyboard. The title is the card's one primary button; its ::after stretches
+  // over the whole card (dashboard.css .fopen), so a click anywhere still opens
+  // the folder, and the other buttons sit above that layer.
+  const card = document.createElement('article');
   card.className = `f ${folder.color ?? 'sage'}`;
   card.dataset.folder = folder.id;
-  card.addEventListener('click', () => openFolder(folder.id));
 
   const badge = document.createElement('span');
   badge.className = 'badge';
+  badge.setAttribute('aria-hidden', 'true');
   badge.textContent = folder.icon ?? '\u{1F4C1}';
   const pinned = pins.includes(folder.id);
   const pin = document.createElement('button');
+  pin.type = 'button';
   pin.className = `pin${pinned ? ' on' : ''}`;
   pin.title = pinned ? 'Unpin' : 'Pin to the top';
-  pin.textContent = '\u{1F4CC}';
-  pin.addEventListener('click', (event) => { event.stopPropagation(); togglePin(folder.id); });
+  // One fixed name and the state in aria-pressed, rather than a label that
+  // flips between Pin and Unpin.
+  pin.setAttribute('aria-label', `Pin ${folder.name}`);
+  pin.setAttribute('aria-pressed', String(pinned));
+  pin.appendChild(VT.icon('pin'));
+  pin.addEventListener('click', () => togglePin(folder.id));
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.textContent = `${folder.auto ? 'Auto' : 'Manual'} · ${n} word${n === 1 ? '' : 's'}`;
+  meta.textContent = `${folder.auto ? 'Made for you' : 'Your folder'} · ${n} word${n === 1 ? '' : 's'}`;
+  // What the two kinds mean, on every card that names one. Above the
+  // title's stretched ::after like the pin, so it opens help, not the folder.
+  const what = el('button', 'helpq', '?');
+  what.type = 'button';
+  what.setAttribute('aria-label', 'What Made for you and Your folder mean');
+  what.addEventListener('click', () => openHelp('how-dlg', 'how-folders'));
+  meta.appendChild(what);
   const name = document.createElement('h3');
-  name.textContent = folder.name;
+  const open = el('button', 'fopen', folder.name);
+  open.type = 'button';
+  open.addEventListener('click', () => openFolder(folder.id));
+  name.appendChild(open);
+  const dueHere = dueCount(members);
+  const freshHere = newCards(members).length;
+  const footText = dueHere
+    ? `${dueHere} due today`
+    : (freshHere ? `${freshHere} to learn` : (n ? 'All reviewed' : 'Empty'));
+  // A reason the footer already gives ("3 due today") is not said twice, and
+  // a folder suggested for its progress has none (lib.js suggestFolders): the
+  // card keeps its own description instead.
+  const why = reason && reason !== footText ? reason : null;
   const desc = document.createElement('p');
-  desc.textContent = reason ?? folder.desc ?? '';
-  if (reason) desc.className = 'why';
-  card.append(badge, pin, meta, name, desc);
+  desc.textContent = why ?? folder.desc ?? '';
+  if (why) desc.className = 'why';
+  // The pin is drawn in the corner but comes after the title in the DOM, so
+  // Tab reaches the card's primary action first. The eyebrow too, now that it
+  // holds the (?): it follows the title in the DOM and is drawn above it
+  // (dashboard.css .f .meta order).
+  card.append(badge, name, meta, pin, desc);
 
   const p = VT.progressOf(members);
   if (p.learned + p.learning + p.fresh) {
@@ -326,19 +475,16 @@ function folderCard(folder, members, reason) {
 
   const foot = document.createElement('div');
   foot.className = 'foot';
-  const dueHere = dueCount(members);
-  const freshHere = newCards(members).length;
   const dueText = document.createElement('span');
-  dueText.textContent = dueHere
-    ? `${dueHere} due today`
-    : (freshHere ? `${freshHere} to learn` : (n ? 'All reviewed' : 'Empty'));
+  dueText.textContent = footText;
   foot.appendChild(dueText);
   if (dueHere || freshHere) {
     const go = document.createElement('button');
+    go.type = 'button';
     go.className = 'edit';
     go.textContent = dueHere ? 'Review' : 'Learn';
-    go.addEventListener('click', (event) => {
-      event.stopPropagation();
+    go.setAttribute('aria-label', `${go.textContent} ${folder.name}`);
+    go.addEventListener('click', () => {
       startReview(folder.id, { ahead: true });
       showView('review');
       render();
@@ -347,9 +493,11 @@ function folderCard(folder, members, reason) {
   }
   if (!folder.auto) {
     const edit = document.createElement('button');
+    edit.type = 'button';
     edit.className = 'edit';
     edit.textContent = 'Edit';
-    edit.addEventListener('click', (event) => { event.stopPropagation(); editFolder(folder); });
+    edit.setAttribute('aria-label', `Edit ${folder.name}`);
+    edit.addEventListener('click', () => editFolder(folder));
     foot.appendChild(edit);
   }
   card.appendChild(foot);
@@ -374,16 +522,73 @@ function relative(ts) {
   return days === 1 ? 'yesterday' : `${days}d ago`;
 }
 
+// When a word comes up next, for a List row: relative()'s future-tense twin.
+// A skipped word has no next time.
+function dueWhen(entry) {
+  if (!VT.isLearnable(entry)) return 'Not asked';
+  const mins = Math.round((entry.due - Date.now()) / 60000);
+  if (mins <= 0) return 'Due now';
+  if (mins < 60) return `in ${mins}m`;
+  if (mins < 1440) return `in ${Math.round(mins / 60)}h`;
+  const days = Math.round(mins / 1440);
+  return days === 1 ? 'tomorrow' : `in ${days}d`;
+}
+
+async function getWordsView() {
+  const { wordsView: stored } = await chrome.storage.local.get('wordsView');
+  return { ...WORDS_VIEW_DEFAULTS, ...stored };
+}
+
+// Straight to storage and a render, no refresh(): nothing else reads it.
+function setWordsView(patch) {
+  wordsView = { ...wordsView, ...patch };
+  render();
+  return chrome.storage.local.set({ wordsView });
+}
+
+// Whether a word passes a status chip. Due cuts across the other four: a word
+// saved today is both New and due, as it is in the overview's Due count.
+function statusMatch(entry, status, now) {
+  if (status === 'all') return true;
+  if (status === 'due') return VT.isLearnable(entry) && entry.due <= now;
+  return VT.statusOf(entry) === status;
+}
+
+const WORD_SORTS = {
+  newest: (a, b) => b.added - a.added,
+  // Skipped words last: they have a due date but are never asked.
+  due: (a, b) => VT.isLearnable(b) - VT.isLearnable(a) || a.due - b.due,
+  az: (a, b) => a.word.localeCompare(b.word)
+};
+
 function renderWords(all) {
   const term = VT.normaliseWord($('q').value);
+  const now = Date.now();
   const scope = activeFolder
     ? all.filter((e) => VT.foldersOf(e).includes(activeFolder))
     : all;
-  const shown = (term
+  const matched = term
     ? scope.filter((e) => e.word.includes(term) || (e.vi ?? '').toLowerCase().includes(term))
-    : scope
-  // An exact match first: searching "cat" should open cat, not category.
-  ).sort((a, b) => (b.word === term) - (a.word === term) || b.added - a.added);
+    : scope;
+  // The active language's scale, read per render. A level kept from another
+  // language's scale reads as every level, not as an empty list.
+  const levels = LANG.get(activeLang).levels;
+  const level = levels.includes(wordsView.level) ? wordsView.level : '';
+  const leveled = level ? matched.filter((e) => e.level === level) : matched;
+  const sort = WORD_SORTS[wordsView.sort] ?? WORD_SORTS.newest;
+  const shown = leveled.filter((e) => statusMatch(e, wordsView.status, now))
+    // An exact match first: searching "cat" should open cat, not category.
+    .sort((a, b) => (b.word === term) - (a.word === term) || sort(a, b));
+  const filtered = wordsView.status !== 'all' || !!level;
+  // The filters are remembered across sessions, so a search days later can
+  // run inside a Not asked · B2 the user has forgotten. The sub-line names them
+  // and counts what they hide, rather than reading as "this word is not saved".
+  const chip = $('w-filter').querySelector(`[data-status="${wordsView.status}"]`);
+  const filterName = [wordsView.status !== 'all' && chip?.firstChild.textContent.trim(), level]
+    .filter(Boolean).join(' · ');
+  const hidden = matched.length - shown.length;
+  const density = wordsView.density || (scope.length > WORDS_CARDS_UP_TO ? 'list' : 'cards');
+  renderWordFilter(leveled, levels, level, scope.length > 0, now, density);
 
   // An imported word list runs to thousands of entries, and a card is 16
   // elements: 1,900 words measured at 30,578 of them, rebuilt on every
@@ -393,10 +598,13 @@ function renderWords(all) {
   const more = shown.length - page.length;
 
   $('w-title').textContent = activeFolder ? folders[activeFolder]?.name ?? 'Folder' : 'All words';
-  $('w-sub').textContent = (term
-    ? `${shown.length} match${shown.length === 1 ? '' : 'es'} for “${term}”`
-    : `${shown.length} word${shown.length === 1 ? '' : 's'}`)
-    + (more ? ` · newest ${page.length} shown, search to reach the rest` : '');
+  $('w-sub').textContent = more
+    ? `Showing ${page.length} of ${shown.length} — narrow with search or filters`
+    : term ? `${shown.length} match${shown.length === 1 ? '' : 'es'} for “${term}”`
+      + (filterName ? ` in ${filterName}` : '')
+      + (hidden ? ` · ${hidden} hidden by filters` : '')
+    : filtered ? `${shown.length} of ${scope.length} word${scope.length === 1 ? '' : 's'}`
+    : `${shown.length} word${shown.length === 1 ? '' : 's'}`;
 
   // A folder you can open but not study is a dead end: this is the way into a
   // review scoped to it, whether or not anything is due today.
@@ -408,15 +616,23 @@ function renderWords(all) {
     ? `Review ${due} due`
     : `Learn ${Math.min(AHEAD_BATCH, fresh)} new`;
 
+  const list = density === 'list';
+  pageWords = list ? page.map((e) => e.word) : [];
+  const onPage = new Set(pageWords);
+  for (const word of pickedRows) if (!onPage.has(word)) pickedRows.delete(word);
   const cards = $('w-cards');
-  cards.replaceChildren();
-  for (const entry of page) cards.appendChild(wordCard(entry));
+  cards.classList.toggle('list', list);
+  cards.replaceChildren(...page.map((entry) => (list ? wordRow(entry) : wordCard(entry))));
+  $('w-all-wrap').hidden = !list || !page.length;
+  syncPicked();
 
   const empty = $('w-empty');
   empty.replaceChildren();
   empty.hidden = shown.length > 0;
   if (!shown.length) {
-    if (term && VT.isLookupCandidate(term)) {
+    // The lookup only when nothing saved matches at all: a word the filters
+    // hide is already yours, and looking it up again would be a detour.
+    if (term && !matched.length && VT.isLookupCandidate(term)) {
       empty.className = 'lookupcta';
       const line = document.createElement('div');
       const strong = document.createElement('b');
@@ -433,12 +649,209 @@ function renderWords(all) {
       btn.textContent = dict ? `Look up “${term}” on ${dict.name}` : `Look up “${term}”`;
       btn.addEventListener('click', () => lookupNew(term, btn));
       empty.append(line, btn);
+    } else if (filtered && matched.length) {
+      empty.className = 'empty';
+      const clear = el('button', 'btn ghost small', term ? 'Show all' : 'Clear filters');
+      clear.type = 'button';
+      clear.addEventListener('click', () => {
+        setWordsView({ status: 'all', level: '' });
+        // The button goes with the empty state; focus lands on what it reset.
+        $('w-filter').querySelector('[data-status="all"]').focus();
+      });
+      empty.append(term
+        ? `${hidden} match${hidden === 1 ? '' : 'es'} hidden by filters. `
+        : 'No words with these filters. ', clear);
     } else {
       empty.className = 'empty';
       empty.textContent = term ? 'No match.' : 'No words here yet.';
     }
   }
 }
+
+// The filter row's state: the pressed chips, each status chip's count over the
+// words the search and level leave, and this language's level options.
+function renderWordFilter(pool, levels, level, any, now, density) {
+  const row = $('w-filter');
+  // Nothing to narrow: an empty folder or a language with no words yet.
+  row.hidden = !any;
+  for (const chip of row.querySelectorAll('[data-status]')) {
+    const status = chip.dataset.status;
+    chip.setAttribute('aria-pressed', String(status === wordsView.status));
+    chip.querySelector('span').textContent = pool.filter((e) => statusMatch(e, status, now)).length;
+  }
+  for (const button of row.querySelectorAll('[data-density]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.density === density));
+  }
+  const select = $('w-level');
+  // Rebuilt only when the scale changes (the language toggle), so an open
+  // select is not pulled out from under the pointer by an unrelated render.
+  if (select.dataset.scale !== levels.join()) {
+    select.replaceChildren(new Option('All', ''), ...levels.map((l) => new Option(l, l)));
+    select.dataset.scale = levels.join();
+  }
+  select.value = level;
+  $('w-sort').value = wordsView.sort in WORD_SORTS ? wordsView.sort : 'newest';
+}
+
+for (const chip of $('w-filter').querySelectorAll('[data-status]')) {
+  chip.addEventListener('click', () => setWordsView({ status: chip.dataset.status }));
+}
+for (const button of $('w-filter').querySelectorAll('[data-density]')) {
+  button.addEventListener('click', () => setWordsView({ density: button.dataset.density }));
+}
+$('w-level').addEventListener('change', (event) => setWordsView({ level: event.target.value }));
+$('w-sort').addEventListener('change', (event) => setWordsView({ sort: event.target.value }));
+
+// A List row: the word, its meaning, level and when it is next due on one
+// line, opening into the full card. A <details>, so the platform carries the
+// open state, Enter and Space; the card is built on first open, which keeps
+// 300 closed rows to a handful of elements each.
+function wordRow(entry) {
+  // The tick box sits beside the <details>, not in its <summary>: a control
+  // inside the summary is a control inside a button.
+  const wrap = el('div', 'wline');
+  wrap.dataset.word = entry.word;
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'wsel';
+  box.checked = pickedRows.has(entry.word);
+  box.setAttribute('aria-label', `Select ${entry.word}`);
+  // click, not change: change carries no shiftKey.
+  box.addEventListener('click', (event) => pickRow(entry.word, box.checked, event.shiftKey));
+  const row = el('details', 'wrow');
+  const line = el('summary');
+  // Space on the focused row ticks it, as it would the box; Enter still opens
+  // it. Both halves stopped: the summary toggles on keyup.
+  line.addEventListener('keydown', (event) => {
+    if (event.key !== ' ') return;
+    event.preventDefault();
+    if (!event.repeat) pickRow(entry.word, !pickedRows.has(entry.word), event.shiftKey);
+  });
+  line.addEventListener('keyup', (event) => { if (event.key === ' ') event.preventDefault(); });
+  line.append(inLang(el('b', 'wrow-word', entry.word), wordLang(entry)),
+    inLang(el('span', 'wrow-gloss', VT.glossOf(entry) ?? DASH), glossLang(entry)),
+    el('span', 'wrow-lvl', VT.levelText(entry) ?? ''),
+    el('span', 'wrow-due', dueWhen(entry)));
+  row.appendChild(line);
+  let built = false;
+  const build = () => {
+    if (built) return;
+    built = true;
+    row.appendChild(wordCard(entry));
+  };
+  if (openRows.has(entry.word)) {
+    build();
+    row.open = true;
+  }
+  row.addEventListener('toggle', () => {
+    if (!row.open) { openRows.delete(entry.word); return; }
+    openRows.add(entry.word);
+    build();
+  });
+  wrap.append(box, row);
+  return wrap;
+}
+
+/* ---------- bulk actions on the List ---------- */
+
+// Ticks or unticks one row, or with shift every row from the last one ticked
+// to this one, all to this row's new state.
+function pickRow(word, on, range) {
+  const from = range && pickAnchor ? pageWords.indexOf(pickAnchor) : -1;
+  const to = pageWords.indexOf(word);
+  const span = from < 0 || to < 0
+    ? [word] : pageWords.slice(Math.min(from, to), Math.max(from, to) + 1);
+  for (const w of span) on ? pickedRows.add(w) : pickedRows.delete(w);
+  pickAnchor = word;
+  syncPicked();
+}
+
+function clearPicked() {
+  pickedRows.clear();
+  pickAnchor = null;
+  syncPicked();
+}
+
+// The boxes, Select all and the bar, from `picked`. In place rather than a
+// render(): ticking forty rows should not rebuild the list forty times.
+function syncPicked() {
+  for (const box of $('w-cards').querySelectorAll('.wsel')) {
+    box.checked = pickedRows.has(box.closest('.wline').dataset.word);
+  }
+  const all = $('w-all');
+  all.checked = pageWords.length > 0 && pickedRows.size === pageWords.length;
+  all.indeterminate = pickedRows.size > 0 && !all.checked;
+  const bar = $('w-bulk');
+  const n = pickedRows.size;
+  // The button that was pressed can take the bar away with it (Ask again under
+  // the Not asked filter empties the selection); focus would fall to the top of
+  // the page, so it goes to the view's heading instead.
+  if (!n && !bar.hidden && bar.contains(document.activeElement)) $('w-title').focus();
+  bar.hidden = !n;
+  if (!n) return;
+  const entries = [...pickedRows].map((w) => words[w]).filter(Boolean);
+  $('wb-count').textContent = `${n} selected`;
+  const unfile = $('wb-unfile');
+  // From reading is where a word with no folder already is, so it has no way out.
+  unfile.hidden = !activeFolder || activeFolder === VT.READING;
+  unfile.textContent = `Remove from ${folders[activeFolder]?.name ?? 'folder'}`;
+  $('wb-unskip').hidden = !entries.some((e) => !VT.isLearnable(e));
+  $('wb-anki').hidden = !ankiReady;
+}
+
+$('w-all').addEventListener('change', (event) => {
+  for (const w of pageWords) event.target.checked ? pickedRows.add(w) : pickedRows.delete(w);
+  pickAnchor = null;
+  syncPicked();
+});
+$('wb-clear').addEventListener('click', () => {
+  clearPicked();
+  announce('Selection cleared.');
+});
+$('wb-folder').addEventListener('click', () => openTagPicker([...pickedRows]));
+$('wb-unfile').addEventListener('click', async () => {
+  const list = [...pickedRows];
+  const name = folders[activeFolder]?.name ?? 'the folder';
+  await fileWords(list, activeFolder, false);
+  await refresh();
+  announce(`Removed ${plural(list.length, 'word')} from ${name}.`);
+});
+$('wb-unskip').addEventListener('click', async () => {
+  const back = [...pickedRows].filter((w) => words[w] && !VT.isLearnable(words[w]));
+  await putWords(Object.fromEntries(back.map((w) => [w, { skipped: false }])));
+  await refresh();
+  announce(`${plural(back.length, 'word')} back in review.`);
+});
+$('wb-anki').addEventListener('click', async () => {
+  const btn = $('wb-anki');
+  const entries = [...pickedRows].map((w) => words[w]).filter(Boolean);
+  btn.disabled = true;
+  btn.textContent = 'Pushing…';
+  try {
+    const result = await pushEntriesToAnki(entries);
+    if (result) {
+      announce(`Added ${result.added} to “${result.deck}” · ${result.skipped} already in Anki.`);
+    }
+  } catch (err) {
+    announce(ankiMessage(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Push to Anki';
+  }
+});
+$('wb-delete').addEventListener('click', async () => {
+  const gone = [...pickedRows].filter((w) => words[w])
+    .map((word) => ({ word, snapshot: structuredClone(words[word]) }));
+  // Cleared before the write, so the bar is gone and a double-click's second
+  // half has nothing left to delete twice.
+  clearPicked();
+  await removeWords(gone.map((d) => d.word));
+  await refresh();
+  // The toast says it (role=status) and takes focus; its Undo puts every one back.
+  showDeleted(gone);
+});
+
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 // A link's visible label, e.g. "en.wikipedia.org". Returns null for anything
 // that is not a real URL, so a malformed source never renders a dead link.
@@ -456,14 +869,67 @@ function el(tag, className, text) {
   return node;
 }
 
+// A clickable chip on a word card. A real button, so Tab and Enter reach it;
+// dashboard.css takes the button chrome back off so it still reads as a tag.
+// An interface icon (lib.js VT.ICONS) put before the node's text, or after
+// it for the trailing kind: an external link's arrow reads after the name.
+function withIcon(node, name, after = false) {
+  const icon = VT.icon(name);
+  if (after) {
+    icon.classList.add('after');
+    node.append(icon);
+  } else {
+    node.prepend(icon);
+  }
+  return node;
+}
+
+function tagButton(extra, text) {
+  const button = el('button', `tag clickable${extra}`, text);
+  button.type = 'button';
+  return button;
+}
+
+// The page is English (<html lang="en">); the text a word brings with it is
+// not. Marked so a screen reader switches voice and the browser picks the
+// right glyphs and line breaks: the word, its sentence and its examples in the
+// word's language, the gloss in Vietnamese. A definition is in the word's
+// language only where the dictionary is monolingual — krdict for Korean;
+// Cambridge and CC-CEDICT define in English. glossLang mirrors VT.glossOf.
+const wordLang = (entry) => LANG.of(entry).id;
+const defLang = (entry) => (wordLang(entry) === 'ko' ? 'ko' : 'en');
+const glossLang = (entry) => (entry.vi != null ? 'vi' : defLang(entry));
+function inLang(node, lang) {
+  node.lang = lang;
+  return node;
+}
+
+// The sentence a word was met in, with the word marked. Shared by the word
+// card and the overview's due list, so the two quote it the same way.
+function seenQuote(entry) {
+  const quote = inLang(el('blockquote', 'wc-seen'), wordLang(entry));
+  for (const piece of VT.pieces(entry.context, VT.find(entry.word, entry.context, entry.lang))) {
+    if (piece.hit) quote.appendChild(el('mark', null, piece.text));
+    else quote.append(piece.text);
+  }
+  return quote;
+}
+
 function wordCard(entry) {
   const card = el('article', 'wcard');
+  card.dataset.word = entry.word;
 
   // --- headline row
   const head = el('div', 'wc-head');
-  const title = el('h3', 'wc-word', entry.word);
-  title.title = 'Pronounce';
-  title.addEventListener('click', () => speakWord(entry));
+  // An h2 under the view's h1. The word is a button inside the heading, so
+  // the heading still reads as the word and the control is reachable by Tab;
+  // the title is its description ("pigeon, button, Pronounce").
+  const title = el('h2', 'wc-word');
+  const say = inLang(el('button', 'wc-say', entry.word), wordLang(entry));
+  say.type = 'button';
+  say.title = 'Pronounce';
+  say.addEventListener('click', () => speakWord(entry));
+  title.appendChild(say);
   head.appendChild(title);
   if (entry.level) {
     const lvl = el('span', 'lvl', VT.levelText(entry));
@@ -478,17 +944,26 @@ function wordCard(entry) {
   head.appendChild(el('span', 'when', relative(entry.added)));
   const del = el('button', 'rowdel', '×');
   del.title = `Delete ${entry.word}`;
+  del.setAttribute('aria-label', del.title);
+  // No confirm(): the delete happens, and the toast offers it back. The
+  // snapshot is the whole stored record — folders, schedule, GIF — and putting
+  // it back is an ordinary putWords, which clears the tombstone removeWord
+  // left, so sync sees a word edited after its delete rather than a deleted one.
   del.addEventListener('click', async () => {
-    if (!confirm(`Delete "${entry.word}"? This cannot be undone.`)) return;
+    // The card below slides up and its × lands under the pointer, so the
+    // second click of a double-click would take the next word with it.
+    if (performance.now() - lastDelete < DELETE_GUARD_MS) return;
+    lastDelete = performance.now();
+    const snapshot = structuredClone(words[entry.word] ?? entry);
     await removeWord(entry.word);
     await refresh();
+    showDeleted([{ word: entry.word, snapshot }]);
   });
-  head.appendChild(del);
   card.appendChild(head);
 
   // --- meaning
-  if (entry.vi) card.appendChild(el('p', 'wc-vi', entry.vi));
-  card.appendChild(el('p', 'wc-def', entry.def ?? DASH));
+  if (entry.vi) card.appendChild(inLang(el('p', 'wc-vi', entry.vi), 'vi'));
+  card.appendChild(inLang(el('p', 'wc-def', entry.def ?? DASH), defLang(entry)));
   if (entry.senses?.length > 1) {
     // Senses only exist where a dictionary parsed them, so the name is there
     // too; the fallback is for a pack whose dictionary was removed under
@@ -500,18 +975,11 @@ function wordCard(entry) {
   }
 
   // --- the sentence it was met in, with the word marked
-  if (entry.context) {
-    const quote = el('blockquote', 'wc-seen');
-    for (const piece of VT.pieces(entry.context, VT.find(entry.word, entry.context, entry.lang))) {
-      if (piece.hit) quote.appendChild(el('mark', null, piece.text));
-      else quote.append(piece.text);
-    }
-    card.appendChild(quote);
-  }
+  if (entry.context) card.appendChild(seenQuote(entry));
 
   // --- synonyms
   if (entry.synonyms?.length) {
-    const chips = el('div', 'wc-chips');
+    const chips = inLang(el('div', 'wc-chips'), wordLang(entry));
     for (const word of entry.synonyms.slice(0, 5)) chips.appendChild(el('span', 'tag', word));
     card.appendChild(chips);
   }
@@ -528,7 +996,7 @@ function wordCard(entry) {
   const source = entry.sources?.[entry.sources.length - 1];
   const host = source ? hostOf(source) : null;
   if (host) {
-    const link = el('a', 'wc-link', `↩ ${host}`);
+    const link = withIcon(el('a', 'wc-link', host), 'back');
     // A text fragment, so this lands on the sentence rather than the top of a
     // long article. Falls back to the plain URL when there is no context.
     link.href = VT.sourceLink(source, entry.context, entry.word, entry.lang);
@@ -538,22 +1006,12 @@ function wordCard(entry) {
     foot.appendChild(link);
   }
 
-  const dict = LANG.dict(LANG.of(entry).id);
-  if (dict) {
-    const cam = el('a', 'wc-link', `${dict.name} ↗`);
-    cam.href = dict.href(entry.word);
-    cam.target = '_blank';
-    cam.rel = 'noreferrer';
-    cam.title = `Full entry on ${dict.name}`;
-    foot.appendChild(cam);
-  }
-
   foot.appendChild(el('span', 'wc-spacer'));
 
   // The only way back into the rotation, so it sits with the other membership
   // tags rather than behind a menu.
   if (!VT.isLearnable(entry)) {
-    const back = el('span', 'tag clickable', 'Skipped ↩');
+    const back = withIcon(tagButton('', 'Ask again'), 'back', true);
     back.title = 'Start asking about this word again';
     back.addEventListener('click', async () => {
       await putWord(entry.word, { skipped: false });
@@ -564,7 +1022,7 @@ function wordCard(entry) {
   // Switched off from the side panel's quiz after a right answer; this is the
   // only way back on.
   if (entry.noHighlight) {
-    const relight = el('span', 'tag clickable', 'Not highlighted ↩');
+    const relight = withIcon(tagButton('', 'Not highlighted'), 'back', true);
     relight.title = 'Highlight this word on pages again';
     relight.addEventListener('click', async () => {
       await putWord(entry.word, { noHighlight: false });
@@ -574,29 +1032,50 @@ function wordCard(entry) {
   }
 
   for (const id of VT.foldersOf(entry)) {
-    const tag = el('span', 'tag clickable', folders[id]?.name ?? id);
+    const tag = tagButton('', folders[id]?.name ?? id);
     tag.addEventListener('click', () => openFolder(id));
     foot.appendChild(tag);
   }
-  const add = el('span', 'tag clickable', '+');
-  add.title = 'Tags';
+  // Filing a word is a core task, so this sits at full weight with the folder
+  // tags and reads the same as the review card's '+ Folder'.
+  const add = tagButton('', '+ Folder');
+  add.title = 'Add to folder';
+  add.setAttribute('aria-label', `Add ${entry.word} to a folder`);
   add.addEventListener('click', () => openTagPicker(entry));
   foot.appendChild(add);
 
+  // The actions a card is rarely opened for: the dictionary and Anki. Drawn
+  // dimmed until the card is hovered or focused (dashboard.css), so forty cards
+  // do not repeat them forty times at full weight; still in the tab order, and
+  // tabbing into one is what draws them.
+  const extra = el('span', 'wc-extra');
+  const dict = LANG.dict(LANG.of(entry).id);
+  if (dict) {
+    const cam = withIcon(el('a', 'wc-link', dict.name), 'external', true);
+    cam.href = dict.href(entry.word);
+    cam.target = '_blank';
+    cam.rel = 'noreferrer';
+    cam.title = `Full entry on ${dict.name}`;
+    extra.appendChild(cam);
+  }
   // Push to Anki, and whether it is already there. Shown once a connection has
   // worked, or the word has already been pushed. Both states push on click: a
   // re-push is dedup-safe and re-adds a card that was deleted in Anki.
   if (ankiReady || entry.anki) {
     const inAnki = !!entry.anki;
-    const chip = el('span', `tag clickable${inAnki ? ' anki-on' : ''}`, inAnki ? '✓ Anki' : '⬆ Anki');
+    const chip = withIcon(tagButton(inAnki ? ' anki-on' : '', 'Anki'), inAnki ? 'check' : 'upload');
     chip.title = inAnki
       ? `In Anki deck “${entry.anki.deck}”. Click to push again.`
       : 'Push this word to Anki';
     chip.addEventListener('click', () => pushWordToAnki(entry, chip));
-    foot.appendChild(chip);
+    extra.appendChild(chip);
   }
+  foot.appendChild(extra);
 
   card.appendChild(foot);
+  // Last in the DOM so it is the card's last Tab stop, not the one straight
+  // after the word; dashboard.css still draws it in the headline's corner.
+  card.appendChild(del);
   return card;
 }
 
@@ -625,7 +1104,7 @@ function gifSection(entry) {
     return box;
   }
   if (!giphyKey) return box;
-  const btn = el('button', 'wc-gifbtn', '\u{1F39E} Find GIF');
+  const btn = withIcon(el('button', 'wc-gifbtn', 'Find GIF'), 'film');
   btn.addEventListener('click', () => cardFindGif(entry, btn));
   box.appendChild(btn);
   return box;
@@ -636,7 +1115,8 @@ async function cardFindGif(entry, btn) {
   // budget cannot afford a double-click.
   if (finding) return;
   finding = true;
-  const label = btn.textContent;
+  // The nodes, not the text: textContent would put the label back without its icon.
+  const label = [...btn.childNodes];
   btn.disabled = true;
   btn.textContent = 'Searching GIPHY…';
   try {
@@ -647,7 +1127,7 @@ async function cardFindGif(entry, btn) {
     // controls on this card already use.
     if (url) { await refresh(); return; }
     btn.disabled = false;
-    btn.textContent = label;
+    btn.replaceChildren(...label);
     btn.closest('.wc-gif')?.appendChild(el('p', 'wc-gifmsg', failed
       ? `Could not fetch a GIF — ${failed}`
       : `No GIF found for “${giphyQuery(entry).q}”.`));
@@ -655,19 +1135,22 @@ async function cardFindGif(entry, btn) {
     finding = false;
     console.error('[vocab-track] card find gif failed for', entry.word, err);
     btn.disabled = false;
-    btn.textContent = label;
+    btn.replaceChildren(...label);
   }
 }
 
 /* ---------- tag picker ---------- */
 
-// The word the open picker is filing. A word, not an entry: refresh() swaps
-// every entry object for a fresh one whenever storage changes.
-let tagging = null;
+// The words the open picker is filing: one from a card, many from the List's
+// bulk bar. Words, not entries: refresh() swaps every entry object for a fresh
+// one whenever storage changes.
+let tagging = [];
 
-function openTagPicker(entry) {
-  tagging = entry.word;
-  $('tag-title').textContent = `Tags · ${entry.word}`;
+// `target` is an entry, or an array of words.
+function openTagPicker(target) {
+  tagging = Array.isArray(target) ? target : [target.word];
+  $('tag-title').textContent = `Add to folder · ${tagging.length > 1
+    ? `${tagging.length} words` : tagging[0]}`;
   $('tag-q').value = '';
   renderTags();
   $('tag-dlg').showModal();
@@ -685,7 +1168,7 @@ function openTagPicker(entry) {
 // mixing one is still possible, by typing the folder's name: folderForName
 // matches on name and hands back the folder you meant.
 function tagOptions() {
-  const lang = LANG.of(words[tagging]).id;
+  const lang = LANG.of(words[tagging[0]]).id;
   const owners = {};
   for (const entry of Object.values(words)) {
     for (const id of VT.foldersOf(entry)) (owners[id] ??= []).push(entry);
@@ -703,36 +1186,71 @@ function tagOptions() {
 function renderTags() {
   const typed = $('tag-q').value.trim();
   const q = typed.toLowerCase();
-  const mine = VT.foldersOf(words[tagging]);
+  const filed = tagCounts();
   const list = $('tag-list');
   list.replaceChildren();
-  for (const tag of tagOptions().filter((t) => t.name.toLowerCase().includes(q))) {
-    const row = el('label', tag.suggested ? 'tagrow suggested' : 'tagrow');
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = mine.includes(tag.id);
-    box.addEventListener('change', () => toggleTag(tag, box.checked));
-    row.append(box, el('span', null, `${tag.icon ?? '\u{1F4C1}'} ${tag.name}`));
-    list.appendChild(row);
+  const shown = tagOptions().filter((t) => t.name.toLowerCase().includes(q));
+  // Two groups, so a preset never sits among your own folders looking like
+  // one: 🎓 Education next to 🎓 IELTS Academic read as the same kind of thing.
+  const groups = [['Your folders', shown.filter((t) => !t.suggested)],
+                  ['Suggested', shown.filter((t) => t.suggested)]];
+  for (const [label, tags] of groups) {
+    if (!tags.length) continue;
+    const group = el('div', 'taggroup');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    group.appendChild(el('p', 'taghead', label)).setAttribute('aria-hidden', 'true');
+    for (const tag of tags) {
+      const row = el('label', tag.suggested ? 'tagrow suggested' : 'tagrow');
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      // Mixed when only some of a bulk selection are in it; a click files all.
+      box.checked = filed[tag.id] === tagging.length;
+      box.indeterminate = !box.checked && filed[tag.id] > 0;
+      box.addEventListener('change', () => toggleTag(tag, box.checked));
+      row.append(box, el('span', null, `${tag.icon ?? '\u{1F4C1}'} ${tag.name}`));
+      group.appendChild(row);
+    }
+    list.appendChild(group);
   }
   if (q && !tagOptions().some((t) => t.name.toLowerCase() === q)) {
-    const create = el('button', 'tagrow create', `+ Create “${typed}”`);
+    const create = el('button', 'tagrow create', `+ New folder “${typed}”`);
     create.type = 'button';
     create.addEventListener('click', createTag);
     list.appendChild(create);
   }
 }
 
+// How many of the words being filed are in each folder, by folder id.
+function tagCounts() {
+  const counts = {};
+  for (const word of tagging) {
+    for (const id of VT.foldersOf(words[word])) counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 // Adds or removes one folder on one word, in storage and in memory.
-async function fileWord(word, id, on) {
-  const mine = VT.foldersOf(words[word]);
-  await setWordFolders(word, on ? [...mine, id] : mine.filter((f) => f !== id));
-  // Read back rather than recomputed, so setWordFolders stays the one place
-  // that decides what an emptied list means. The review queue holds its own
-  // entry objects, and the card's tag label reads from those.
-  const saved = (await getWords())[word]?.folders;
-  for (const entry of [words[word], ...queue.filter((e) => e.word === word)]) {
-    if (entry) entry.folders = saved;
+function fileWord(word, id, on) {
+  return fileWords([word], id, on);
+}
+
+// The same for many words, in one storage write. A word deleted meanwhile is
+// left out rather than written back as a stub.
+async function fileWords(list, id, on) {
+  const live = list.filter((word) => words[word]);
+  await setWordsFolders(Object.fromEntries(live.map((word) => {
+    const mine = VT.foldersOf(words[word]);
+    return [word, on ? [...mine, id] : mine.filter((f) => f !== id)];
+  })));
+  // Read back rather than recomputed, so store.js stays the one place that
+  // decides what an emptied list means. The review queue holds its own entry
+  // objects, and the card's tag label reads from those.
+  const stored = await getWords();
+  for (const word of live) {
+    for (const entry of [words[word], ...queue.filter((e) => e.word === word)]) {
+      if (entry) entry.folders = stored[word]?.folders;
+    }
   }
 }
 
@@ -740,10 +1258,15 @@ async function toggleTag(tag, on) {
   // The word's own language, not activeLang: the card being tagged can be a
   // Korean one reached from an English session.
   const id = tag.suggested
-    ? await folderForName(tag.name, LANG.of(words[tagging]).id)
+    ? await folderForName(tag.name, LANG.of(words[tagging[0]]).id)
     : tag.id;
-  await fileWord(tagging, id, on);
+  await fileWords(tagging, id, on);
   folders = await getFolders();
+  // A box in the picker says what one word did; for a selection, say how many.
+  if (tagging.length > 1) {
+    announce(`${on ? 'Added' : 'Removed'} ${plural(tagging.length, 'word')} `
+      + `${on ? 'to' : 'from'} ${folders[id]?.name ?? 'the folder'}.`);
+  }
   renderTags();
   // Behind the modal, so the card's label and the word list are already right
   // when it closes — however it closes: Done, Esc or Enter.
@@ -753,7 +1276,7 @@ async function toggleTag(tag, on) {
 async function createTag() {
   const name = $('tag-q').value.trim();
   if (!name) return;
-  const id = await folderForName(name, LANG.of(words[tagging]).id);
+  const id = await folderForName(name, LANG.of(words[tagging[0]]).id);
   $('tag-q').value = '';
   await toggleTag({ id }, true);
 }
@@ -783,7 +1306,7 @@ $('tag-q').addEventListener('keydown', async (event) => {
     return;
   }
   $('tag-q').value = '';
-  await toggleTag(match, !VT.foldersOf(words[tagging]).includes(match.id));
+  await toggleTag(match, tagCounts()[match.id] !== tagging.length);
 });
 
 async function lookupNew(word, button) {
@@ -864,23 +1387,113 @@ $('folder-dlg').addEventListener('close', async () => {
 /* ---------- import / export ---------- */
 
 $('export-btn').addEventListener('click', async () => {
-  const payload = JSON.stringify(VT.backupPayload(await chrome.storage.local.get(null)), null, 2);
-  const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+  const backup = VT.backupPayload(await chrome.storage.local.get(null));
+  const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
   a.download = `vocab-track-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  // The download itself happens in Chrome's own UI, which may be collapsed;
+  // say here that it went, and what it holds.
+  const n = Object.keys(backup.words ?? {}).length;
+  $('export-note').textContent = `Exported ${n} word${n === 1 ? '' : 's'} as ${a.download}.`;
 });
+
+// A note line that can carry a failure. `error` paints it in the danger colour
+// so a failure does not read like the success line it replaced; `detail` is the
+// technical cause, folded away under "Details", kept out of the sentence to act on.
+function setNote(note, text, { error = false, detail = '' } = {}) {
+  note.classList.toggle('err', error);
+  note.replaceChildren(text);
+  if (!detail) return;
+  const more = el('details', 'note-detail');
+  more.append(el('summary', '', 'Details'), detail);
+  note.append(more);
+}
+
+const IMPORT_NOT_BACKUP = 'This is not a Vocab-track backup. Choose a .json file made with '
+  + 'Export JSON, or one from Downloads/vocab-track.';
+const IMPORT_DAMAGED = 'This backup is damaged, possibly cut off while it downloaded. '
+  + 'Nothing was imported. Try an earlier one from Downloads/vocab-track.';
+
+// A backup file's text, checked before anything is written. Returns { data }, or
+// { error, detail } with a sentence that says what to do next. The parser's own
+// message ("Unexpected token < in JSON…") is only ever the detail.
+function readBackup(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    // A backup that starts like one but does not parse was cut short; anything
+    // else (a web page saved as .json, a CSV) was never a backup.
+    return { error: /^\s*\{/.test(text) ? IMPORT_DAMAGED : IMPORT_NOT_BACKUP, detail: err.message };
+  }
+  if (!data || typeof data.words !== 'object' || Array.isArray(data.words)) {
+    return { error: IMPORT_NOT_BACKUP, detail: 'No "words" list in this file.' };
+  }
+  const entries = Object.values(data.words);
+  if (entries.some((e) => !e || typeof e !== 'object')) {
+    return { error: IMPORT_DAMAGED, detail: 'Some word entries are not readable.' };
+  }
+  // A word tagged with a language this build has no pack for would be filed
+  // under the fallback language and drill with the wrong dictionary.
+  const unknown = [...new Set(entries.map((e) => e.lang).filter((id) => id && !LANG.get(id)))];
+  if (unknown.length) {
+    return {
+      error: 'This file holds words in a language this version of Vocab-track does not have. '
+        + 'Nothing was imported. Update the extension, then import it again.',
+      detail: `Language code: ${unknown.join(', ')}`
+    };
+  }
+  return { data };
+}
 
 $('import-file').addEventListener('change', async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
   const note = $('io-note');
   try {
-    const data = JSON.parse(await file.text());
-    if (!data || typeof data.words !== 'object') throw new Error('no words in this file');
+    const { data, error, detail } = readBackup(await file.text());
+    if (error) setNote(note, error, { error: true, detail });
+    else confirmImport(note, data, await getWords());
+  } catch (err) {
+    console.error('[vocab-track] import read failed', err);
+    setNote(note, 'Could not read this file. Choose it again.', { error: true, detail: err.message });
+  } finally {
+    event.target.value = '';
+  }
+});
 
+// Nothing is written until the file's effect has been read: an import merges
+// into folders and pins across the whole library and has no undo, so a wrong
+// or old backup is caught here, by its counts, or not at all.
+function confirmImport(note, data, current) {
+  const words = Object.keys(data.words);
+  const merged = words.filter((word) => current[word]).length;
+  const added = words.length - merged;
+  setNote(note, `This file adds ${added} word${added === 1 ? '' : 's'} and merges `
+    + `${merged} with words you already have.`);
+  const row = el('div', 'dlgrow');
+  const go = el('button', 'btn small', 'Import');
+  const cancel = el('button', 'btn ghost small', 'Cancel');
+  go.type = cancel.type = 'button';
+  row.append(go, cancel);
+  note.append(row);
+  go.focus();
+  cancel.addEventListener('click', () => {
+    setNote(note, 'Nothing was imported.');
+    $('import-file').focus();
+  });
+  go.addEventListener('click', async () => {
+    go.disabled = cancel.disabled = true;
+    await importBackup(note, data);
+    $('import-file').focus();
+  });
+}
+
+async function importBackup(note, data) {
+  try {
     let added = 0;
     let merged = 0;
     const current = await getWords();
@@ -932,18 +1545,18 @@ $('import-file').addEventListener('change', async (event) => {
     const elsewhere = [...new Set(Object.values(data.words).map((e) => LANG.of(e).id))]
       .filter((id) => id !== activeLang)
       .map((id) => LANG.get(id)?.name ?? id);
-    note.textContent = `Imported: ${added} new, ${merged} merged with existing entries.`
+    setNote(note, `Imported: ${added} new, ${merged} merged with existing entries.`
       + (elsewhere.length
         ? ` In ${elsewhere.join(' and ')} — switch the language toggle to see them.`
-        : '');
+        : ''));
     await refresh();
   } catch (err) {
+    // The file read fine, so this is the browser refusing the write.
     console.error('[vocab-track] import failed', err);
-    note.textContent = `Could not import that file: ${err.message}`;
-  } finally {
-    event.target.value = '';
+    setNote(note, 'Could not save the imported words. Import the file again; '
+      + 'it merges, so nothing is doubled.', { error: true, detail: err.message });
   }
-});
+}
 
 // Written by the service worker's automatic backup (service-worker.js).
 function showBackup(last) {
@@ -985,7 +1598,7 @@ function showCloud(cloud) {
   $('cloud-last').textContent = cloud?.lastSync
     ? `Last synced ${new Date(cloud.lastSync).toLocaleString()}`
     : 'Not synced yet.';
-  $('cloud-error').textContent = cloud?.error ?? '';
+  setNote($('cloud-error'), cloud?.error ?? '', { error: !!cloud?.error });
 }
 chrome.storage.local.get(['cloud', 'cloudHintDismissed']).then((got) => {
   cloudHintDismissed = got.cloudHintDismissed === true;
@@ -1005,7 +1618,7 @@ async function cloudPress(button, type, busy) {
   } catch (err) {
     console.error('[vocab-track]', type, 'got no answer', err);
     const msg = 'Something went wrong. Reload the extension and try again.';
-    $('cloud-error').textContent = msg;
+    setNote($('cloud-error'), msg, { error: true });
     $('cloud-hint-error').hidden = false;
     $('cloud-hint-error').textContent = msg;
   } finally {
@@ -1046,7 +1659,8 @@ function ankiMessage(err) {
       + 'webCorsOriginList (Anki → Tools → Add-ons → AnkiConnect → Config), then '
       + 'restart Anki.';
   }
-  return `Anki error: ${msg}`;
+  return `AnkiConnect turned the request down (${msg}). Close any open window in `
+    + 'Anki, then try again.';
 }
 
 // The deck the push goes to when the picker's first option is chosen: a fresh
@@ -1091,7 +1705,7 @@ async function loadAnkiDecks() {
 
 async function testAnki() {
   const note = $('anki-note');
-  note.textContent = 'Testing…';
+  setNote(note, 'Testing…');
   try {
     const version = await ankiInvoke('version');
     await loadAnkiDecks();
@@ -1099,19 +1713,19 @@ async function testAnki() {
     // So the per-word Push to Anki control appears on the word cards now that a
     // connection has worked.
     render();
-    note.textContent = `Connected to AnkiConnect (version ${version}). Your decks are in the picker.`;
+    setNote(note, `Connected to AnkiConnect (version ${version}). Your decks are in the picker.`);
   } catch (err) {
-    note.textContent = ankiMessage(err);
+    setNote(note, ankiMessage(err), { error: true });
   }
 }
 
 // One word to Anki, from its card. The deck is whatever the Import & export
 // picker holds, so the choice is made in one place. The result is recorded on
-// the word, which is what the ✓ badge reads.
+// the word, which is what the Anki chip's check reads.
 async function pushWordToAnki(entry, chip) {
   if (pushingAnki) return;
   pushingAnki = true;
-  const was = chip.textContent;
+  const was = [...chip.childNodes];
   chip.textContent = 'Anki…';
   try {
     const deck = $('anki-deck').value || ankiDefaultDeck();
@@ -1127,7 +1741,7 @@ async function pushWordToAnki(entry, chip) {
     await markAnkiReady();
     render();
   } catch (err) {
-    chip.textContent = was;
+    chip.replaceChildren(...was);
     chip.title = ankiMessage(err);
     chip.classList.add('anki-err');
   } finally {
@@ -1145,13 +1759,29 @@ async function pushToAnki() {
   const scope = Object.values(words)
     .filter((entry) => VT.isLearnable(entry) && LANG.of(entry).id === activeLang);
   if (!scope.length) {
-    note.textContent = `No ${lang.name} words to push.`;
+    setNote(note, `No ${lang.name} words to push.`);
     return;
   }
-  pushingAnki = true;
   const btn = $('anki-push');
   btn.disabled = true;
-  note.textContent = `Pushing ${scope.length} ${lang.name} word${scope.length === 1 ? '' : 's'}…`;
+  setNote(note, `Pushing ${scope.length} ${lang.name} word${scope.length === 1 ? '' : 's'}…`);
+  try {
+    const { added, skipped, deck } = await pushEntriesToAnki(scope);
+    setNote(note, `Added ${added} to “${deck}” · ${skipped} already in Anki.`);
+  } catch (err) {
+    setNote(note, ankiMessage(err), { error: true });
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Many words to the picked deck in one addNotes, recorded on each word in one
+// write: the Settings button's whole language and the List's selection.
+// Resolves to { added, skipped, deck }, or null while another push runs;
+// AnkiConnect's errors are thrown for the caller to word.
+async function pushEntriesToAnki(scope) {
+  if (pushingAnki) return null;
+  pushingAnki = true;
   try {
     // Whatever deck is picked — an existing one, or the new-deck default.
     // createDeck is a no-op on a deck that already exists.
@@ -1169,7 +1799,7 @@ async function pushToAnki() {
     const added = (result ?? []).filter((id) => id != null).length;
     const skipped = (result ?? []).length - added;
     // Record the push on every word in the batch — a null id is a duplicate
-    // already in the deck, which is still "in Anki" — so the ✓ badge shows.
+    // already in the deck, which is still "in Anki" — so the check shows.
     const at = Date.now();
     const patches = {};
     scope.forEach((entry, i) => {
@@ -1180,12 +1810,9 @@ async function pushToAnki() {
     await putWords(patches);
     await markAnkiReady();
     render();
-    note.textContent = `Added ${added} to “${deckName}” · ${skipped} already in Anki.`;
-  } catch (err) {
-    note.textContent = ankiMessage(err);
+    return { added, skipped, deck: deckName };
   } finally {
     pushingAnki = false;
-    btn.disabled = false;
   }
 }
 
@@ -1217,8 +1844,84 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && document.activeElement === $('q')) {
     $('q').value = '';
     render();
+  } else if (event.key === 'Escape' && pickedRows.size && !$('view-words').hidden
+      && !document.querySelector('dialog[open]')) {
+    clearPicked();
+    announce('Selection cleared.');
+  }
+  // "?" opens the shortcut sheet from anywhere, except where it is already
+  // something else: a character in any box, or practice's "I don't know".
+  if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey
+      && !event.target.closest?.('input, textarea, select, [contenteditable]')
+      && !document.querySelector('dialog[open]') && !PRACTICE.owns()) {
+    event.preventDefault();
+    openHelp('keys-dlg');
   }
 });
+
+/* ---------- help ---------- */
+
+// The shortcut sheet, built from the handlers' own tables so it cannot drift
+// from them: GRADES for the digits, MOD_KEY for ⌘ or Ctrl. Built on open,
+// because both are declared further down this file.
+function renderKeys() {
+  const groups = [
+    ['Anywhere', [
+      [[`${MOD_KEY}K`], 'Search your words'],
+      [['?'], 'Show these shortcuts'],
+      [['esc'], 'Clear the search, from the search box']
+    ]],
+    ['All words, as a list', [
+      [['space'], 'Select the focused word; with shift, every word from the last one'],
+      [['enter'], 'Open the focused word'],
+      [['esc'], 'Clear the selection']
+    ]],
+    ['Reviewing a card', [
+      [['enter'], 'Check what you typed, then take the grade it suggests'],
+      [['space'], 'Show the answer on a card with no box to type in'],
+      ...GRADES.map((g) => [[g.key], `${g.label} — ${g.hint}`]),
+      [['r'], 'Hear the word again, once the answer shows'],
+      [['s'], 'Star or unstar the word, when you are not typing'],
+      [['t'], 'Add the word to a folder, once the answer shows'],
+      [['z', `${MOD_KEY}Z`], 'Undo the last grade, for five seconds'],
+      [['esc'], 'Finish for now']
+    ]],
+    ['Practice tabs', [
+      [['h'], 'Show a hint, when the question has one'],
+      [['?'], 'I don’t know — show the answer'],
+      [['esc'], 'Back to the flashcard']
+    ]]
+  ];
+  $('keys-list').replaceChildren(...groups.flatMap(([title, rows]) => {
+    const dl = el('dl', 'keys');
+    for (const [keys, text] of rows) {
+      const dt = document.createElement('dt');
+      // "z or ⌘Z": one action, on a bare card and from the typing box.
+      keys.forEach((k, i) => dt.append(...(i ? [' or ', kbd(k)] : [kbd(k)])));
+      const row = document.createElement('div');
+      row.append(dt, el('dd', null, text));
+      dl.appendChild(row);
+    }
+    return [el('h4', null, title), dl];
+  }));
+}
+
+// The one way in for the Help items, "?" and the (?) beside Mastery and the
+// folders. `section` scrolls the sheet to the part that was asked about.
+function openHelp(id, section) {
+  if (id === 'keys-dlg') renderKeys();
+  $(id).showModal();
+  $(id).scrollTop = 0;
+  if (!section) return;
+  $(section).scrollIntoView({ block: 'start' });
+  // Onto the heading asked about, so a screen reader starts there rather than
+  // at the top of the sheet.
+  $(section).querySelector('h4').focus({ preventScroll: true });
+}
+
+$('help-keys').addEventListener('click', () => openHelp('keys-dlg'));
+$('help-how').addEventListener('click', () => openHelp('how-dlg'));
+$('rv-mastery-help').addEventListener('click', () => openHelp('how-dlg', 'how-mastery'));
 
 /* ---------- theme ---------- */
 
@@ -1230,8 +1933,9 @@ function applyTheme(theme) {
   if (night) document.documentElement.dataset.theme = 'night';
   else delete document.documentElement.dataset.theme;
   $('theme-btn').setAttribute('aria-pressed', String(night));
-  $('theme-btn').title = night ? 'Light theme' : 'Night theme';
-  $('theme-btn').setAttribute('aria-label', $('theme-btn').title);
+  // The name stays "Night theme" in both: a toggle's name is what pressing it
+  // turns on, and aria-pressed says whether it is. A name that flips with
+  // the state reads "Light theme, pressed" while night is on.
   try {
     localStorage.setItem('theme', night ? 'night' : 'light');
   } catch {
@@ -1289,38 +1993,49 @@ $('theme-btn').addEventListener('click', () => {
 // or stale (the theme changed in another dashboard tab while this was shut).
 chrome.storage.local.get('theme').then(({ theme }) => applyTheme(theme));
 
-// The GIPHY key: a flat key like `theme`, saved as you type. The module copy is
-// updated here too so a card rendered before the next refresh() still sees the
-// key. Trimmed on write for the reason getGiphyKey trims on read.
-$('giphy-key').addEventListener('input', (event) => {
-  giphyKey = event.target.value.trim();
-  chrome.storage.local.set({ giphyKey });
-});
-chrome.storage.local.get('giphyKey').then(({ giphyKey: stored }) => {
-  $('giphy-key').value = stored ?? '';
-});
-
-// The translation key, the same way. lookup.js reads it on every lookup, so
-// nothing here has to hold a copy.
-$('translate-key').addEventListener('input', (event) => {
-  chrome.storage.local.set({ translateKey: event.target.value.trim() });
-});
-chrome.storage.local.get('translateKey').then(({ translateKey: stored }) => {
-  $('translate-key').value = stored ?? '';
-});
-
-// The krdict key, the same way. No module copy: lang/ko/dictionary.js reads it
-// from storage on every lookup.
-$('krdict-key').addEventListener('input', (event) => {
-  chrome.storage.local.set({ krdictKey: event.target.value.trim() });
-});
-chrome.storage.local.get('krdictKey').then(({ krdictKey }) => {
-  $('krdict-key').value = krdictKey ?? '';
-});
+// The three API key fields: flat keys like `theme`, saved as you type, with a
+// line under the field saying it went. Trimmed on write for the reason
+// getGiphyKey trims on read, and the field itself trimmed once you leave it.
+// A space left inside is a second paste or a copied label, never a key, so it
+// is refused rather than saved to fail on the next lookup.
+function keyField(id, name, onSave) {
+  const field = $(id);
+  const note = $(`${id}-note`);
+  field.addEventListener('input', () => {
+    const key = field.value.trim();
+    if (/\s/.test(key)) {
+      field.setAttribute('aria-invalid', 'true');
+      setNote(note, 'A key has no spaces in it. Paste only the key itself.', { error: true });
+      return;
+    }
+    field.removeAttribute('aria-invalid');
+    onSave?.(key);
+    chrome.storage.local.set({ [name]: key })
+      .then(() => setNote(note, key ? 'Saved in this browser.' : 'Key removed.'))
+      .catch((err) => {
+        console.error('[vocab-track] could not save', name, err);
+        setNote(note, 'Could not save the key. Reload this page and paste it again.', { error: true });
+      });
+  });
+  field.addEventListener('change', () => { field.value = field.value.trim(); });
+  chrome.storage.local.get(name).then((got) => { field.value = got[name] ?? ''; });
+}
+// The module copy of the GIPHY key is updated too, so a card rendered before the
+// next refresh() still sees it. lookup.js and lang/ko/dictionary.js read the
+// other two from storage on every lookup, so nothing here holds a copy.
+keyField('giphy-key', 'giphyKey', (key) => { giphyKey = key; });
+keyField('translate-key', 'translateKey');
+keyField('krdict-key', 'krdictKey');
 
 $('review-btn').addEventListener('click', () => {
   startReview(null);
   showView('review');
+  render();
+});
+// The same session as the top bar's Review: the strip is a preview of it.
+$('ov-today-go').addEventListener('click', () => $('review-btn').click());
+$('ov-start-import').addEventListener('click', () => {
+  showView('io');
   render();
 });
 
@@ -1400,7 +2115,11 @@ async function drainCaptures() {
   await refresh();
 }
 
-refresh().then(backfillLevels).then(drainCaptures);
+refresh().then(() => {
+  if (viewFromHash() !== 'review') return;
+  openReviewByAddress();
+  render();
+}).then(backfillLevels).then(drainCaptures);
 
 
 /* ---------- review ---------- */
@@ -1417,6 +2136,18 @@ let sessionTotal = 0;
 let reviewScope = null;     // folder id, or null for everything due
 let revealed = false;
 let grading = false;
+// The last grade or skip, kept for UNDO_MS so a stray key can be taken back:
+// the entry's fields from before it, what was typed, and (for a grade) the
+// history row's time. One slot — the next grade or skip replaces it, a new
+// session drops it.
+let lastGrade = null;
+let undoTimer = 0;
+const UNDO_MS = 5000;
+// When the answer appeared. Enter both reveals and grades, so a double press
+// (or a held key) would commit the suggested grade before you had read it.
+let revealedAt = 0;
+const ENTER_GRACE_MS = 300;
+const MOD_KEY = /mac/i.test(navigator.userAgentData?.platform || navigator.platform) ? '⌘' : 'Ctrl ';
 // What was typed for the card on screen, kept so the diff survives a re-render.
 let typed = '';
 // A card can only ask "type the word" if it has something to ask WITH. An entry
@@ -1480,6 +2211,22 @@ function startReview(folderId, { ahead = false } = {}) {
   revealed = false;
   typed = '';
   $('rv-input').value = '';
+  // The queue Undo would put the card back into is gone.
+  clearUndo();
+}
+
+// A review reached by address — a bookmark, Back, a typed #review — rather than
+// by a Review button. The queue is the one that button would build, but only
+// when no session has run yet: startReview() resets, and Back into a session
+// half done must find it where it was left. Nothing is read aloud or graded.
+function openReviewByAddress() {
+  if (!sessionTotal) startReview(null);
+}
+
+function routeFromHash() {
+  const name = viewFromHash() ?? 'overview';
+  if (name === 'review') openReviewByAddress();
+  showView(name, { push: false });
 }
 
 // The prompt must not contain its own answer. The sentence a word was saved
@@ -1499,20 +2246,37 @@ function renderCard() {
   // answer. Without this, un-hiding the flashcard below would put it on top of
   // a live quiz. The shell hides #rv-card and #rv-empty when a tab starts and
   // leaves them to this function once it stops.
-  if (PRACTICE.active()) return;
+  //
+  // Undo goes with it: practice can grade the very card the snapshot holds,
+  // and putting the old schedule back would erase that answer.
+  if (PRACTICE.active()) { clearUndo(); return; }
   if (!queue.length) {
     $('rv-card').hidden = true;
     $('rv-empty').hidden = false;
     $('rv-exit').hidden = true;
     $('rv-sub').textContent = '';
     $('rv-prog-fill').style.width = sessionTotal ? '100%' : '0%';
+    const scope = inScope(reviewScope);
     $('rv-empty-text').textContent = sessionTotal
       ? `Done — ${sessionTotal} card${sessionTotal === 1 ? '' : 's'} reviewed.`
-      : 'Nothing due. Come back later.';
+      : (scope.length ? 'Nothing due. Come back later.'
+        : 'Nothing to review yet. Save a word while you read and it comes back here as a flashcard.');
+    // The locked practice tabs and what each is waiting for, in words on the
+    // card: the tab's own title says it too, but only to a hover. Same test
+    // and the same `why` as practice.js paintTab, so the two cannot disagree.
+    const locked = PRACTICE.list()
+      .filter((mode) => PRACTICE.eligibleFor(mode, scope).length < mode.min);
+    $('rv-locked').hidden = !locked.length;
+    $('rv-locked-list').replaceChildren(
+      ...locked.map((mode) => {
+        const item = el('li');
+        item.append(el('b', null, mode.title), ` — ${mode.why}`);
+        return item;
+      }));
     // Without this the only way to the next twenty is back to the overview and
     // into the folder again — four clicks to keep doing the thing you are
     // already doing.
-    const waiting = newCards(inScope(reviewScope)).length;
+    const waiting = newCards(scope).length;
     $('rv-more').hidden = !waiting;
     $('rv-more').textContent = `Learn ${Math.min(AHEAD_BATCH, waiting)} more`;
     return;
@@ -1544,13 +2308,19 @@ function renderCard() {
   // card rather than per toggle, because the card is the thing being asked for;
   // dashboard.html's attribute is only the value before the first render.
   $('rv-input').placeholder = `type the ${LANG.of(entry).name} word`;
+  // What is typed is the word; the placeholder is English, but the box is for
+  // the answer, so it takes the word's language (IME and spellcheck read it).
+  $('rv-input').lang = wordLang(entry);
 
   // The prompt is the meaning; the word is what you produce. A card with
   // nothing to prompt with shows the word instead and goes back to being a
   // recognition card.
   $('rv-vi').textContent = canType ? (entry.vi ?? '') : '';
+  $('rv-vi').lang = 'vi';
   $('rv-def').textContent = canType ? (entry.def ?? '') : '';
+  $('rv-def').lang = defLang(entry);
   const seen = $('rv-context');
+  seen.lang = wordLang(entry);
   const context = entry.context
     ? (revealed ? entry.context : maskContext(entry.context, entry.word, entry.lang))
     : '';
@@ -1571,7 +2341,9 @@ function renderCard() {
   const filed = VT.foldersOf(entry).filter((id) => folders[id] && !folders[id].auto)
     .map((id) => folders[id].name);
   $('rv-tag').hidden = !revealed;
-  $('rv-tag').replaceChildren(el('span', null, filed.length ? `# ${filed.join(', ')}` : '# Tag'), kbd('t'));
+  $('rv-tag').replaceChildren(...(filed.length ? [VT.icon('folder')] : []),
+    el('span', null, filed.length ? filed.join(', ') : '+ Folder'), kbd('t'));
+  $('rv-tag').setAttribute('aria-label', filed.length ? `In ${filed.join(', ')}. Change folders` : 'Add this word to a folder');
   $('rv-tag').onclick = () => openTagPicker(entry);
 
   $('rv-type').hidden = revealed;
@@ -1593,6 +2365,10 @@ function renderCard() {
   // the word out.
   $('rv-answer').hidden = !revealed;
   $('rv-word').textContent = revealed ? entry.word : '';
+  $('rv-word').lang = wordLang(entry);
+  // How long the word is, for the size rule in dashboard.css: a long one is set
+  // smaller to stay on one line rather than breaking mid-word at 46px.
+  $('rv-word').style.setProperty('--len', [...entry.word].length);
   // The attribute is removed rather than blanked, so before the answer this is
   // an inert <a> and not a focusable link to the top of the page.
   const dict = revealed ? LANG.dict(LANG.of(entry).id) : null;
@@ -1607,7 +2383,8 @@ function renderCard() {
   $('rv-cam').parentElement.hidden = !dict;
   if (dict) {
     $('rv-cam').href = dict.href(entry.word);
-    $('rv-cam').textContent = `${dict.name} ↗`;
+    $('rv-cam').replaceChildren(dict.name);
+    withIcon($('rv-cam'), 'external', true);
   } else {
     $('rv-cam').removeAttribute('href');
   }
@@ -1655,7 +2432,7 @@ function renderGif(entry) {
   // button would only prompt a lookup nothing can answer.
   if (!giphyKey) { host.hidden = true; host.replaceChildren(); return; }
   host.hidden = false;
-  const btn = el('button', 'rvgifbtn', '🎞 Find GIF');
+  const btn = withIcon(el('button', 'rvgifbtn', 'Find GIF'), 'film');
   btn.onclick = () => findGif(entry);
   host.replaceChildren(btn);
 }
@@ -1755,7 +2532,9 @@ function renderDiff(diff, word) {
   if (diff.typed.length) {
     node.append(line, document.createTextNode(diff.near ? ' — almost' : ' — not this time'));
   } else {
-    node.textContent = 'Skipped';
+    // Not "Not asked": that is a word you said not to ask again (All words'
+    // filter, the undo after Don't ask again). An empty box is graded Blank.
+    node.textContent = 'No answer';
   }
 }
 
@@ -1765,12 +2544,46 @@ function submitAnswer() {
   if (revealed || !queue.length) return;
   typed = canType ? $('rv-input').value : '';
   revealed = true;
-  // Blurred before the grades appear, or 1-4 would type digits into the box
-  // instead of grading. This is what lets one set of keys serve both halves of
-  // the card.
-  $('rv-input').blur();
+  revealedAt = performance.now();
   renderCard();
+  // Off the box once the grades appear, or 1-4 would type digits into it
+  // instead of grading. This is what lets one set of keys serve both halves of
+  // the card. Onto the grade Enter takes rather than a bare blur(), which left
+  // a keyboard user on <body> with Tab starting from the top of the page.
+  placeFocus();
+  const diff = $('rv-diff');
+  announce(`${diff.hidden ? '' : `${diff.textContent}. `}The answer is ${queue[0].word}.`);
   if (prefs.autoplay) speakWord(queue[0]);
+}
+
+// Where focus belongs after a card changes under the user's hand: the box on a
+// card you type, the grade Enter takes once the answer shows, the card itself
+// when it has no grades (a recognition card grades on 1-4 only), and the
+// session's way on when the queue is done. Every one of these replaces the
+// control that had focus, which would otherwise drop it to <body>. Called from
+// the handlers, not renderCard: a storage change re-renders too, and must not
+// pull focus off the star or the settings.
+function placeFocus() {
+  if ($('view-review').hidden) return;
+  const target = !queue.length ? [$('rv-more'), $('rv-back')].find((b) => !b.hidden)
+    : !revealed ? (canType ? $('rv-input') : $('rv-type').querySelector('button'))
+    : $('rv-grades').querySelector('.pick') ?? $('rv-card');
+  target?.focus();
+}
+
+// Review's outcomes, said aloud to a screen reader through the polite live
+// region in dashboard.html. The card is redrawn in place and focus does not
+// move, so without this nothing tells a non-sighted user what just happened.
+// Called from the handlers, never from renderCard: render() re-runs that on
+// every storage change and would repeat the line.
+function announce(text) {
+  $('sr-live').textContent = text;
+}
+
+// What grade() and skipCard() say once the card has moved on: the session's
+// "Done" line when that was the last card, else what happened to this one.
+function announceNext(said) {
+  announce(queue.length ? said : $('rv-empty-text').textContent);
 }
 
 // The one function in the extension that WRITES a schedule. Review calls it
@@ -1798,26 +2611,95 @@ async function grade(quality) {
   grading = true;
   try {
     const entry = queue.shift();
-    await applyGrade(entry, quality);
+    const before = Object.fromEntries(VT.SCHEDULE_FIELDS.map((f) => [f, entry[f]]));
+    const patch = await applyGrade(entry, quality);
     // A lapse returns to the back of this session's queue, so it is seen again
     // today; sessionTotal grows with it so the counter stays honest.
     if (quality < 3) {
       queue.push(entry);
       sessionTotal++;
     }
+    lastGrade = { entry, before, typed, at: patch.lastReview, lapsed: quality < 3 };
     revealed = false;
     typed = '';
     $('rv-input').value = '';
     renderCard();
+    placeFocus();
+    const label = GRADES.find((g) => g.q === quality)?.label ?? 'Graded';
+    showUndo(`Graded ${label}`);
+    announceNext(`${label}: ${entry.word}.`);
   } finally {
     grading = false;
   }
 }
 
+function showUndo(text) {
+  $('rv-undo-text').textContent = text;
+  // The box takes every bare letter, so a card you can type on is undone with
+  // the platform's own undo chord instead of z.
+  $('rv-undo-btn').replaceChildren('Undo', kbd(queue.length && canType ? `${MOD_KEY}Z` : 'z'));
+  $('rv-undo').classList.add('on');
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(clearUndo, UNDO_MS);
+}
+
+function clearUndo() {
+  lastGrade = null;
+  clearTimeout(undoTimer);
+  $('rv-undo').classList.remove('on');
+}
+
+// Puts the last graded card back on screen, answer showing, as it was before
+// the grade: its old schedule in storage, its history row gone, and the lapse
+// copy (if it was one) out of the back of the queue. The card that had moved up
+// goes back to waiting behind it, unrevealed. A skip comes back the same way,
+// as it was: `skipped` put back, revealed only if it had been.
+// ponytail: a sync that ran inside the five seconds has already sent the graded
+// copy, and mergeWord keeps the later lastReview; undo is local until it syncs.
+async function undoGrade() {
+  if (grading || !lastGrade || PRACTICE.active()) return;
+  grading = true;
+  const { entry, before, at, lapsed, typed: wasTyped, skip, wasRevealed } = lastGrade;
+  clearUndo();
+  try {
+    if (lapsed) {
+      const i = queue.findLastIndex((e) => e.word === entry.word);
+      if (i >= 0) { queue.splice(i, 1); sessionTotal--; }
+    }
+    // undefined is dropped when chrome.storage serialises the word, which is
+    // what a never-graded card's missing fields have to go back to.
+    await putWord(entry.word, before);
+    if (!skip) unrecordReview(entry.word, at);
+    for (const [f, v] of Object.entries(before)) {
+      if (v === undefined) delete entry[f];
+      else entry[f] = v;
+    }
+    words[entry.word] = entry;
+    const row = skip ? -1 : reviewLog.findLastIndex((r) => r.word === entry.word && r.at === at);
+    if (row >= 0) reviewLog.splice(row, 1);
+    queue.unshift(entry);
+    typed = wasTyped;
+    $('rv-input').value = '';
+    revealed = !skip || wasRevealed;
+    revealedAt = performance.now();
+    renderCard();
+    // Undo hides itself, so the button that was pressed is gone.
+    placeFocus();
+    announce(`${skip ? 'Skip' : 'Grade'} undone. ${entry.word} is back.`);
+  } finally {
+    grading = false;
+  }
+}
+
+$('rv-undo-btn').addEventListener('click', undoGrade);
+
 // Rebuilt per card rather than built once, because which button Enter will
 // press changes with what you typed and the marking has to move with it.
 function renderGrades(suggested) {
   const host = $('rv-grades');
+  // A storage change re-renders the card under a focused grade; put focus back
+  // on the same one, or the rebuild drops it to <body>.
+  const had = [...host.children].indexOf(document.activeElement);
   host.replaceChildren();
   if (suggested === null) return;
   for (const g of GRADES) {
@@ -1827,6 +2709,9 @@ function renderGrades(suggested) {
     const hint = document.createElement('span');
     hint.append(kbd(g.key), g.hint);
     button.append(label, hint);
+    // Without it the name runs the parts together: "Blank 1no idea".
+    button.setAttribute('aria-label', `${g.label}, ${g.hint}`);
+    button.setAttribute('aria-keyshortcuts', g.key);
     if (g.q === suggested) {
       button.className = 'pick';
       hint.replaceChildren(kbd(g.key), kbd('enter'));
@@ -1834,6 +2719,7 @@ function renderGrades(suggested) {
     button.addEventListener('click', () => grade(g.q));
     host.appendChild(button);
   }
+  host.children[had]?.focus();
 }
 
 // The card prompts with one definition. Everything else Cambridge gave us was
@@ -1866,9 +2752,9 @@ function renderFull(entry) {
     body.appendChild(el('h3', null, senses.length === 1 ? 'Another meaning' : 'Other meanings'));
     const list = el('ol');
     for (const sense of senses) {
-      const li = el('li', null, sense.def ?? DASH);
-      if (sense.level) li.appendChild(el('span', 'lvl', sense.level));
-      if (sense.example) li.appendChild(el('span', 'ex', sense.example));
+      const li = inLang(el('li', null, sense.def ?? DASH), defLang(entry));
+      if (sense.level) li.appendChild(inLang(el('span', 'lvl', sense.level), 'en'));
+      if (sense.example) li.appendChild(inLang(el('span', 'ex', sense.example), wordLang(entry)));
       list.appendChild(li);
     }
     body.appendChild(list);
@@ -1876,7 +2762,7 @@ function renderFull(entry) {
 
   for (const [label, items] of groups) {
     body.appendChild(el('h3', null, label));
-    const chips = el('div', 'chips');
+    const chips = inLang(el('div', 'chips'), wordLang(entry));
     for (const word of items) chips.appendChild(el('span', 'tag', word));
     body.appendChild(chips);
   }
@@ -1885,20 +2771,26 @@ function renderFull(entry) {
 $('rv-full').addEventListener('toggle', () => { fullOpen = $('rv-full').open; });
 
 // Not a delete and not a grade: the word leaves the rotation and keeps
-// everything else. No confirm() — it is undone with one click in All words,
-// and a dialog on a button pressed dozens of times a session is the wrong tax.
+// everything else. No confirm() — it is undone in place, with the grade's Undo,
+// or later with one click in All words; a dialog on a button pressed dozens of
+// times a session is the wrong tax.
 async function skipCard() {
   if (grading || !queue.length) return;
   grading = true;
   try {
     const entry = queue.shift();
+    const before = { skipped: entry.skipped };
     await putWord(entry.word, { skipped: true });
     entry.skipped = true;
     words[entry.word] = entry;
+    lastGrade = { entry, before, typed, skip: true, wasRevealed: revealed };
     revealed = false;
     typed = '';
     $('rv-input').value = '';
     renderCard();
+    placeFocus();
+    showUndo('Won’t ask again');
+    announceNext(`${entry.word} will not be asked again.`);
   } finally {
     grading = false;
   }
@@ -1932,10 +2824,14 @@ document.addEventListener('keydown', (event) => {
   // it. owns() is wider than a running tab on purpose — a selfTest presses the
   // same digits with no DOM of its own to hide behind.
   if (PRACTICE.owns()) return;
-  // The picker owns the keyboard while it is open: typing a tag name must not
-  // grade the card, and Esc closes the picker rather than the session.
-  if ($('tag-dlg').open) return;
+  // An open dialog owns the keyboard: typing a tag name must not grade the
+  // card, "1" over the shortcut sheet must not grade the card behind it, and
+  // Esc closes the dialog rather than the session.
+  if (document.querySelector('dialog[open]')) return;
   if (event.key === 'Escape') {
+    // A practice tab's Esc lands here too, after practice.js has already
+    // handed the cell back to the flashcard; it must stay on that card.
+    if (event.defaultPrevented) return;
     event.preventDefault();
     showView('overview');
     render();
@@ -1947,13 +2843,37 @@ document.addEventListener('keydown', (event) => {
   // this list because keydown runs before the click it becomes — tabbing to
   // Quiz and pressing Enter would otherwise reveal the card behind it, and
   // autoplay would read the answer out, a moment before the tab covered it up.
-  if (event.target.closest?.('.rvctl, .prtabs, #rv-star, #theme-btn')) return;
+  if (event.target.closest?.('.rvsettings, .prtabs, #rv-star, #theme-btn')) return;
+  // Undo. The chord works from an empty box too — the next card has already
+  // focused it, and there is nothing in it for the browser's own undo to take
+  // back. A box with text keeps the chord for its text.
+  if ((event.key === 'z' || event.key === 'Z') && lastGrade) {
+    const chord = event.metaKey || event.ctrlKey;
+    const inBox = document.activeElement === $('rv-input');
+    if (chord ? !(inBox && $('rv-input').value) : !inBox) {
+      event.preventDefault();
+      undoGrade();
+      return;
+    }
+  }
   // While the box has focus every other key belongs to it — a digit is a digit
   // and `r` is a letter. Enter is the exception, and the form handles that.
   if (document.activeElement === $('rv-input')) return;
+  // A focused control — the grade placeFocus put you on, one you tabbed to,
+  // Pronounce — takes its own Enter and Space, so Enter on Blank grades Blank
+  // rather than the suggestion. Except inside the grace window: the press that
+  // revealed, held or doubled, lands here now that focus moved to a grade.
+  if ((event.key === 'Enter' || event.key === ' ')
+      && event.target.closest?.('button, a[href], summary')) {
+    if (revealed && (event.repeat || performance.now() - revealedAt < ENTER_GRACE_MS)) event.preventDefault();
+    return;
+  }
 
   if (event.key === 'Enter') {
     event.preventDefault();
+    // A second Enter right behind the one that revealed, or the first one held
+    // down, would grade a card whose answer you have not looked at yet.
+    if (revealed && (event.repeat || performance.now() - revealedAt < ENTER_GRACE_MS)) return;
     if (!revealed) submitAnswer();
     else if (suggestedGrade() !== null) grade(suggestedGrade());
     return;
@@ -2022,7 +2942,13 @@ function renderPrefs() {
   // A stored URI for a voice since uninstalled has no option and reads as
   // Automatic, which is also what speak() falls back to.
   const installed = globalThis.speechSynthesis?.getVoices() ?? [];
-  const os = voicesFor(voices[0].bcp47, installed, voices[0].exact);
+  const stored = prefs.voices?.[activeLang];
+  // macOS's joke voices (Bells, Boing, Organ...) are not a pronunciation. The
+  // same NOVELTY list Automatic skips, kept only when they are all there is
+  // or when one is the stored choice, so the select never lies about the play button.
+  const every = voicesFor(voices[0].bcp47, installed, voices[0].exact);
+  const serious = every.filter((v) => !NOVELTY.test(v.name ?? '') || v.voiceURI === stored);
+  const os = serious.length ? serious : every;
   const speaker = $('rv-speaker');
   // Voices, but none for this language: say so where the select was. An empty
   // list is not that — it may still be filling in — so it keeps Automatic.
@@ -2031,7 +2957,6 @@ function renderPrefs() {
   $('rv-speaker-none').hidden = !none;
   $('rv-speaker-none').textContent = none ? voiceHint(LANG.get(activeLang)) : '';
   speaker.replaceChildren(new Option('Automatic', ''), ...os.map((v) => new Option(v.name, v.voiceURI)));
-  const stored = prefs.voices?.[activeLang];
   speaker.value = os.some((v) => v.voiceURI === stored) ? stored : '';
 }
 
@@ -2039,6 +2964,12 @@ function renderPrefs() {
 // typed go nowhere. Not renderCard(): that would re-run the card for nothing.
 function refocusCard() {
   if (!revealed && canType && queue.length && !$('view-review').hidden) $('rv-input').focus();
+}
+
+// The static controls' icons, from the same map as the built ones.
+for (const [id, name] of [['rv-shuffle', 'shuffle'], ['rv-speaker-play', 'play'],
+  ['rv-play', 'play'], ['rv-star', 'star']]) {
+  $(id).prepend(VT.icon(name));
 }
 
 $('rv-shuffle').addEventListener('click', () => {
@@ -2082,7 +3013,6 @@ globalThis.speechSynthesis?.addEventListener('voiceschanged', renderPrefs);
 
 function renderStar(entry) {
   const on = VT.foldersOf(entry).includes(VT.STARRED);
-  $('rv-star').textContent = on ? '★' : '☆';
   $('rv-star').setAttribute('aria-pressed', String(on));
   $('rv-star').title = on ? 'Unstar this word (s)' : 'Star this word (s)';
 }
@@ -2114,20 +3044,16 @@ const CHEERS = [
 ];
 
 function renderSide() {
-  // The same set the session queues from, so "3 words left to master" counts
-  // the cards you are actually going to be asked.
+  // The same set the session queues from, so the share mastered counts the
+  // cards you are actually going to be asked.
   const scope = inScope(reviewScope);
+  // Nothing to count yet: 0% and "keep going" over no words at all
+  // would be commentary on a session that does not exist.
+  $('rv-side').hidden = !scope.length;
   const mastered = scope.filter((e) => VT.isMastered(e)).length;
-  const left = scope.length - mastered;
   const pct = scope.length ? Math.round((mastered / scope.length) * 100) : 0;
-  // One segment per fifth mastered; the level is one ahead of them, so an
-  // empty set is Level 1 rather than Level 0.
-  const filled = Math.floor(pct / 20);
-  const level = Math.min(5, 1 + filled);
 
   $('rv-cheer').textContent = CHEERS.filter(([from]) => pct >= from).pop()[1];
-  $('rv-left').textContent = `${left} word${left === 1 ? '' : 's'} left to master`;
-  $('rv-mlevel').textContent = `Level ${level}`;
   $('rv-pct').textContent = `${pct}%`;
   $('rv-ring').setAttribute('stroke-dasharray', `${pct} 100`);
   $('rv-mastered').replaceChildren('You have mastered ',
@@ -2152,7 +3078,6 @@ function renderSide() {
     $('rv-next').textContent =
       `${next.length} word${next.length === 1 ? '' : 's'} can be mastered at the next review — first ${when}.`;
   }
-  [...$('rv-segs').children].forEach((seg, i) => seg.classList.toggle('on', i < filled));
 }
 
 /* ---------- practice ---------- */
@@ -2170,6 +3095,59 @@ function speakWord(entry) {
     showVoiceHint(voiceHint(pack));
   }
 }
+
+// The voice hint's strip with an Undo in it, for an action whose control went
+// away with it — a deleted word's card. Deletes pile up while it is showing:
+// "Deleted 3 words", and one Undo puts all three back, so a second delete
+// never costs the first its way back. Focus goes to Undo, since the button
+// that was pressed is gone and would otherwise drop it to the top of the page;
+// and the strip stays while focus is in it, so it cannot vanish under a
+// keyboard user.
+let toastDeleted = [];
+let toastTimer = 0;
+let lastDelete = -Infinity;
+const TOAST_MS = 8000;
+const DELETE_GUARD_MS = 400;
+
+// `gone` is [{ word, snapshot }]: one from a card's ×, many from the bulk bar.
+function showDeleted(gone) {
+  if (!gone.length) return;
+  toastDeleted.push(...gone);
+  $('toast-text').textContent = toastDeleted.length > 1
+    ? `Deleted ${toastDeleted.length} words` : `Deleted ${gone[0].word}`;
+  $('toast').hidden = false;
+  $('toast-undo').focus();
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, TOAST_MS);
+}
+
+function hideToast() {
+  if ($('toast').contains(document.activeElement)) {
+    toastTimer = setTimeout(hideToast, TOAST_MS);
+    return;
+  }
+  toastDeleted = [];
+  $('toast').hidden = true;
+}
+
+$('toast-undo').addEventListener('click', async () => {
+  const back = toastDeleted;
+  toastDeleted = [];
+  clearTimeout(toastTimer);
+  $('toast-undo').blur();
+  $('toast').hidden = true;
+  if (!back.length) return;
+  await putWords(Object.fromEntries(back.map((d) => [d.word, d.snapshot])));
+  await refresh();
+  // Back onto the first word that came back, since the Undo that had focus has
+  // just gone; the view's heading when it is on another page of the list.
+  // In List density that is the row's line, unless the row is open.
+  const first = back[0].word;
+  const card = [...document.querySelectorAll('#view-words .wcard, #view-words .wline')]
+    .find((c) => c.dataset.word === first)?.querySelector('.wc-say, summary');
+  (card ?? $('w-title')).focus();
+  announce(back.length > 1 ? `${back.length} words restored.` : `${first} restored.`);
+});
 
 // One line at the bottom of the window, gone after a few seconds: speakWord is
 // reached from the card, the words list and practice, so the hint cannot live
@@ -2230,9 +3208,29 @@ PRACTICE.hooks.flashcard = () => {
 
 function dayKey(ts) { return new Date(ts).toDateString(); }
 
-// `max` pins the scale (100 for a percentage); by default it is the tallest bar.
-function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) => s.n))) {
+// "Oct 23", the one date format the dashboard shows (rv-next uses it too).
+function shortDate(ts) {
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// One column per level of the active scale, then the words with no level —
+// only when there are some, so an empty "—" never sits at the end of the axis.
+function levelBuckets(all, levels) {
+  const count = (l) => all.filter((e) => (e.level ?? DASH) === l).length;
+  const buckets = levels.map((l) => ({ label: l, name: l, n: count(l) }));
+  const unknown = count(DASH);
+  if (unknown) buckets.push({ label: DASH, name: 'Unknown level', n: unknown });
+  return buckets;
+}
+
+// `max` pins the scale (100 for a percentage); by default it is the tallest
+// bar. The top of the scale is printed on the plot (`unit` after it), so a
+// tall bar reads as a number and not only as tall; an all-zero plot prints
+// none rather than a made-up 1.
+function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) => s.n)), unit = '') {
   node.replaceChildren();
+  if (series.some((s) => s.n)) node.dataset.max = `${max}${unit}`;
+  else delete node.dataset.max;
   for (const point of series) {
     const col = document.createElement('span');
     col.className = 'col';
@@ -2240,6 +3238,9 @@ function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) =
     bar.style.height = `${(point.n / max) * 100}%`;
     if (!point.n) bar.className = 'none';
     bar.title = point.title ?? `${point.label}: ${point.n}`;
+    // An <i> has no role to carry a name, so it takes img's.
+    bar.setAttribute('role', 'img');
+    bar.setAttribute('aria-label', bar.title);
     // An optional share of the bar drawn lighter, on top (new words in the
     // review forecast).
     if (point.part) {
@@ -2258,6 +3259,12 @@ function plotSeries(node, series, caption, max = Math.max(1, ...series.map((s) =
 }
 
 function renderStats(all) {
+  // The three review-history cards say nothing before the first review; one
+  // note stands in for all three until there is something to plot.
+  const saved = new Set(all.map((e) => e.word));
+  const reviewed = reviewLog.some((row) => saved.has(row.word));
+  for (const id of ['st-weak', 'st-retention', 'st-time']) $(id).closest('figure').hidden = !reviewed;
+  $('st-nohistory').hidden = reviewed;
   renderWeak(all);
   renderRetention(all);
   renderTime(all);
@@ -2272,24 +3279,26 @@ function renderStats(all) {
   const addedSeries = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    addedSeries.push({ label: d.toLocaleDateString(), n: added.get(d.toDateString()) ?? 0 });
+    addedSeries.push({ label: shortDate(d), n: added.get(d.toDateString()) ?? 0 });
   }
   plotSeries($('st-added'), addedSeries, false);
   const from = new Date(); from.setDate(from.getDate() - 29);
-  $('st-added-from').textContent = from.toLocaleDateString();
+  $('st-added-from').textContent = shortDate(from);
 
   // review load, next 14 days: FSRS played forward, new words shown lighter
   const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
   const load = VT.forecast(all, startOfToday.getTime());
   const dueSeries = load.map(({ fresh, review }, i) => {
-    const label = new Date(startOfToday.getTime() + i * 86400000).toLocaleDateString();
+    const label = shortDate(startOfToday.getTime() + i * 86400000);
     return { label, n: fresh + review, part: fresh,
              title: `${label}: ${review} review${review === 1 ? '' : 's'} + ${fresh} new` };
   });
   plotSeries($('st-due'), dueSeries, false);
   const to = new Date(); to.setDate(to.getDate() + 13);
-  $('st-due-to').textContent = to.toLocaleDateString();
+  $('st-due-to').textContent = shortDate(to);
   const total = dueSeries.reduce((sum, d) => sum + d.n, 0);
+  // No bars, nothing for a key to explain.
+  $('st-due-legend').hidden = !total;
   const peak = dueSeries.reduce((a, d) => (d.n > a.n ? d : a), dueSeries[0]);
   $('st-due-sum').textContent = total
     ? `About ${Math.round(total / dueSeries.length)} a day · busiest ${peak.label} with ${peak.n} ` +
@@ -2298,9 +3307,8 @@ function renderStats(all) {
 
   // levels — the active language's scale, hoisted here rather than module-wide
   // for the reason renderOverview gives.
-  const levelSeries = [...LANG.get(activeLang).levels, DASH].map((l) => ({
-    label: l, n: all.filter((e) => (e.level ?? DASH) === l).length
-  }));
+  const levelSeries = levelBuckets(all, LANG.get(activeLang).levels)
+    .map(({ label, name, n }) => ({ label, n, title: `${name}: ${n} word${n === 1 ? '' : 's'}` }));
   plotSeries($('st-levels'), levelSeries, true);
   $('st-levels-axis').textContent = '';
 
@@ -2431,12 +3439,12 @@ function renderRetention(all) {
   const weeks = VT.weeklyRetention(reviewLog.filter((row) => mine.has(row.word)), RETENTION_WEEKS);
   const pct = (rate) => Math.round(rate * 100);
   plotSeries($('st-retention'), weeks.map(({ start, reviews, passed, rate }) => {
-    const label = new Date(start).toLocaleDateString();
+    const label = `Week of ${shortDate(start)}`;
     return { label, n: rate == null ? 0 : pct(rate),
              title: reviews ? `${label}: ${pct(rate)}% · ${passed} of ${reviews} remembered`
                             : `${label}: no reviews` };
-  }), false, 100);
-  $('st-retention-from').textContent = new Date(weeks[0].start).toLocaleDateString();
+  }), false, 100, '%');
+  $('st-retention-from').textContent = shortDate(weeks[0].start);
   const seen = weeks.map((w, i) => ({ ...w, ago: weeks.length - 1 - i })).filter((w) => w.reviews);
   const when = (ago) => (ago === 0 ? 'This week' : ago === 1 ? 'Last week' : `${ago} weeks ago`);
   const [first, last] = [seen[0], seen[seen.length - 1]];
@@ -2453,15 +3461,15 @@ function renderTime(all) {
   const series = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    const label = d.toLocaleDateString();
+    const label = shortDate(d);
     // At least a minute on a day with any review, so a short one is not "none".
     const raw = minutes.get(VT.dayKey(d.getTime())) ?? 0;
     const n = raw ? Math.max(1, Math.round(raw)) : 0;
     series.push({ label, n, title: `${label}: ${n} min` });
   }
-  plotSeries($('st-time'), series, false);
+  plotSeries($('st-time'), series, false, undefined, ' min');
   const from = new Date(); from.setDate(from.getDate() - 29);
-  $('st-time-from').textContent = from.toLocaleDateString();
+  $('st-time-from').textContent = shortDate(from);
   const total = series.reduce((sum, d) => sum + d.n, 0);
   const span = total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} min` : `${total} min`;
   $('st-time-sum').textContent = total
@@ -2505,6 +3513,7 @@ function renderWriting() {
     const row = document.createElement('li');
     const remove = el('button', 'rowdel', '×');
     remove.title = `Check on ${host} again`;
+    remove.setAttribute('aria-label', remove.title);
     remove.addEventListener('click', () => setWriteOff(writing.off.filter((h) => h !== host)));
     row.append(el('span', null, host), remove);
     hosts.appendChild(row);
@@ -2538,21 +3547,55 @@ $('wr-on').addEventListener('change', async (event) => {
   await refresh();
 });
 
+// What was typed in the Off on these sites box, as the hostname writer.js
+// compares against, or null when it is not one. Through URL first: someone will
+// paste a whole address, and storing "https://mail.google.com/chat" would match
+// nothing. Then a shape check, because URL accepts "not a host!!" and
+// percent-encodes it into a hostname no page will ever have.
+function siteHost(raw) {
+  let host;
+  try { host = new URL(raw.includes('://') ? raw : `https://${raw}`).hostname; }
+  catch { return null; }
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || host === 'localhost' ? host : null;
+}
+
+function showHostError(text) {
+  $('wr-host-error').textContent = text;
+  $('wr-host-error').hidden = !text;
+  if (text) $('wr-host').setAttribute('aria-invalid', 'true');
+  else $('wr-host').removeAttribute('aria-invalid');
+}
+
+$('wr-host').addEventListener('input', () => showHostError(''));
+
 $('wr-add').addEventListener('submit', (event) => {
   event.preventDefault();
   const raw = $('wr-host').value.trim();
-  if (!raw) return;
-  let host;
-  // Through URL rather than a regex: someone will paste a whole address, and
-  // storing "https://mail.google.com/chat" as a hostname would match nothing.
-  try { host = new URL(raw.includes('://') ? raw : `https://${raw}`).hostname; }
-  catch { return; }
+  if (!raw) {
+    showHostError('Type a site, like mail.google.com, or paste its address.');
+    return;
+  }
+  const host = siteHost(raw);
+  if (!host) {
+    showHostError(`“${raw}” is not a site address. Type it like mail.google.com, or paste the page's address.`);
+    return;
+  }
+  if (writing.off.includes(host)) {
+    showHostError(`Checking is already off on ${host}.`);
+    return;
+  }
+  showHostError('');
   $('wr-host').value = '';
   setWriteOff([...writing.off, host]);
 });
 
-$('wr-reset').addEventListener('click', async () => {
-  if (!confirm('Forget every mistake counted so far? This cannot be undone.')) return;
+$('wr-reset').addEventListener('click', () => $('reset-dlg').showModal());
+
+// On the form's submit, by which button, rather than on close by returnValue:
+// returnValue survives an Esc, so a reset once confirmed would read as
+// confirmed again the next time the dialog was dismissed.
+$('reset-dlg').querySelector('form').addEventListener('submit', async (event) => {
+  if (event.submitter?.value !== 'reset') return;
   await chrome.storage.local.set({ writeMistakes: {} });
   await refresh();
 });

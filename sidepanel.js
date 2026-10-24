@@ -539,6 +539,9 @@ $('open-dashboard').addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'open-dashboard' });
 });
 
+// No type preset: from mid-reading it could be either.
+$('feedback').href = VT.feedbackUrl(null, chrome.runtime.getManifest().version, navigator.userAgent);
+
 
 /* ---------- words saved on the page you are reading ---------- */
 

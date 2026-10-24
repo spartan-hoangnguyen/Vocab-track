@@ -55,7 +55,7 @@
   PRACTICE.register('listening', {
     title: 'Listening',
     blurb: 'Hear it, type it',
-    icon: '♪',
+    icon: 'headphones',
     color: 'green',
     // You type the word from the sound alone, with nothing on screen to
     // recognise it from — the same production the review card asks for, so a
@@ -156,7 +156,8 @@
 
       // A button, not a letter key: every letter belongs to the input. Tab
       // reaches it, and Ctrl+Space replays without leaving the box.
-      const play = node('button', 'btn ghost prlplay', '▶ Play again');
+      const play = node('button', 'btn ghost prlplay', 'Play again');
+      play.prepend(VT.icon('play'));
       play.type = 'button';
       play.title = 'Ctrl+Space';
       play.addEventListener('click', () => { say(); back(); });
@@ -164,7 +165,8 @@
       // Beside the normal speed, never instead of it: slow is for the syllable
       // you cannot place, and the next thing you want after placing it is the
       // word said properly again to check it against.
-      const slower = node('button', 'btn ghost prlslow', '🐢 Slower');
+      const slower = node('button', 'btn ghost prlslow', 'Slower');
+      slower.prepend(VT.icon('slow'));
       slower.type = 'button';
       slower.title = 'Ctrl+Shift+Space — 0.6× speed';
       slower.addEventListener('click', () => { slow(); back(); });
@@ -182,7 +184,8 @@
       // a word with a recording and no pack voice plays, its sentence cannot.
       const sentence = canSay ? sentenceOf(entry) : '';
       if (sentence) {
-        const quote = node('button', 'btn ghost prlsentence', '❝ Play the sentence');
+        const quote = node('button', 'btn ghost prlsentence', 'Play the sentence');
+        quote.prepend(VT.icon('quote'));
         quote.type = 'button';
         quote.addEventListener('click', () => {
           // Not counted: the tally answers "how many times did I need the

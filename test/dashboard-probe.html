@@ -131,7 +131,8 @@ window.chrome = {
       set: async (patch) => { Object.assign(STORE, patch); } },
     onChanged:{ addListener:(f)=>listeners.push(f) } },
   runtime:{ sendNativeMessage: async () => { throw new Error('no host'); },
-            sendMessage(){}, onMessage:{ addListener(){} } }
+            sendMessage(){}, onMessage:{ addListener(){} },
+            getManifest:()=>({ version:'0.0.0' }) }
 };
 </script>
 
@@ -171,6 +172,98 @@ ready.then(() => setTimeout(async () => {
   check('the review CTA is hidden inside the review', document.getElementById('review-btn').hidden);
   showView('overview');
   check('the review CTA is back outside it', !document.getElementById('review-btn').hidden);
+
+  // The Help links are real links to the feedback form, not views.
+  for (const kind of ['feature', 'bug']) {
+    const a = document.getElementById(`fb-${kind}`);
+    check(`the ${kind} link opens the feedback form in a new tab`,
+          a.href.includes('usp=pp_url') && a.target === '_blank', a.href);
+    a.removeAttribute('target');   // keep a click in this frame from navigating anywhere
+    a.addEventListener('click', (e) => e.preventDefault(), { once: true });
+    a.click();
+    check(`clicking the ${kind} link leaves the overview showing`,
+          !document.getElementById('view-overview').hidden);
+  }
+
+  /* ---- help: one menu below 900px, a plain list at this width ---- */
+  const helpNav = document.getElementById('help-nav');
+  check('Help is a popover its toggle opens',
+        helpNav.hasAttribute('popover')
+        && document.querySelector('.helptoggle').getAttribute('popovertarget') === 'help-nav');
+  check('at full width the toggle is not drawn and all four items are',
+        !document.querySelector('.helptoggle').checkVisibility()
+        && [...helpNav.children].filter((c) => c.checkVisibility()).length === 4,
+        [...helpNav.children].map((c) => c.checkVisibility()).join());
+
+  /* ---- narrow: all seven links on screen, none scrolled out of sight ---- */
+  // The 900px rules answer to the viewport, so the real sidebar goes into an
+  // 800px frame with the real stylesheet rather than having this page shrunk.
+  const narrow = document.createElement('iframe');
+  narrow.style.cssText = 'width:800px;height:400px;border:0;position:absolute;left:-9999px';
+  narrow.srcdoc = '<link rel="stylesheet" href="../dashboard.css"><body>'
+    + document.querySelector('aside').outerHTML;
+  await new Promise((r) => { narrow.onload = r; document.body.append(narrow); });
+  const nDoc = narrow.contentDocument;
+  const nLinks = [...nDoc.querySelectorAll('.navs nav a')];
+  const nNavs = nDoc.querySelector('.navs');
+  check('at 800 px every page link is on screen, wrapped rather than scrolled',
+        nLinks.length === 7 && nNavs.scrollWidth <= nNavs.clientWidth
+        && nLinks.every((a) => { const r = a.getBoundingClientRect(); return r.width > 0 && r.right <= 800; }),
+        nLinks.map((a) => `${a.textContent}:${Math.round(a.getBoundingClientRect().right)}`).join());
+  narrow.remove();
+
+  /* ---- help: the shortcut sheet and How reviewing works ---- */
+  const keysDlg = document.getElementById('keys-dlg');
+  const howDlg = document.getElementById('how-dlg');
+  const pressKey = (key, target = document) =>
+    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  document.getElementById('help-keys').click();
+  check('Keyboard shortcuts in Help opens the sheet', keysDlg.open);
+  const sheetKeys = [...keysDlg.querySelectorAll('kbd')].map((k) => k.textContent);
+  check('the sheet lists every grade key the review binds',
+        GRADES.every((g) => sheetKeys.includes(g.key)), sheetKeys.join(' '));
+  check('and undo in this platform\'s modifier', sheetKeys.includes(`${MOD_KEY}Z`), sheetKeys.join(' '));
+  keysDlg.close();
+  pressKey('?');
+  check('"?" opens the sheet from the page', keysDlg.open);
+  keysDlg.close();
+  const qBox = document.getElementById('q');
+  qBox.focus();
+  pressKey('?', qBox);
+  check('"?" typed in the search box stays a character', !keysDlg.open);
+  qBox.blur();
+  startReview(null);
+  showView('review');
+  render();
+  const wasRevealed = revealed;
+  const wasQueued = queue.length;
+  pressKey('?');
+  pressKey('Enter');
+  pressKey('4');
+  pressKey('Escape');
+  check('over a review, the open sheet keeps Enter, digits and Esc off the card',
+        keysDlg.open && revealed === wasRevealed && queue.length === wasQueued
+        && !document.getElementById('view-review').hidden);
+  keysDlg.close();
+  document.getElementById('rv-mastery-help').click();
+  check('the (?) beside Mastery opens How reviewing works, on its heading',
+        howDlg.open && document.activeElement?.closest('section')?.id === 'how-mastery');
+  howDlg.close();
+  showView('overview');
+  render();
+  const folderTabs = [...document.querySelector('#ov-folders .f').querySelectorAll('button')];
+  check('a folder card\'s title comes before its (?) in tab order',
+        folderTabs[0].classList.contains('fopen'), folderTabs.map((b) => b.className).join());
+  document.querySelector('#ov-folders .f .meta .helpq').click();
+  check('the (?) on a folder card opens it too, and not the folder',
+        howDlg.open && !document.getElementById('view-overview').hidden);
+  howDlg.close();
+  // The sheet says "Blank or Hard brings it back in 1 day, Good in 2 and Easy
+  // in 8": the scheduler's first intervals, pinned so the copy cannot drift.
+  const firstDays = GRADES.map((g) => VT.schedule({ reps: 0, interval: 0 }, g.q, 0).interval);
+  check('the help\'s first-review days are the scheduler\'s', firstDays.join() === '1,1,2,8'
+        && /Blank or Hard brings it back in 1 day, Good in\s+2 and Easy in 8/.test(howDlg.textContent),
+        firstDays.join());
 
   /* ---- the search placeholder must not run under the shortcut badge ---- */
   const input = document.getElementById('q');
@@ -261,10 +354,34 @@ ready.then(() => setTimeout(async () => {
         [...document.querySelectorAll('#rv-grades button')].length === 4
         && [...document.querySelectorAll('#rv-grades button kbd')].length === 5,
         `${document.querySelectorAll('#rv-grades button kbd').length} keys`);
+  check('a grade’s name is its label and hint, not "Blank 1no idea"',
+        document.querySelector('#rv-grades button').getAttribute('aria-label') === 'Blank, no idea',
+        document.querySelector('#rv-grades button').getAttribute('aria-label'));
   // The box must not keep focus once the grades are live, or 1-4 would type
   // digits into it instead of grading.
   check('focus leaves the box so the number keys can grade',
         document.activeElement !== typeBox, document.activeElement?.id);
+  check('and lands on the grade Enter takes, not on <body>',
+        document.activeElement === picked[0], document.activeElement?.outerHTML.slice(0, 60));
+  // Focus is on a button now, so the Enter that revealed — held, or pressed
+  // twice — reaches it. Inside the grace window it is still swallowed; after
+  // it, a focused grade is left to press itself.
+  const keyOn = (node, key) => {
+    const ev = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    node.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  };
+  revealedAt = performance.now();
+  check('Enter or Space on it right after the reveal is held back',
+        keyOn(picked[0], 'Enter') && keyOn(picked[0], ' ') && revealed);
+  revealedAt = performance.now() - 1000;
+  const blankBtn = document.querySelector('#rv-grades button');
+  check('later, Enter on another grade is that grade’s, not the suggestion’s',
+        !keyOn(blankBtn, 'Enter') && revealed && queue[0]?.word === 'strategy');
+  // <html lang="en"> is dashboard.html's own; only its <body> is loaded here.
+  check('the card names the languages of the word and its gloss',
+        document.getElementById('rv-word').lang === 'en' && document.getElementById('rv-vi').lang === 'vi',
+        `${document.getElementById('rv-word').lang} ${document.getElementById('rv-vi').lang}`);
 
   /* ---- the answer side: Cambridge, and everything the entry already knows ---- */
   check('the Cambridge link appears with the answer',
@@ -311,6 +428,43 @@ ready.then(() => setTimeout(async () => {
   check('a synonym suggests Good',
         synPick.length === 1 && synPick[0].querySelector('b').textContent === 'Good',
         synPick[0]?.querySelector('b').textContent);
+
+  // Same card, nothing typed: "No answer", never "Skipped" — that word is
+  // Don't ask again's, in All words and on the undo.
+  revealed = false;
+  renderCard();
+  typeBox.value = '';
+  document.getElementById('rv-type').dispatchEvent(new Event('submit', { cancelable: true }));
+  await new Promise((r) => setTimeout(r, 20));
+  check('an empty answer reads No answer, graded Blank',
+        diff.textContent === 'No answer'
+        && document.querySelector('#rv-grades button.pick b')?.textContent === 'Blank',
+        `${diff.textContent} / ${document.querySelector('#rv-grades button.pick b')?.textContent}`);
+  check('and the live region says the same',
+        document.getElementById('sr-live').textContent.startsWith('No answer.'),
+        document.getElementById('sr-live').textContent);
+
+  // The longest word anyone saves, answered with a slip, in both themes: the
+  // word, the diff and the card all stay inside the card's own width.
+  const longWord = 'antidisestablishmentarianism';
+  const wasShowing = { revealed, typed };
+  queue.unshift({ ...WORDS.strategy, word: longWord, context: null });
+  typed = 'antidisestablishmentarianizm';
+  revealed = true;
+  for (const theme of ['', 'night']) {
+    document.documentElement.dataset.theme = theme;
+    renderCard();
+    const inside = (id) => document.getElementById(id).scrollWidth <= document.getElementById(id).clientWidth;
+    check(`a long word fits the card${theme ? ' at night' : ''}`,
+          inside('rv-word') && inside('rv-diff') && inside('rv-card')
+          && parseFloat(cs(document.getElementById('rv-word')).fontSize) < 46,
+          `${document.getElementById('rv-word').scrollWidth}/${document.getElementById('rv-word').clientWidth} `
+          + `${document.getElementById('rv-diff').scrollWidth}/${document.getElementById('rv-diff').clientWidth}`);
+  }
+  delete document.documentElement.dataset.theme;
+  queue.shift();
+  ({ revealed, typed } = wasShowing);
+  renderCard();
   // Remembered across cards: renderCard rebuilds on every grade.
   full.open = true;
   full.dispatchEvent(new Event('toggle'));
@@ -346,20 +500,57 @@ ready.then(() => setTimeout(async () => {
         !dueCount(Object.values(STORE.words).filter((e) => e.word === skipped)));
   check('nor as a new card',
         !newCards(Object.values(STORE.words).filter((e) => e.word === skipped)).length);
+  check('a skip offers Undo in place', document.getElementById('rv-undo').checkVisibility({ visibilityProperty: true })
+        && document.getElementById('rv-undo-text').textContent === 'Won’t ask again',
+        document.getElementById('rv-undo-text').textContent);
+  document.getElementById('rv-undo-btn').click();
+  await new Promise((r) => setTimeout(r, 30));
+  check('undoing a skip puts the word back in the rotation and on screen, unrevealed',
+        !STORE.words[skipped].skipped && queue[0]?.word === skipped && queue.length === before && !revealed,
+        `skipped=${STORE.words[skipped].skipped} ${queue[0]?.word} ${queue.length}/${before} revealed=${revealed}`);
+  await skipCard();   // skipped again, for the checks below
   startReview(null);
   check('a fresh session never offers it again',
         !queue.some((e) => e.word === skipped));
   check('but the word is still in the collection', !!STORE.words[skipped]);
 
-  // Un-skipping is the only way back, and it lives on the word card.
+  // Ask again is the only way back, and it lives on the word card.
   await refresh();
   const backTag = [...document.querySelectorAll('#w-cards .tag.clickable')]
-    .find((t) => t.textContent.startsWith('Skipped'));
+    .find((t) => t.textContent.startsWith('Ask again'));
   check('All words offers the way back', !!backTag);
   backTag?.click();
   await new Promise((r) => setTimeout(r, 30));
   check('clicking it puts the word back in the rotation',
         STORE.words[skipped].skipped === false);
+
+  /* ---- Delete: no confirm(), done at once, undone from the toast ---- */
+  const realConfirm = window.confirm;
+  let confirmed = 0;
+  window.confirm = () => { confirmed++; return true; };
+  const delCard = document.querySelector('#w-cards .wcard');
+  const delWord = delCard.querySelector('.wc-word').textContent;
+  STORE.words[delWord].folders = ['ielts-c1'];
+  const delBefore = JSON.stringify({ ...STORE.words[delWord], updated: 0 });
+  delCard.querySelector('.rowdel').click();
+  await new Promise((r) => setTimeout(r, 30));
+  check('delete asks nothing and the word is gone', confirmed === 0 && !STORE.words[delWord], `confirm×${confirmed}`);
+  check('and leaves a tombstone for sync', !!STORE.deleted?.words?.[delWord]);
+  check('the toast says what went and focuses Undo',
+        !document.getElementById('toast').hidden
+        && document.getElementById('toast-text').textContent === `Deleted ${delWord}`
+        && document.activeElement === document.getElementById('toast-undo'),
+        document.getElementById('toast-text').textContent);
+  document.getElementById('toast-undo').click();
+  await new Promise((r) => setTimeout(r, 30));
+  check('Undo restores the entry exactly — folders, schedule and all',
+        JSON.stringify({ ...STORE.words[delWord], updated: 0 }) === delBefore,
+        JSON.stringify(STORE.words[delWord]));
+  check('and clears the tombstone, so sync keeps it', !(delWord in (STORE.deleted?.words ?? {})));
+  check('and the toast goes', document.getElementById('toast').hidden);
+  check('the card is back in All words',
+        [...document.querySelectorAll('#w-cards .wc-word')].some((w) => w.textContent === delWord));
+  window.confirm = realConfirm;
 
   // Remove highlight in the side panel's quiz: the card is the way back.
   STORE.words[skipped].noHighlight = true;
@@ -397,6 +588,11 @@ ready.then(() => setTimeout(async () => {
         document.querySelectorAll('#tag-list .tagrow.suggested').length === VT.TOPICS.length,
         String(document.querySelectorAll('#tag-list .tagrow.suggested').length));
   check('but none of them is a folder yet', !STORE.folders?.t_politics);
+  check('the picker calls it a folder, not a tag',
+        document.getElementById('tag-title').textContent === `Add to folder · ${tagWord}`,
+        document.getElementById('tag-title').textContent);
+  check('presets sit under their own Suggested heading',
+        [...document.querySelectorAll('#tag-list .taggroup')].map((g) => g.getAttribute('aria-label')).join() === 'Suggested');
 
   const queued = queue.length;
   document.dispatchEvent(new KeyboardEvent('keydown', { key: '3', cancelable: true }));
@@ -411,6 +607,11 @@ ready.then(() => setTimeout(async () => {
   check('Enter on a partial name files the word under that topic',
         STORE.words[tagWord].folders.includes('t_politics'), STORE.words[tagWord].folders.join());
   check('and the preset becomes a real folder', STORE.folders?.t_politics?.name === 'Politics & Government');
+  tagQ.value = '';
+  tagQ.dispatchEvent(new Event('input'));
+  check('your folders and the presets are two groups, yours first',
+        [...document.querySelectorAll('#tag-list .taggroup')].map((g) => g.getAttribute('aria-label')).join() === 'Your folders,Suggested'
+          && /Politics/.test(document.querySelector('#tag-list .taggroup')?.textContent));
   check('which is no longer offered as a suggestion',
         [...document.querySelectorAll('#tag-list .tagrow.suggested')]
           .every((row) => !/Politics/.test(row.textContent)));
@@ -418,7 +619,7 @@ ready.then(() => setTimeout(async () => {
   tagQ.value = 'IELTS Task 2';
   tagQ.dispatchEvent(new Event('input'));
   check('a name nobody has used offers to create it',
-        /Create “IELTS Task 2”/.test(document.querySelector('#tag-list .create')?.textContent));
+        /New folder “IELTS Task 2”/.test(document.querySelector('#tag-list .create')?.textContent));
   enterIn(tagQ);
   await tick();
   const made = Object.values(STORE.folders).find((f) => f.name === 'IELTS Task 2');
@@ -444,7 +645,7 @@ ready.then(() => setTimeout(async () => {
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
   check('every nav item has its own icon',
-        icons.length === 6 && new Set(icons).size === 6, `${new Set(icons).size} distinct of ${icons.length}`);
+        icons.length === 9 && new Set(icons).size === 9, `${new Set(icons).size} distinct of ${icons.length}`);
 
   /* ---- writing: the settings and the mistake list ----
      Driven through STORE + refresh() rather than the initial load, so each
@@ -498,6 +699,22 @@ ready.then(() => setTimeout(async () => {
         parseFloat(cs(rows()[0].querySelector('.n')).fontSize) >= 20,
         cs(rows()[0].querySelector('.n')).fontSize);
 
+  // Reset asks in a dialog of the page's own, and Cancel/Esc keeps the counts.
+  const resetDlg = document.getElementById('reset-dlg');
+  document.getElementById('wr-reset').click();
+  check('Reset opens its dialog, focus on Cancel',
+        resetDlg.open && document.activeElement?.value === 'cancel', document.activeElement?.outerHTML);
+  resetDlg.querySelector('button[value="reset"]').click();
+  await new Promise((r) => setTimeout(r, 30));
+  check('confirming forgets the mistakes and closes it',
+        !Object.keys(STORE.writeMistakes).length && !resetDlg.open, JSON.stringify(STORE.writeMistakes).slice(0, 80));
+  STORE.writeMistakes = { RULE_1: { n: 1, msg: 'm', cat: 'GRAMMAR' } };
+  document.getElementById('wr-reset').click();
+  resetDlg.dispatchEvent(new Event('cancel'));   // what Esc does
+  resetDlg.close();
+  await new Promise((r) => setTimeout(r, 30));
+  check('dismissing it keeps them, even after an earlier reset', Object.keys(STORE.writeMistakes).length === 1);
+
   // An imported word list is thousands of entries. putWord reads and rewrites
   // the whole words map per call, so the import path has to batch — counting
   // the writes is the only way to catch a regression back to per-word saves,
@@ -515,6 +732,16 @@ ready.then(() => setTimeout(async () => {
         !!STORE.words.strategy.def && STORE.words.strategy.folders.includes('ielts-c1'));
   check('a bulk import adds an entry it has never seen', STORE.words.aberration?.level === 'C2');
 
+  // A handful of words, density never chosen: full cards, which is the point
+  // of a small library.
+  await refresh();
+  const fewWords = Object.keys(STORE.words).length;
+  check('a small library defaults to Cards',
+        fewWords <= WORDS_CARDS_UP_TO && !STORE.wordsView?.density
+        && !!document.querySelector('#w-cards > .wcard') && !document.querySelector('#w-cards > .wline > details.wrow')
+        && document.querySelector('#w-filter [data-density="cards"]').getAttribute('aria-pressed') === 'true',
+        String(fewWords));
+
   // 400 words, so the 300 cap has something to cut. A card is 16 elements, and
   // renderWords runs on every keystroke in the search box: uncapped, an
   // imported list rebuilds tens of thousands of nodes per keystroke.
@@ -528,9 +755,91 @@ ready.then(() => setTimeout(async () => {
   await refresh();
   const listed = document.getElementById('w-cards').children.length;
   check('the words list caps how many cards it builds', listed === 300, String(listed));
-  check('the words list says the rest are there',
-        /search to reach the rest/.test(document.getElementById('w-sub').textContent),
+  // Density never chosen: past a handful of words the list is lines, not
+  // 300 full cards, and the List button says so.
+  check('a large library defaults to List',
+        !STORE.wordsView?.density && document.querySelectorAll('#w-cards > .wline > details.wrow').length === 300
+        && document.querySelector('#w-filter [data-density="list"]').getAttribute('aria-pressed') === 'true',
+        JSON.stringify(STORE.wordsView));
+  const total = Object.keys(STORE.words).length;
+  check('the words list says honestly how many it is not showing',
+        document.getElementById('w-sub').textContent
+          === `Showing 300 of ${total} — narrow with search or filters`,
         document.getElementById('w-sub').textContent);
+
+  /* ---- All words: status / level / sort / density, remembered ---- */
+  const wf = document.getElementById('w-filter');
+  const listedWords = () => [...document.querySelectorAll('#w-cards .wc-word, #w-cards .wrow-word')]
+    .map((w) => w.textContent);
+  wf.querySelector('[data-status="due"]').click();
+  await tick();
+  const dueListed = listedWords();
+  check('the Due chip lists only words due now',
+        dueListed.length > 0 && dueListed.every((w) => STORE.words[w].due <= Date.now()),
+        dueListed.join());
+  check('and says so on the chip and is remembered',
+        wf.querySelector('[data-status="due"]').getAttribute('aria-pressed') === 'true'
+        && wf.querySelector('[data-status="due"] span').textContent === String(dueListed.length)
+        && STORE.wordsView?.status === 'due', JSON.stringify(STORE.wordsView));
+  wf.querySelector('[data-status="all"]').click();
+  document.getElementById('w-sort').value = 'az';
+  document.getElementById('w-sort').dispatchEvent(new Event('change'));
+  await tick();
+  const az = listedWords();
+  check('A–Z sorts the list alphabetically',
+        az.join() === [...az].sort((a, b) => a.localeCompare(b)).join() && STORE.wordsView.sort === 'az',
+        az.slice(0, 4).join());
+  document.getElementById('w-level').value = 'B2';
+  document.getElementById('w-level').dispatchEvent(new Event('change'));
+  await tick();
+  check('the level select keeps only that level',
+        listedWords().length > 0 && listedWords().every((w) => STORE.words[w].level === 'B2'),
+        listedWords().join());
+  wf.querySelector('[data-density="list"]').click();
+  await tick();
+  const wrows = document.querySelectorAll('#w-cards details.wrow');
+  check('List draws one closed line per word and no cards',
+        wrows.length === listedWords().length && wrows.length > 0
+        && !document.querySelector('#w-cards .wcard') && STORE.wordsView.density === 'list',
+        `${wrows.length} wrows`);
+  wrows[0].open = true;
+  await tick();
+  check('opening a line shows its full card', document.querySelectorAll('#w-cards .wcard').length === 1);
+  render();
+  check('and a re-render keeps it open',
+        document.querySelectorAll('#w-cards details[open] .wcard').length === 1);
+  wf.querySelector('[data-status="learned"]').click();
+  await tick();
+  const clearBtn = [...document.querySelectorAll('#w-empty button')]
+    .find((b) => b.textContent === 'Clear filters');
+  check('filters that leave nothing offer to clear them', !!clearBtn,
+        document.getElementById('w-empty').textContent);
+  clearBtn?.click();
+  await tick();
+  check('and clearing them brings the words back',
+        STORE.wordsView.status === 'all' && STORE.wordsView.level === ''
+        && document.getElementById('w-empty').hidden, JSON.stringify(STORE.wordsView));
+  // Filters left over from another session must not make a search read as
+  // "not saved": the sub-line names them and counts what they hide.
+  setWordsView({ status: 'skipped', level: 'B2' });
+  document.getElementById('q').value = 'bulkword399';
+  render();
+  await tick();
+  check('a search under remembered filters names them and what they hide',
+        document.getElementById('w-sub').textContent
+          === '0 matches for “bulkword399” in Not asked · B2 · 1 hidden by filters',
+        document.getElementById('w-sub').textContent);
+  const showAll = [...document.querySelectorAll('#w-empty button')]
+    .find((b) => b.textContent === 'Show all');
+  check('and offers to show them',
+        !!showAll && document.getElementById('w-empty').textContent.startsWith('1 match hidden by filters.'),
+        document.getElementById('w-empty').textContent);
+  showAll?.click();
+  await tick();
+  check('which lists the word', listedWords().join() === 'bulkword399', listedWords().join());
+  document.getElementById('q').value = '';
+  setWordsView({ ...WORDS_VIEW_DEFAULTS });
+  await tick();
 
   // A folder full of words none of which are due yet — an imported list on any
   // day but the first. Opening it must still offer a way in.
@@ -564,6 +873,8 @@ ready.then(() => setTimeout(async () => {
   check('a finished session shows Done and no empty card',
         !document.getElementById('rv-card').checkVisibility()
         && document.getElementById('rv-empty').checkVisibility());
+  check('with nothing to review the session settings are not drawn',
+        !document.querySelector('.rvsettings').checkVisibility());
   check('nothing marked hidden is drawn (paper)', !leaks().length, leaks().join());
   document.documentElement.dataset.theme = 'night';
   check('nothing marked hidden is drawn (night)', !leaks().length, leaks().join());
@@ -572,6 +883,10 @@ ready.then(() => setTimeout(async () => {
   check('and that button starts them without leaving the review',
         queue.length === 20 && document.getElementById('rv-card').hidden === false,
         String(queue.length));
+  check('with a card up the session settings are back, folded shut',
+        document.querySelector('.rvsettings').checkVisibility()
+        && !document.querySelector('.rvsettings').open
+        && !document.getElementById('rv-shuffle').checkVisibility());
 
   // The same folder view, when something IS due: the button must say so
   // rather than offer new words on top of work already waiting.
@@ -688,6 +1003,8 @@ ready.then(() => setTimeout(async () => {
   window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
   const utts = [];
   speechSynthesis.speak = (u) => utts.push(u);
+  // The controls live in the folded Session settings; open it to see them.
+  document.querySelector('.rvsettings').open = true;
   const speaker = document.getElementById('rv-speaker');
   const optionNames = () => [...speaker.options].map((o) => o.textContent).join('|');
   speechSynthesis.getVoices = () => [];
@@ -697,8 +1014,8 @@ ready.then(() => setTimeout(async () => {
         !speaker.parentElement.hidden && document.getElementById('rv-voice').parentElement.hidden);
   speechSynthesis.getVoices = () => osList;
   speechSynthesis.dispatchEvent(new Event('voiceschanged'));
-  check('voiceschanged fills it with the Korean voices only',
-        optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+  check('voiceschanged fills it with the Korean voices only, no joke voice',
+        optionNames() === 'Automatic|Yuna|Yuna (Enhanced)', optionNames());
   check('and a language nobody chose for reads Automatic', speaker.value === '', speaker.value);
   speaker.value = 'uri:Yuna';
   speaker.dispatchEvent(new Event('change'));
@@ -730,11 +1047,11 @@ ready.then(() => setTimeout(async () => {
   check('with no card on screen the preview speaks the language’s own name with the chosen voice',
         utts.at(-1)?.text === '한국어' && utts.at(-1)?.voice?.voiceURI === 'uri:Yuna',
         `${utts.at(-1)?.text} / ${utts.at(-1)?.voice?.name}`);
-  speaker.value = 'uri:Rocko';
+  speaker.value = 'uri:Yuna (Enhanced)';
   speaker.dispatchEvent(new Event('change'));
   preview.click();
   check('straight after a change it previews the new voice, before storage settles',
-        utts.at(-1)?.voice?.voiceURI === 'uri:Rocko' && chosenVoices.ko === 'uri:Yuna',
+        utts.at(-1)?.voice?.voiceURI === 'uri:Yuna (Enhanced)' && chosenVoices.ko === 'uri:Yuna',
         `${utts.at(-1)?.voice?.name} / cache ${chosenVoices.ko}`);
   queue.unshift({ ...mk('책', { lang: 'ko', due: 0 }), audio: 'ko.mp3' });
   showView('review');
@@ -793,8 +1110,20 @@ ready.then(() => setTimeout(async () => {
   speechSynthesis.dispatchEvent(new Event('voiceschanged'));
   check('a Korean voice arriving brings the select back and the warning goes',
         speaker.checkVisibility() && preview.checkVisibility() && !noneLine.checkVisibility()
-        && optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko', optionNames());
+        && optionNames() === 'Automatic|Yuna|Yuna (Enhanced)', optionNames());
+  // A joke voice chosen before the filter stays listed, so the select says
+  // what ▶ actually uses; one that is all there is stays too.
+  setReviewPrefs({ voices: { ko: 'uri:Rocko' } });
+  check('a stored joke voice is still listed and selected',
+        optionNames() === 'Automatic|Yuna|Yuna (Enhanced)|Rocko' && speaker.value === 'uri:Rocko', optionNames());
+  setReviewPrefs({ voices: {} });
+  speechSynthesis.getVoices = () => osList.filter((v) => v.name === 'Rocko');
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
+  check('a language with only joke voices still lists them', optionNames() === 'Automatic|Rocko', optionNames());
+  speechSynthesis.getVoices = () => osList;
+  speechSynthesis.dispatchEvent(new Event('voiceschanged'));
   await setLang('en');
+  document.querySelector('.rvsettings').open = false;
   speechSynthesis.getVoices = realGetVoices;
   speechSynthesis.speak = realSpeak;
   window.SpeechSynthesisUtterance = RealUtterance;
@@ -813,12 +1142,14 @@ ready.then(() => setTimeout(async () => {
   const star = document.getElementById('rv-star');
   const starWord = queue[0].word;
   check('the star is on the card before the answer', star.checkVisibility() && !revealed);
-  check('and starts empty', star.textContent === '☆' && star.getAttribute('aria-pressed') === 'false');
+  const starFill = () => getComputedStyle(star.querySelector('svg.ic')).fill;
+  check('and starts empty', starFill() === 'none' && star.getAttribute('aria-pressed') === 'false', starFill());
   star.click();
   await tick();
   check('clicking it files the word under Starred',
         STORE.words[starWord].folders.includes(VT.STARRED), STORE.words[starWord].folders.join());
-  check('and fills the star', star.textContent === '★' && star.getAttribute('aria-pressed') === 'true');
+  check('and fills the star', starFill() !== 'none' && star.getAttribute('aria-pressed') === 'true', starFill());
+  check('its name stays put; the state is aria-pressed', star.getAttribute('aria-label') === 'Star this word');
   check('the queue’s own copy knows too', VT.foldersOf(queue[0]).includes(VT.STARRED));
   check('focus goes back to the typing box', document.activeElement === document.getElementById('rv-input'));
   const typing = document.getElementById('rv-input');
@@ -832,7 +1163,7 @@ ready.then(() => setTimeout(async () => {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', cancelable: true }));
   await tick();
   check('s away from the box unstars it',
-        !STORE.words[starWord].folders.includes(VT.STARRED) && star.textContent === '☆',
+        !STORE.words[starWord].folders.includes(VT.STARRED) && starFill() === 'none',
         STORE.words[starWord].folders.join());
   check('and the word keeps its other folder', STORE.words[starWord].folders.includes('shuf'));
 
@@ -852,15 +1183,13 @@ ready.then(() => setTimeout(async () => {
   const txt = (id) => document.getElementById(id).textContent;
   check('VT.isMastered is reps >= 3 and interval >= 21',
         VT.isMastered(STORE.words.m1) && !VT.isMastered(STORE.words.m3) && !VT.isMastered({}));
-  check('Keep going counts what is left in this set', txt('rv-left') === '3 words left to master', txt('rv-left'));
   check('the ring shows the mastered share', txt('rv-pct') === '40%'
         && document.getElementById('rv-ring').getAttribute('stroke-dasharray') === '40 100', txt('rv-pct'));
-  check('the level follows it', txt('rv-mlevel') === 'Level 3', txt('rv-mlevel'));
+  check('mastery is said once: no stage badge, segments or words-left line',
+        !document.getElementById('rv-mlevel') && !document.getElementById('rv-segs')
+        && !document.getElementById('rv-left'));
   check('and the sentence gives the numbers',
         txt('rv-mastered') === 'You have mastered 2/5 words in this set.', txt('rv-mastered'));
-  check('two of five segments are lit',
-        document.querySelectorAll('#rv-segs i.on').length === 2,
-        String(document.querySelectorAll('#rv-segs i.on').length));
   const sideBox = document.getElementById('rv-side').getBoundingClientRect();
   const cardSide = document.getElementById('rv-card').getBoundingClientRect();
   check('the side cards sit to the right of the card at this width',
@@ -885,6 +1214,13 @@ ready.then(() => setTimeout(async () => {
         `panel ${panelBox.left.toFixed(0)}–${panelBox.right.toFixed(0)} centred `
         + `${((panelBox.top + panelBox.bottom) / 2).toFixed(0)}, side ${sideAfter.left.toFixed(0)} centred `
         + `${((sideAfter.top + sideAfter.bottom) / 2).toFixed(0)}, was at ${sideBox.left.toFixed(0)}`);
+  // One progress system at a time: the round writes the review head's counter
+  // and bar, so the flashcard's "1 of 5" cannot sit frozen above a quiz's own.
+  const bars = document.querySelectorAll('#view-review .rvprog').length;
+  const roundCount = document.getElementById('rv-sub').textContent;
+  check('a running mode counts in the review head, with no second counter or bar',
+        bars === 1 && !document.querySelector('#pr-panel .rvcount') && /^\d+ \/ \d+ · /.test(roundCount),
+        `${bars} bars, head reads "${roundCount}"`);
   // Stopped here rather than at the end of the block: renderCard() early-returns
   // while a tab is active (practice.js:active), so every check below that draws
   // a card would measure the one this left behind.
@@ -929,6 +1265,8 @@ ready.then(() => setTimeout(async () => {
   check('the moon button turns the night theme on',
         root.dataset.theme === 'night' && themeBtn.getAttribute('aria-pressed') === 'true', root.dataset.theme);
   check('and saves it to chrome.storage', STORE.theme === 'night', STORE.theme);
+  check('its name stays "Night theme" while on, so it reads "Night theme, pressed"',
+        themeBtn.getAttribute('aria-label') === 'Night theme', themeBtn.getAttribute('aria-label'));
   let mirrored = null;
   try { mirrored = localStorage.getItem('theme'); } catch { mirrored = 'blocked'; }
   check('and mirrors it for theme-boot.js', mirrored === 'night', mirrored);
@@ -945,8 +1283,21 @@ ready.then(() => setTimeout(async () => {
           cs(document.getElementById(id)).color + ' on ' + cardBg);
   }
   check('night: the mascot peeks from the card', rvCardEl.querySelector('.rvmoon').checkVisibility());
-  check('night: headings switch to the rounded sans',
-        /^Nunito/.test(cs(document.getElementById('rv-title')).fontFamily),
+  // The card's action takes the card's hue, not the shell's olive, and reads
+  // at 4.5:1 on its own fill.
+  const checkBtn = cs(document.querySelector('#rv-type .btn'));
+  check('night: Check on the card is navy, not the shell olive',
+        checkBtn.backgroundColor === 'rgb(63, 90, 166)'
+          && contrast(checkBtn.color, checkBtn.backgroundColor) >= 4.5,
+        checkBtn.color + ' on ' + checkBtn.backgroundColor);
+  // Stars behind small edge-to-edge text break the letters; the side cards
+  // keep the moon and drop the star layer.
+  check('night: no stars behind the side cards\' text',
+        [...document.querySelectorAll('.rvsidecard')].every((el) =>
+          getComputedStyle(el, '::before').content === 'none'),
+        getComputedStyle(document.querySelector('.rvsidecard'), '::before').content);
+  check('night: headings keep paper\'s Fraunces',
+        /^Fraunces/.test(cs(document.getElementById('rv-title')).fontFamily),
         cs(document.getElementById('rv-title')).fontFamily);
   // The six colour pairs survived the practice grid becoming a tab strip, and
   // night still has to redefine them saturated rather than leave the pastels
@@ -1009,6 +1360,42 @@ ready.then(() => setTimeout(async () => {
   check('a grade is logged to the day history',
         dayRows.some(([w, q]) => w === gradedWord && q === 4), JSON.stringify(dayRows));
 
+  /* ---- a grade can be taken back, and Enter cannot grade an unread answer ---- */
+  startReview(null);
+  const undoWord = queue[0].word;
+  const undoBefore = JSON.stringify(VT.SCHEDULE_FIELDS.map((f) => STORE.words[undoWord][f]));
+  const undoTotal = sessionTotal;
+  revealed = true;
+  await grade(0);   // a lapse: also queued again at the back
+  await tick();
+  check('a grade offers Undo', document.getElementById('rv-undo').checkVisibility({ visibilityProperty: true })
+        && document.getElementById('rv-undo-text').textContent === 'Graded Blank',
+        document.getElementById('rv-undo-text').textContent);
+  document.getElementById('rv-input').value = '';
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, cancelable: true }));
+  await tick();
+  check('undo puts the old schedule back in storage',
+        JSON.stringify(VT.SCHEDULE_FIELDS.map((f) => STORE.words[undoWord][f])) === undoBefore,
+        JSON.stringify(STORE.words[undoWord]));
+  const undoRows = STORE['history:' + VT.dayKey(Date.now())] ?? [];
+  check('undo takes the history row back',
+        !undoRows.some(([w, q]) => w === undoWord && q === 0), JSON.stringify(undoRows));
+  check('and the card is back on screen, answer showing, counted once',
+        queue[0]?.word === undoWord && revealed && sessionTotal === undoTotal
+        && queue.filter((e) => e.word === undoWord).length === 1,
+        `${queue[0]?.word} revealed=${revealed} ${sessionTotal}/${undoTotal}`);
+  check('and the Undo line is gone', !document.getElementById('rv-undo').checkVisibility({ visibilityProperty: true }));
+  check('and focus is on the card’s grade, not left on <body> with the Undo button',
+        document.activeElement === document.querySelector('#rv-grades .pick'), document.activeElement?.outerHTML.slice(0, 60));
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+  await tick();
+  check('an Enter right after the answer appears does not grade it',
+        queue[0]?.word === undoWord && revealed, `${queue[0]?.word} revealed=${revealed}`);
+  revealedAt = performance.now() - 1000;
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+  await tick();
+  check('a later Enter does', !revealed, `revealed=${revealed}`);
+
   /* ---- the mastery card previews the next words to master ---- */
   const DAYMS = 24 * 60 * 60 * 1000;
   Object.assign(words.scarce, { reps: 2, interval: 11, stability: 10.96, difficulty: 2.11,
@@ -1032,6 +1419,24 @@ ready.then(() => setTimeout(async () => {
   check('the forecast bars say reviews and new apart',
         /: \d+ reviews? \+ \d+ new$/.test(document.querySelector('#st-due i').title),
         document.querySelector('#st-due i').title);
+  {
+    const dueBars = [...document.querySelectorAll('#st-due i')];
+    const today = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    check('each forecast bar is named, with the short date, for a screen reader too',
+          dueBars.every((b) => b.getAttribute('role') === 'img' && b.getAttribute('aria-label') === b.title)
+          && dueBars[0].title.startsWith(today + ': '), dueBars[0].title);
+    const peakN = Math.max(...dueBars.map((b) => parseInt(b.title.split(': ')[1]) + parseInt(b.title.split('+ ')[1])));
+    check('the forecast prints the top of its scale',
+          document.getElementById('st-due').dataset.max === String(peakN),
+          document.getElementById('st-due').dataset.max + ' vs ' + peakN);
+    check('the forecast has a legend for reviews and new words',
+          [...document.querySelectorAll('#view-stats .legend li')].map((li) => li.textContent).join() === 'Reviews due,New words');
+    const lv = (list) => levelBuckets(list, ['A1', 'B1']).map((b) => `${b.label}/${b.name}/${b.n}`).join();
+    check('the level columns drop the no-level bucket when it is empty, and name it when not',
+          lv([{ level: 'B1' }]) === 'A1/A1/0,B1/B1/1'
+          && lv([{ level: 'B1' }, { level: null }]) === `A1/A1/0,B1/B1/1,${DASH}/Unknown level/1`,
+          lv([{ level: 'B1' }, { level: null }]));
+  }
 
   /* ---- statistics: words that keep slipping ----
      A store of its own, so the counts are exact, put back afterwards. */
@@ -1090,6 +1495,10 @@ ready.then(() => setTimeout(async () => {
   const retBars = () => [...document.querySelectorAll('#st-retention i')];
   const filled = () => retBars().filter((b) => !b.classList.contains('none'));
   check('the retention chart has 13 weekly bars', retBars().length === 13, retBars().length);
+  check('with review history the history cards show and the note does not',
+        document.getElementById('st-nohistory').hidden
+        && !document.getElementById('st-retention').closest('figure').hidden
+        && document.getElementById('st-retention').dataset.max === '100%');
   check('three weeks of reviews draw three bars, oldest first',
         filled().map((b) => b.style.height).join() === '70%,80%,90%',
         filled().map((b) => b.style.height).join());
@@ -1125,6 +1534,11 @@ ready.then(() => setTimeout(async () => {
   check('with no history the time chart is empty and says so',
         timeBars().every((b) => b.classList.contains('none')) && timeSum() === 'No reviews in the last 30 days.',
         timeSum());
+  check('with no history the three history cards fold into one note',
+        !document.getElementById('st-nohistory').hidden
+        && ['st-weak', 'st-retention', 'st-time'].every((id) => document.getElementById(id).closest('figure').hidden)
+        && !document.getElementById('st-due').closest('figure').hidden);
+  check('an all-empty plot prints no scale', !('max' in document.getElementById('st-time').dataset));
   check('with no history every retention bar is empty and the note asks for weeks',
         retBars().every((b) => b.classList.contains('none'))
         && document.getElementById('st-retention-sum').textContent === 'Review for a few weeks to see a trend.');
@@ -1291,7 +1705,8 @@ ready.then(() => setTimeout(async () => {
         document.getElementById('rv-context').textContent);
   submitAnswer();
   check('the full-entry link is labelled with this language’s dictionary',
-        document.getElementById('rv-cam').textContent === 'krdict ↗',
+        document.getElementById('rv-cam').textContent === 'krdict'
+        && !!document.querySelector('#rv-cam svg.ic.after'),
         document.getElementById('rv-cam').textContent);
   check('and points at the krdict entry for the word',
         document.getElementById('rv-cam').href.endsWith('=%EC%B1%85'),
@@ -1342,9 +1757,10 @@ ready.then(() => setTimeout(async () => {
   STORE.words = { ...savedWords, ...STORE.words };
   await choose('zh');
   check('choosing 中文 saves the language', STORE.lang === 'zh', STORE.lang);
+  // No dash column: no 中文 word here is missing its level (levelBuckets).
   check('and the level bars use HSK',
         [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join()
-          === `HSK 1,HSK 2,HSK 3,HSK 4,HSK 5,HSK 6,${DASH}`,
+          === 'HSK 1,HSK 2,HSK 3,HSK 4,HSK 5,HSK 6',
         [...document.querySelectorAll('#ov-bars u')].map((u) => u.textContent).join());
   check('and the session queue holds no English or Korean card',
         queue.every((e) => LANG.of(e).id === 'zh'),
@@ -1521,8 +1937,15 @@ ready.then(() => setTimeout(async () => {
 
   /* ---- the translation key is saved, trimmed, and never exported ---- */
   const tkey = document.getElementById('translate-key');
-  check('the translation key field is under Import & export',
-        !!tkey && !!tkey.closest('.iocard') && /Translation key/.test(tkey.closest('.iocard').textContent));
+  check('the translation key field is under Settings',
+        !!tkey && tkey.closest('section')?.id === 'view-settings' && /Translation key/.test(tkey.closest('.iocard').textContent));
+  // Import & export holds only the backup tasks; every key, sign-in and Anki
+  // card lives in Settings, where someone setting them up would look.
+  check('Import & export has only Export and Import',
+        [...document.querySelectorAll('#view-io .iocard h2')].map((h) => h.textContent).join() === 'Export,Import');
+  check('Settings holds cloud sync, the three keys and Anki',
+        ['cloud-signin', 'giphy-key', 'translate-key', 'krdict-key', 'anki-push']
+          .every((id) => document.getElementById(id)?.closest('section')?.id === 'view-settings'));
   tkey.value = '  K1SECRET  ';
   tkey.dispatchEvent(new Event('input'));
   await new Promise((r) => setTimeout(r, 0));
@@ -1602,7 +2025,8 @@ ready.then(() => setTimeout(async () => {
   };
   showView('overview');
   await refresh();
-  const gridIds = () => [...document.querySelectorAll('#ov-folders .f[data-folder]')]
+  // Every folder card on the overview: a suggested one is drawn once, above.
+  const gridIds = () => [...document.querySelectorAll('#view-overview .f[data-folder]')]
     .map((el) => el.dataset.folder);
   check('an English session shows a folder whose words are English',
         gridIds().includes('ielts-c1'), gridIds().join());
@@ -1650,18 +2074,18 @@ ready.then(() => setTimeout(async () => {
      than noise: filing it there would make that folder hold both languages,
      which reads as everyone's, and IELTS C1 would sit in the Korean overview
      from then on. */
-  tagging = 'gridEn';
+  tagging = ['gridEn'];
   const offered = () => tagOptions().map((t) => t.name);
   check('an English card is offered the English folder',
         offered().includes('IELTS C1'), offered().join());
-  tagging = '신문';
+  tagging = ['신문'];
   check('a Korean card is not',
         !offered().includes('IELTS C1'), offered().join());
   check('but it is offered the Korean one',
         offered().includes('초급'), offered().join());
   check('and the presets, which belong to no language yet',
         offered().includes(VT.TOPICS[0].name), offered().join());
-  tagging = null;
+  tagging = [];
 
   STORE.folders = savedFolders;
   STORE.words = savedWords;
@@ -1692,15 +2116,32 @@ ready.then(() => setTimeout(async () => {
   /* ---- overview: progress, pins, suggestions ---- */
   showView('overview');
   await refresh();
-  const fcounts = document.querySelector("#ov-folders .fcounts");
+  const fcounts = document.querySelector("#view-overview .fcounts");
   check('a folder card shows learned · learning · new',
         /^\d+ learned · \d+ learning · \d+ new$/.test(fcounts?.textContent ?? ""), fcounts?.textContent);
   check('nothing pinned: the Pinned section is hidden',
         !document.getElementById('ov-pinned-head').checkVisibility());
-  check('a folder with due words is suggested, with its reason',
-        /due today/.test(document.querySelector('#ov-suggest .why')?.textContent ?? ''),
+  const suggestedCard = document.querySelector(`#ov-suggest .f[data-folder="${VT.READING}"]`);
+  check('a folder with due words is suggested, the count in its footer',
+        /^\d+ due today$/.test(suggestedCard?.querySelector('.foot span')?.textContent ?? ''),
         document.getElementById('ov-suggest').textContent.slice(0, 120));
-  document.querySelector(`#ov-folders .f[data-folder="${VT.READING}"] .pin`).click();
+  check('and its subtitle does not say the footer again',
+        !!suggestedCard && suggestedCard.querySelector('p').textContent
+          !== suggestedCard.querySelector('.foot span').textContent
+        && suggestedCard.querySelector('p').textContent === folders[VT.READING].desc,
+        suggestedCard?.querySelector('p')?.textContent);
+  /* ---- overview: one way into the review ---- */
+  const reviewBtn = document.getElementById('review-btn');
+  check('with words due, Start review is the overview\'s one review button',
+        document.getElementById('ov-today-go').checkVisibility() && !reviewBtn.checkVisibility());
+  check('there is no Due today number beside it', !document.getElementById('ov-due'));
+  showView('words');
+  check('elsewhere the top bar offers Review again', reviewBtn.checkVisibility());
+  check('and with words due it is the primary button', !reviewBtn.classList.contains('ghost'));
+  showView('overview');
+  check('a suggested folder is not drawn again under the rest',
+        !document.querySelector(`#ov-folders .f[data-folder="${VT.READING}"]`));
+  document.querySelector(`#ov-suggest .f[data-folder="${VT.READING}"] .pin`).click();
   await tick();
   await refresh();
   check('📌 saves the pin', STORE.pins?.includes(VT.READING), JSON.stringify(STORE.pins));
@@ -1714,6 +2155,36 @@ ready.then(() => setTimeout(async () => {
   await tick();
   await refresh();
   check('📌 again unpins it', !STORE.pins.length && !document.getElementById('ov-pinned').checkVisibility());
+  check('and it goes back to where it was, in Suggested',
+        !!document.querySelector(`#ov-suggest .f[data-folder="${VT.READING}"]`));
+  check('a folder that fills itself says Made for you',
+        document.querySelector(`#ov-suggest .f[data-folder="${VT.READING}"] .meta`)?.textContent
+          .startsWith('Made for you · '),
+        document.querySelector(`#ov-suggest .f[data-folder="${VT.READING}"] .meta`)?.textContent);
+
+  // A folder you made, with more due than anything: still never suggested,
+  // and the sections hold still rather than reshuffle around it.
+  const suggestedIds = () => [...document.querySelectorAll('#ov-suggest .f')].map((f) => f.dataset.folder).join();
+  const suggestBefore = suggestedIds();
+  const savedHand = { folders: STORE.folders, words: STORE.words };
+  STORE.folders = { ...STORE.folders, handmade: { id: 'handmade', name: 'Handmade', auto: false, added: 1 } };
+  STORE.words = { ...STORE.words };
+  for (let i = 0; i < 12; i++) {
+    STORE.words['hand' + i] = mk('hand' + i, { folders: ['handmade'], due: Date.now() - 1000 });
+  }
+  await refresh();
+  check('a folder you made is never in Suggested for you',
+        !document.querySelector('#ov-suggest .f[data-folder="handmade"]')
+        && !!document.querySelector('#ov-folders .f[data-folder="handmade"]'), suggestedIds());
+  check('and says Your folder',
+        document.querySelector('#ov-folders .f[data-folder="handmade"] .meta')?.textContent
+          .startsWith('Your folder · 12 words'),
+        document.querySelector('#ov-folders .f[data-folder="handmade"] .meta')?.textContent);
+  check('Suggested keeps its folders and their order after a change',
+        suggestedIds() === suggestBefore, `${suggestBefore} → ${suggestedIds()}`);
+  STORE.folders = savedHand.folders;
+  STORE.words = savedHand.words;
+  await refresh();
 
   /* ---- push to Anki, against a stubbed AnkiConnect ------------------------
      The real AnkiConnect is on the user's machine, so window.fetch is stubbed to
@@ -1789,6 +2260,29 @@ ready.then(() => setTimeout(async () => {
   check('a word not in Anki, once connected, shows a push button',
         [...cardOut.querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent))
         && !cardOut.querySelector('.tag.anki-on'));
+  // The footer keeps source, folders and '+ Folder' in view at full weight;
+  // dictionary and Anki are one quiet group that hover or focus reveals, and
+  // which stays in the tab order.
+  const extra = cardOut.querySelector('.wc-foot > .wc-extra');
+  const addFolder = cardOut.querySelector('.wc-foot > [aria-label^="Add "]');
+  check('the card footer groups dictionary and Anki',
+        !!extra && extra.querySelector('a.wc-link') && !extra.querySelector('[aria-label^="Add "]')
+        && [...extra.querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent))
+        && ![...cardOut.querySelectorAll('.wc-foot > .tag')].some((t) => /Anki/.test(t.textContent)),
+        extra?.textContent);
+  document.body.appendChild(cardOut);
+  check('filing a word is a labelled, undimmed "+ Folder" chip outside the quiet group',
+        addFolder?.textContent === '+ Folder' && cs(addFolder).opacity === '1',
+        `${addFolder?.textContent} @ ${addFolder && cs(addFolder).opacity}`);
+  // No fade here: a background tab does not run transitions.
+  extra.style.transition = 'none';
+  const quietAt = cs(extra).opacity;
+  extra.querySelector('a.wc-link').focus();
+  check('and focusing one of them reveals the group',
+        document.activeElement.closest('.wc-extra') === extra && cs(extra).opacity === '1'
+        && (!matchMedia('(hover:hover)').matches || quietAt === '0.45'),
+        `${quietAt} -> ${cs(extra).opacity}`);
+  cardOut.remove();
   ankiReady = false;
   check('with no connection and not pushed, there is no Anki control',
         ![...wordCard(mk('newword2')).querySelectorAll('.tag')].some((t) => /Anki/.test(t.textContent)));
@@ -1817,7 +2311,309 @@ ready.then(() => setTimeout(async () => {
   check('a blocked origin tells the user to whitelist the extension',
         /webCorsOriginList|blocked this extension/.test(document.getElementById('anki-note').textContent),
         document.getElementById('anki-note').textContent);
+  check('and the failure is painted as one', document.getElementById('anki-note').classList.contains('err'));
   window.fetch = realFetch;
+
+  /* ---- error recovery: import, off-sites, API keys ---- */
+  const importText = async (text, expect) => {
+    const input = document.getElementById('import-file');
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], 'x.json', { type: 'application/json' }));
+    input.files = dt.files;
+    const note = document.getElementById('io-note');
+    note.replaceChildren();
+    // file.text() is real I/O on its own clock, and the virtual clock runs
+    // the ticks below in no real time at all: a slow read used to land after
+    // the loop gave up, on top of the later Import's note. The read is
+    // answered in-process instead (the handler calls it synchronously inside
+    // dispatchEvent), so it is settled before anything after this runs.
+    const realText = Blob.prototype.text;
+    Blob.prototype.text = () => Promise.resolve(text);
+    try { input.dispatchEvent(new Event('change')); } finally { Blob.prototype.text = realText; }
+    for (let i = 0; i < 40 && !expect.test(note.textContent); i++) await tick();
+    return note;
+  };
+  // The file read is real I/O under a virtual clock, so only one import goes
+  // through the input; the rest of the mapping is checked on readBackup itself.
+  const wordsBefore = JSON.stringify(STORE.words);
+  const io = await importText('<!doctype html><html>', /not a Vocab-track backup/);
+  check('an HTML file says it is not a backup, parser text only in the detail',
+        /not a Vocab-track backup/.test(io.firstChild?.textContent) && io.classList.contains('err')
+        && /JSON/.test(io.querySelector('.note-detail')?.textContent ?? ''), io.textContent);
+  check('and it wrote nothing', JSON.stringify(STORE.words) === wordsBefore);
+  check('a cut-off backup reads as damaged',
+        readBackup('{"words":{"a":{"word":"a"').error === IMPORT_DAMAGED);
+  const fr = readBackup('{"words":{"bonjour":{"word":"bonjour","lang":"fr"}}}');
+  check('an unknown language set is refused and named',
+        /language this version/.test(fr.error) && /fr/.test(fr.detail), JSON.stringify(fr));
+  check('a real backup passes', readBackup('{"words":{"a":{"word":"a","lang":"en"}}}').data?.words?.a?.word === 'a');
+  // A good file is summed up first and written only on Import.
+  const known = Object.keys(STORE.words)[0];
+  const backup = { words: { [known]: STORE.words[known], zzprobeword: { word: 'zzprobeword', lang: 'en' } } };
+  const ioButton = (label) => [...io.querySelectorAll('button')].find((b) => b.textContent === label);
+  confirmImport(io, backup, STORE.words);
+  check('a backup is counted before anything is written',
+        /adds 1 word and merges 1/.test(io.textContent) && !STORE.words.zzprobeword, io.textContent);
+  ioButton('Cancel').click();
+  check('Cancel writes nothing and says so',
+        !STORE.words.zzprobeword && /Nothing was imported/.test(io.textContent), io.textContent);
+  confirmImport(io, backup, STORE.words);
+  ioButton('Import').click();
+  for (let i = 0; i < 40 && !/Imported/.test(io.textContent); i++) await tick();
+  check('Import writes the file',
+        !!STORE.words.zzprobeword && /Imported: 1 new, 1 merged/.test(io.textContent), io.textContent);
+  delete STORE.words.zzprobeword;
+  await refresh();
+  setNote(io, 'Imported: 1 new, 0 merged with existing entries.');
+  check('a later success clears the error colour and detail',
+        !io.classList.contains('err') && !io.querySelector('.note-detail'));
+
+  check('siteHost keeps a pasted address\'s host', siteHost('https://mail.google.com/chat?x=1') === 'mail.google.com');
+  check('siteHost refuses a non-host', siteHost('not a host!!') === null && siteHost('foo') === null);
+  STORE.writeOff = [];
+  await refresh();
+  document.getElementById('wr-host').value = 'not a host!!';
+  document.getElementById('wr-add').requestSubmit();
+  await tick();
+  check('an invalid site shows an inline error and saves nothing',
+        !document.getElementById('wr-host-error').hidden
+        && document.getElementById('wr-host').getAttribute('aria-invalid') === 'true'
+        && STORE.writeOff.length === 0, JSON.stringify(STORE.writeOff));
+  document.getElementById('wr-host').value = 'https://docs.google.com/document/d/1';
+  document.getElementById('wr-host').dispatchEvent(new Event('input'));
+  document.getElementById('wr-add').requestSubmit();
+  await tick(); await tick();
+  check('a pasted URL is saved as its host and the error clears',
+        STORE.writeOff.join() === 'docs.google.com' && document.getElementById('wr-host-error').hidden,
+        JSON.stringify(STORE.writeOff));
+
+  const gk = document.getElementById('giphy-key');
+  gk.value = '  abc123  ';
+  gk.dispatchEvent(new Event('input'));
+  await tick();
+  check('a key is saved trimmed and says so', STORE.giphyKey === 'abc123'
+        && /Saved/.test(document.getElementById('giphy-key-note').textContent),
+        JSON.stringify(STORE.giphyKey));
+  gk.value = 'abc 123';
+  gk.dispatchEvent(new Event('input'));
+  await tick();
+  check('a key with a space inside is refused inline', STORE.giphyKey === 'abc123'
+        && document.getElementById('giphy-key-note').classList.contains('err'));
+  gk.value = '';
+  gk.dispatchEvent(new Event('input'));
+  await tick();
+
+  /* ---- views are addressable ----
+     The nav links carry the view in their href, showView writes it to the
+     address, and Back reads it again — without starting a review session the
+     user did not ask for, which would throw away the one in progress. */
+  const viewShown = (v) => !document.getElementById(`view-${v}`).hidden;
+  check('every nav link points at its view',
+        [...document.querySelectorAll('nav a[data-view]')].every((a) => a.getAttribute('href') === `#${a.dataset.view}`));
+  showView('stats');
+  check('showView writes the view to the address', location.hash === '#stats', location.hash);
+  // A session under way, whatever earlier checks left due.
+  queue = Object.values(words).slice(0, 2);
+  sessionTotal = 3;
+  showView('review');
+  render();
+  const heldQueue = queue;
+  showView('words');
+  history.back();
+  for (let i = 0; i < 20 && !viewShown('review'); i++) await tick();
+  check('Back returns to the review and keeps its queue',
+        viewShown('review') && queue === heldQueue, location.hash);
+  // A fresh page reached at #review has no session yet: it gets the queue
+  // the Review button would build, not "Nothing due" over due words.
+  const dueWord = Object.values(words).find((e) => VT.isLearnable(e) && LANG.of(e).id === activeLang);
+  dueWord.due = Date.now() - 1000;
+  queue = []; sessionTotal = 0;
+  history.replaceState(null, '', '#review');
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  check('a review reached by address with no session yet queues what is due',
+        viewShown('review') && queue.length > 0 && sessionTotal === queue.length, `${queue.length}`);
+  history.replaceState(null, '', '#writing');
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  check('a hash names the view it opens', viewShown('writing'));
+  history.replaceState(null, '', '#not-a-view');
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  check('a hash that is no view opens the overview', viewShown('overview'));
+
+  /* ---- Esc on a practice tab goes back to the flashcard, not out ---- */
+  startReview(null);
+  showView('review');
+  render();
+  PRACTICE.start('quiz', practicePool(Object.values(words)));
+  await tick();
+  pressKey('Escape');
+  check('Esc on a practice tab returns to the flashcard',
+        !PRACTICE.active() && viewShown('review'));
+  pressKey('Escape');
+  check('and Esc on the flashcard leaves the review', viewShown('overview'));
+
+  /* ---- Undo on the delete toast puts focus back on the word ---- */
+  activeFolder = null;
+  document.getElementById('q').value = '';
+  showView('words');
+  render();
+  const doomed = document.querySelector('#view-words .wcard');
+  const doomedWord = doomed?.dataset.word;
+  doomed?.querySelector('.rowdel').click();
+  for (let i = 0; i < 20 && document.getElementById('toast').hidden; i++) await tick();
+  document.getElementById('toast-undo').click();
+  for (let i = 0; i < 20 && !STORE.words[doomedWord]?.word; i++) await tick();
+  await tick(); await tick();
+  check('Undo on a delete focuses the restored word',
+        !!doomedWord && document.activeElement?.classList.contains('wc-say')
+        && document.activeElement.closest('.wcard')?.dataset.word === doomedWord,
+        `${doomedWord} -> ${document.activeElement?.className}`);
+
+  /* ---- Two deletes, one Undo: neither is lost; a double-click takes one ---- */
+  await new Promise((r) => setTimeout(r, 450));
+  const twoCards = () => [...document.querySelectorAll('#view-words .wcard')];
+  const firstGone = twoCards()[0]?.dataset.word;
+  twoCards()[0]?.querySelector('.rowdel').click();
+  for (let i = 0; i < 20 && document.getElementById('toast').hidden; i++) await tick();
+  // The second click of a double-click lands on the card that slid up.
+  const slidUp = twoCards()[0]?.dataset.word;
+  twoCards()[0]?.querySelector('.rowdel').click();
+  await tick();
+  check('a double-click on × deletes one word, not two',
+        !STORE.words[firstGone] && !!STORE.words[slidUp], `${firstGone}, ${slidUp}`);
+  await new Promise((r) => setTimeout(r, 450));
+  twoCards()[0]?.querySelector('.rowdel').click();
+  for (let i = 0; i < 20 && STORE.words[slidUp]; i++) await tick();
+  check('a second delete adds to the toast',
+        document.getElementById('toast-text').textContent === 'Deleted 2 words',
+        document.getElementById('toast-text').textContent);
+  document.getElementById('toast-undo').click();
+  for (let i = 0; i < 20 && !STORE.words[slidUp]?.word; i++) await tick();
+  await tick();
+  check('and one Undo restores both',
+        !!STORE.words[firstGone]?.word && !!STORE.words[slidUp]?.word
+        && !(firstGone in (STORE.deleted?.words ?? {})) && !(slidUp in (STORE.deleted?.words ?? {})));
+
+  /* ---- Cards: × is the card's last Tab stop, not the one after the word ---- */
+  const tabStops = [...(document.querySelector('#view-words .wcard')
+    ?.querySelectorAll('button, a[href], input, select, summary') ?? [])];
+  check('in Cards the × Delete comes last in the card\'s tab order',
+        tabStops.length > 2 && tabStops.at(-1).classList.contains('rowdel')
+        && tabStops[0].classList.contains('wc-say'),
+        tabStops.map((b) => b.className).join());
+
+  /* ---- List: tick rows, act on them all at once ---- */
+  STORE.folders = { ...STORE.folders,
+    'bulk-sel': { id: 'bulk-sel', name: 'Bulk sel', color: 'sky' },
+    'bulk-dest': { id: 'bulk-dest', name: 'Bulk dest', color: 'clay' } };
+  for (let i = 0; i < 5; i++) {
+    STORE.words['sel' + i] = {
+      word: 'sel' + i, level: 'B2', vi: 'chọn', def: 'a picked word', folders: ['bulk-sel'],
+      senses: [], synonyms: [], related: [], context: null, sources: [], gif: null,
+      added: Date.now() - i, ease: 2.5, interval: 3, reps: 2, due: Date.now() + 1e8,
+      skipped: i === 2 };
+  }
+  await refresh();
+  openFolder('bulk-sel');
+  setWordsView({ density: 'list', sort: 'az' });
+  await tick();
+  const bar = document.getElementById('w-bulk');
+  const selBox = (w) => document.querySelector(`#w-cards .wline[data-word="${w}"] .wsel`);
+  const shiftClick = (node) => node.dispatchEvent(
+    new MouseEvent('click', { shiftKey: true, bubbles: true, cancelable: true }));
+  check('each List row has a real checkbox named for its word',
+        document.querySelectorAll('#w-cards .wline').length === 5
+        && selBox('sel0')?.type === 'checkbox' && selBox('sel0').getAttribute('aria-label') === 'Select sel0'
+        && !selBox('sel0').closest('summary'));
+  check('no bar and Select all shown before anything is ticked',
+        bar.hidden && !document.getElementById('w-all-wrap').hidden);
+  selBox('sel0').click();
+  check('ticking a row shows the bar with its count',
+        !bar.hidden && document.getElementById('wb-count').textContent === '1 selected'
+        && pickedRows.has('sel0'), document.getElementById('wb-count').textContent);
+  shiftClick(selBox('sel3'));
+  check('shift-click ticks the whole range from the last row ticked',
+        ['sel0', 'sel1', 'sel2', 'sel3'].every((w) => pickedRows.has(w) && selBox(w).checked)
+        && !pickedRows.has('sel4') && document.getElementById('w-all').indeterminate,
+        [...pickedRows].join());
+  check('Ask again and Remove from the folder are offered for this selection',
+        !document.getElementById('wb-unskip').hidden
+        && document.getElementById('wb-unfile').textContent === 'Remove from Bulk sel');
+  document.querySelector('#w-cards .wline[data-word="sel4"] summary')
+    .dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  check('Space on a focused row ticks it',
+        pickedRows.size === 5 && document.getElementById('w-all').checked
+        && !document.querySelector('#w-cards .wline[data-word="sel4"] details').open);
+  pressKey('Escape');
+  check('Esc clears the selection and the bar',
+        pickedRows.size === 0 && bar.hidden && !selBox('sel0').checked);
+  document.getElementById('w-all').click();
+  check('Select all ticks every row shown', pickedRows.size === 5, String(pickedRows.size));
+
+  let bulkWrites = 0;
+  const plainSet = chrome.storage.local.set;
+  chrome.storage.local.set = async (patch) => { bulkWrites++; return plainSet(patch); };
+  document.getElementById('wb-folder').click();
+  check('Add to folder opens the picker for all of them',
+        document.getElementById('tag-dlg').open
+        && document.getElementById('tag-title').textContent === 'Add to folder · 5 words',
+        document.getElementById('tag-title').textContent);
+  const destBox = [...document.querySelectorAll('#tag-list .tagrow')]
+    .find((r) => r.textContent.includes('Bulk dest'))?.querySelector('input');
+  destBox?.click();
+  for (let i = 0; i < 20 && !STORE.words.sel4.folders.includes('bulk-dest'); i++) await tick();
+  check('ticking a folder files every selected word, in one write',
+        [0, 1, 2, 3, 4].every((i) => STORE.words['sel' + i].folders.includes('bulk-dest')
+          && STORE.words['sel' + i].folders.includes('bulk-sel')) && bulkWrites === 1,
+        `writes ${bulkWrites}`);
+  document.getElementById('tag-dlg').close();
+
+  const preDelete = Object.fromEntries([0, 1, 2, 3, 4].map((i) => {
+    const { updated, ...rest } = STORE.words['sel' + i];
+    return ['sel' + i, JSON.stringify(rest)];
+  }));
+  bulkWrites = 0;
+  document.getElementById('wb-delete').click();
+  for (let i = 0; i < 20 && document.getElementById('toast').hidden; i++) await tick();
+  check('bulk Delete removes them all in one write and says so once',
+        [0, 1, 2, 3, 4].every((i) => !STORE.words['sel' + i]) && bulkWrites === 1
+        && document.getElementById('toast-text').textContent === 'Deleted 5 words' && bar.hidden,
+        `writes ${bulkWrites}, ${document.getElementById('toast-text').textContent}`);
+  chrome.storage.local.set = plainSet;
+  document.getElementById('toast-undo').click();
+  for (let i = 0; i < 20 && !STORE.words.sel4; i++) await tick();
+  await tick();
+  check('and one Undo restores every one exactly',
+        Object.entries(preDelete).every(([w, json]) => {
+          const { updated, ...rest } = STORE.words[w] ?? {};
+          return JSON.stringify(rest) === json && !(w in (STORE.deleted?.words ?? {}));
+        }));
+  activeFolder = null;
+  setWordsView({ ...WORDS_VIEW_DEFAULTS });
+  await tick();
+  showView('overview');
+  render();
+
+  /* ---- one icon language: line SVGs, not emoji or dingbats ----
+     Every control the dashboard has drawn by now, practice tabs included. A
+     folder's own emoji is the user's content and lives in .badge, never in a
+     control's text; the arrows and ⌘ of a shortcut legend are text, not icons. */
+  const GLYPH = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{21A9}\u{2197}\u{21C4}]/u;
+  const controls = [...document.querySelectorAll('button, a, .prtab')]
+    .filter((c) => !c.closest('#keys-dlg'));
+  const glyphed = controls.filter((c) => GLYPH.test(c.textContent));
+  check('no control uses an emoji or dingbat as its icon', !glyphed.length,
+        glyphed.map((c) => `${c.id || c.className}: ${c.textContent.trim()}`).join(' | '));
+  const lineIcons = [...document.querySelectorAll('svg.ic')];
+  check('the tabs, the pin and the star draw line icons',
+        document.querySelector('#pr-tabs .prtabglyph svg.ic') && document.querySelector('.f .pin svg.ic')
+        && document.querySelector('#rv-star svg.ic'));
+  const unnamed = lineIcons.filter((svg) => {
+    const host = svg.closest('button, a');
+    return svg.getAttribute('aria-hidden') !== 'true'
+      || (host && !(host.getAttribute('aria-label') || host.textContent.trim()));
+  });
+  check('every icon is aria-hidden, in a control that keeps its own name',
+        lineIcons.length && !unnamed.length, unnamed.map((svg) => svg.parentElement.outerHTML.slice(0, 80)).join(' | '));
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;

@@ -8,7 +8,9 @@
           --blw:160px;--blh:64px}
 .pr-blast .blhud{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
                  font-variant-numeric:tabular-nums}
-.pr-blast .bllives{color:var(--bad);font-size:18px;letter-spacing:.12em}
+.pr-blast .bllives{color:var(--bad);display:inline-flex;gap:3px}
+.pr-blast .bllives .ic{width:18px;height:18px;margin:0}
+.pr-blast .bllives .ic.on{fill:currentColor}
 .pr-blast .blscore{color:var(--ink2);font-weight:600}
 .pr-blast .blhold{padding:4px 10px;font-size:12.5px}
 /* A share of the window, in place of the height:380px that was measured against a 640px
@@ -37,8 +39,7 @@
                   overflow:hidden;font-size:13px;line-height:1.2;text-align:center}
 .pr-blast .blcard.boom{animation:blboom .3s ease-out forwards}
 @keyframes blboom{to{transform:scale(1.6);opacity:0;background:var(--good)}}
-/* var(--serif), not the Fraunces literal it used to name: night swaps that token for a
-   rounded sans, and this was the one line in the mode reading the paper theme's face there. */
+/* var(--serif), not a Fraunces literal: the headings' face, named once, in both themes. */
 .pr-blast .blflash{bottom:6px;top:auto;text-align:center;font:600 16px var(--serif);
                    color:var(--bad);animation:blfade 1.4s ease-in forwards}
 @keyframes blfade{70%{opacity:1}to{opacity:0}}
