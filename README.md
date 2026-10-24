@@ -579,6 +579,7 @@ Two permissions look broader than they are:
 | `reader.js` | The RSVP speed reader: article extraction, overlay, pacing |
 | `tools/` | The macOS capture: Quick Action, native messaging host, installer. Also `build-ielts-list.py`, `build-phrasal-list.py` and `build-korean-list.py`, which generate the files in `data/`. |
 | `tools/package.sh` | Builds the Chrome Web Store zip in `dist/`: tracked runtime files only, `nativeMessaging` dropped from the zipped manifest |
+| `tools/release.py` | Releases from CI on every push to `main`: picks the next version from the commit types, tags it, uploads and submits. Setup in [docs/release.md](docs/release.md) |
 | `service-worker.js` | Opens the panel and the dashboard, hands words over, writes the automatic backup (`offscreen.*` makes its file), schedules cloud sync |
 | `cloud.js` | Cloud sync: Google sign-in, and the one `vocab-track.json` file in your Drive's `appDataFolder`. The only file that talks to Drive; the merge itself is `VT.mergePayload` in `lib.js` |
 | `sidepanel.*` | The lookup surface |
