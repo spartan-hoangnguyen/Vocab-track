@@ -32,9 +32,14 @@ page.body.innerHTML = Array.from({ length: 5000 }, (_, i) =>
 
 (async () => {
   // The real phrasal-verb list on top, which is what an import adds: 1,058
-  // multi-word keys filed under every form of their first word.
-  const { words } = await (await fetch('../data/phrasal-verbs.json')).json();
-  const phrasal = Object.values(words).map((entry) => ({ word: entry.word, lang: 'en' }));
+  // multi-word keys filed under every form of their first word. The list is
+  // built locally and gitignored (tools/build-phrasal-list.py), so CI has no
+  // copy: there the page runs with "give up" alone, and says so.
+  const res = await fetch('../data/phrasal-verbs.json');
+  const phrasal = res.ok
+    ? Object.values((await res.json()).words).map((entry) => ({ word: entry.word, lang: 'en' }))
+    : [{ word: 'give up', lang: 'en' }];
+  const listName = res.ok ? 'the phrasal-verb list' : '"give up" (no local phrasal-verb list)';
   const gaveUp = page.createElement('p');
   gaveUp.textContent = 'In the end she gave up and went home.';
   page.body.append(gaveUp);
@@ -46,7 +51,7 @@ page.body.innerHTML = Array.from({ length: 5000 }, (_, i) =>
         hits.filter((hit) => hit.entry.word.endsWith('zq')).length === 4000, `${hits.length}`);
   check('an imported phrasal verb lights up in its past form',
         hits.some((hit) => hit.entry.word === 'give up' && hit.node.nodeValue.slice(hit.index, hit.index + hit.length) === 'gave up'));
-  check('2,000 words and the phrasal-verb list over 5,000 nodes in under 200 ms', ms < 200, `${ms.toFixed(0)} ms`);
+  check(`2,000 words and ${listName} over 5,000 nodes in under 200 ms`, ms < 200, `${ms.toFixed(0)} ms`);
 
   document.getElementById('out').textContent =
     log.join('\n') + `\n\n${failures} failure(s), ${log.length} check(s)`;
