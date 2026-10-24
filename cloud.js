@@ -170,7 +170,14 @@ async function signIn() {
     // Also what happens until a real OAuth client id is in manifest.json.
     console.error('[vocab-track] Google sign-in failed', err);
     await chrome.storage.local.set({
-      cloud: { signedIn: false, error: `Could not sign in with Google: ${err.message}` }
+      // Chrome's own wording ("The user did not approve access.") stays in the
+      // console; the card says what happened and what to press.
+      cloud: {
+        signedIn: false,
+        error: /did not approve|cancel|closed/i.test(err?.message ?? '')
+          ? 'Sign-in was cancelled. Press Sign in with Google to try again.'
+          : 'Could not sign in with Google. Check your connection, then try again.'
+      }
     });
     return;
   }

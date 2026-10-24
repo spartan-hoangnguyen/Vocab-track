@@ -92,7 +92,7 @@ sync, through your own Google Drive, to every Chrome you sign in to. See
   your GIPHY key). Import merges it back: when both sides have a word, the more
   recently reviewed schedule wins, so an old backup never rolls a word back.
 - **Take it to another computer.** Optional: **Sign in with Google** under
-  **Import & export** and the same words, folders and review schedule follow
+  **Settings** and the same words, folders and review schedule follow
   you to every Chrome you sign in to. They are kept in a hidden app folder of
   your own Google Drive that only Vocab-track can read. A change goes up half a
   minute after you make it; another machine picks it up when its dashboard or
@@ -141,7 +141,7 @@ the sentence you met it in, the typing card, FSRS-6, folders, statistics, and
 every practice mode, plus a shipped starter list of 3,896 graded words — see
 *Word lists*. Its dictionary is **krdict** (국립국어원 한국어기초사전), and it
 needs a free Open API key: sign up at krdict.korean.go.kr → 오픈 API, then
-paste the key under **Import & export → Korean dictionary** in the dashboard.
+paste the key under **Settings → Korean dictionary** in the dashboard.
 With it, a Korean word you look up carries krdict's Korean definition and
 senses, its pronunciation (in Hangul, shown as **발음: …**) and its
 초급/중급/고급 grade as the level. Without it, a Korean word carries **a
@@ -282,7 +282,7 @@ Set it up once:
 
 1. Install the **AnkiConnect** add-on in the Anki desktop app. Its code is
    `2055492159`.
-2. Open **Import & export → Push to Anki** in the dashboard. Copy the origin it
+2. Open **Settings → Push to Anki** in the dashboard. Copy the origin it
    shows.
 3. In Anki, open **Tools → Add-ons → AnkiConnect → Config**. Add that origin to
    `webCorsOriginList`. Restart Anki.
@@ -515,7 +515,7 @@ Ten things leave your browser, each only when you do something that needs it:
 | You signed in for cloud sync | `www.googleapis.com`, your own Google Drive | your whole word store, including page URLs and sentences — see below |
 
 GIFs on cards are off until you add your own GIPHY API key. The key field is
-under **Import & export**, in **GIFs on cards**. The key is kept in
+under **Settings**, in **GIFs on cards**. The key is kept in
 `chrome.storage.local` on this machine. It is never part of an export. Nothing
 is sent to GIPHY until you press the button on a review card. A found GIF is then
 stored by its URL, so a word is never searched twice.

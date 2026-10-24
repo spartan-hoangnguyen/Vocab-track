@@ -1002,8 +1002,10 @@ async function parserTests() {
     const got = VT.suggestFolders(list, now, { c: 1 }, ['pinned']);
     eq('suggestFolders ranks by score and skips pinned and idle folders',
        got.map((s) => s.folder.id).join(), 'due,missed,half');
-    eq('each suggestion says why', got.map((s) => s.reason).join(' | '),
-       '2 due today | 1 miss in practice | 1 in progress · 50% learned');
+    // A folder suggested for its progress has no reason: its card already
+    // prints learned · learning · new.
+    eq('each suggestion says why, unless the card already does',
+       got.map((s) => s.reason ?? '-').join(' | '), '2 due today | 1 miss in practice | -');
     eq('suggestFolders stops at n', VT.suggestFolders(list, now, { c: 1 }, [], 2).length, 2);
   }
 

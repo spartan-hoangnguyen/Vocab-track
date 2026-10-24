@@ -74,6 +74,26 @@ function putWords(patches) {
   return writeQueue;
 }
 
+// removeWord for a selection: one read-modify-write and one tombstone per
+// word, for the same reason putWords exists.
+function removeWords(list) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const words = await getWords();
+      const deleted = await getDeleted();
+      const now = Date.now();
+      for (const word of list) {
+        delete words[word];
+        deleted.words[word] = now;
+      }
+      await chrome.storage.local.set({ words, deleted });
+    } catch (err) {
+      console.error('[vocab-track] bulk delete failed', err);
+    }
+  });
+  return writeQueue;
+}
+
 function removeWord(word) {
   writeQueue = writeQueue.then(async () => {
     try {
@@ -175,10 +195,18 @@ function removeFolder(id) {
   return writeQueue;
 }
 
-// Membership is a set on the word, so adding is idempotent.
+// Membership is a set on the word, so adding is idempotent. An emptied list
+// is From reading again; both setters below route through this one rule.
+const folderSet = (ids) => [...new Set(ids.length ? ids : [VT.READING])];
+
 function setWordFolders(word, ids) {
-  const unique = [...new Set(ids.length ? ids : [VT.READING])];
-  return putWord(word, { folders: unique });
+  return putWord(word, { folders: folderSet(ids) });
+}
+
+// { word: ids } for many words in one write (a bulk filing on All words).
+function setWordsFolders(byWord) {
+  return putWords(Object.fromEntries(Object.entries(byWord)
+    .map(([word, ids]) => [word, { folders: folderSet(ids) }])));
 }
 
 // Every grade, kept so FSRS's weights can one day be fitted to you rather
@@ -198,6 +226,22 @@ function recordReview(word, quality, at = Date.now()) {
       await chrome.storage.local.set({ [key]: [...(rows ?? []), [word, quality, at]] });
     } catch (err) {
       console.error('[vocab-track] review log failed for', word, err);
+    }
+  });
+  return writeQueue;
+}
+
+// Takes back the one row recordReview wrote, for review's Undo. Matched on word
+// and time together: the same word graded twice today is two rows, and only
+// the one being undone may go.
+function unrecordReview(word, at) {
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const key = HISTORY_PREFIX + VT.dayKey(at);
+      const { [key]: rows } = await chrome.storage.local.get(key);
+      await chrome.storage.local.set({ [key]: (rows ?? []).filter(([w, , t]) => w !== word || t !== at) });
+    } catch (err) {
+      console.error('[vocab-track] review log undo failed for', word, err);
     }
   });
   return writeQueue;

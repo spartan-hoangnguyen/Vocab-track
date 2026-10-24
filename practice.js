@@ -139,7 +139,7 @@ const PRACTICE = (() => {
   }
 
   function tabs() {
-    return [{ id: FLASHCARD, title: 'Flashcard', blurb: 'The review card', icon: '▤' }, ...list()];
+    return [{ id: FLASHCARD, title: 'Flashcard', blurb: 'The review card', icon: 'cards' }, ...list()];
   }
 
   // Attribute-only after the first render, and deliberately so: render() runs
@@ -157,6 +157,9 @@ const PRACTICE = (() => {
     if (host === document.getElementById('pr-tabs')) {
       tabPool = pool;
       tabCounts = counts;
+      // A reason shown for the last locked press may no longer be true.
+      const why = document.getElementById('pr-why');
+      if (why) why.hidden = true;
     }
     const all = tabs();
     if (host.children.length !== all.length) {
@@ -170,12 +173,15 @@ const PRACTICE = (() => {
     tab.setAttribute('role', 'tab');
     tab.dataset.mode = mode.id;
     tab.append(
-      node('span', 'prtabglyph', mode.icon ?? '•'),
+      node('span', 'prtabglyph'),
       node('span', 'prtablabel', mode.title),
       // Built empty rather than on demand: a count going from 0 to 1 must be a
       // text change, not an append, or the update pass stops being attribute-only.
+      // The goal's check is built in too and shown by a class, for the same reason.
       node('span', 'prbadge')
     );
+    tab.firstChild.appendChild(VT.icon(mode.icon));
+    tab.lastChild.append(VT.icon('check'), node('span'));
     tab.addEventListener('click', () => pick(mode.id));
     return tab;
   }
@@ -192,7 +198,8 @@ const PRACTICE = (() => {
     const done = counts[mode.id]?.total ?? 0;
     const badge = tab.querySelector('.prbadge');
     badge.hidden = !done;
-    badge.textContent = done >= DAILY_GOAL ? `✓ ${done}` : `${done}/${DAILY_GOAL}`;
+    badge.classList.toggle('done', done >= DAILY_GOAL);
+    badge.lastChild.textContent = done >= DAILY_GOAL ? String(done) : `${done}/${DAILY_GOAL}`;
   }
 
   function paintTabs() {
@@ -203,7 +210,14 @@ const PRACTICE = (() => {
   function pick(id) {
     const host = document.getElementById('pr-tabs');
     const tab = host?.querySelector(`[data-mode="${id}"]`);
-    if (tab?.getAttribute('aria-disabled') === 'true') return;
+    // A locked tab says why when pressed, on screen: its title is a hover.
+    const why = document.getElementById('pr-why');
+    const locked = tab?.getAttribute('aria-disabled') === 'true';
+    if (why) {
+      why.textContent = locked ? tab.getAttribute('aria-label') : '';
+      why.hidden = !locked;
+    }
+    if (locked) return;
     if (id === FLASHCARD) {
       stop();
       hooks.flashcard();
@@ -220,10 +234,12 @@ const PRACTICE = (() => {
   function next(host, correct, answer) {
     return new Promise((resolve) => {
       const bar = node('div', `prverdict ${correct ? 'good' : 'bad'}`);
-      // role=status, so the verdict is spoken; the glyph, so right and wrong
+      // role=status, so the verdict is spoken; the icon, so right and wrong
       // are not told apart by the green and the red alone.
       bar.setAttribute('role', 'status');
-      bar.appendChild(node('b', null, correct ? '✓ Correct' : '✕ Not quite'));
+      const verdict = node('b', null, correct ? 'Correct' : 'Not quite');
+      verdict.prepend(VT.icon(correct ? 'check' : 'x'));
+      bar.appendChild(verdict);
       if (answer != null) {
         bar.appendChild(typeof answer === 'string' ? node('span', null, answer) : answer);
       }
@@ -399,7 +415,7 @@ const PRACTICE = (() => {
           ui.body.replaceChildren();
           let give;
           const over = new Promise((resolve) => {
-            give = () => { gaveUp = true; shown = 'skipped'; resolve(GAVE_UP); };
+            give = () => { gaveUp = true; shown = 'no answer'; resolve(GAVE_UP); };
           });
           // The session ending is a give-up too, or a mode that never resolves
           // on its signal would hold this loop open after the tab has changed.
@@ -453,16 +469,25 @@ const PRACTICE = (() => {
   function buildPanel(mode) {
     const root = node('div', 'prpanelin');
     const head = node('div', 'prphead');
-    head.appendChild(node('span', `pricon ${mode.color ?? ''}`.trim(), mode.icon ?? '•'));
+    const tile = node('span', `pricon ${mode.color ?? ''}`.trim());
+    tile.appendChild(VT.icon(mode.icon));
+    head.appendChild(tile);
     const title = node('div', 'prptitle');
     // An <h2>, and outside every button: practice.js used to put an <h3> inside
     // the mode's own <button>, which is a heading you cannot navigate to.
     title.append(node('h2', null, mode.title), node('p', null, mode.blurb ?? ''));
     head.appendChild(title);
-    const count = node('div', 'rvcount');
-    head.appendChild(count);
+    // The review head's own counter and bar, not a second pair: two progress
+    // bars 200px apart, one frozen at the flashcard's "1 of 5", left you
+    // guessing which session you were in. Zeroed here; stop() and the
+    // flashcard's render() take them back.
+    const count = document.getElementById('rv-sub');
+    const fill = document.getElementById('rv-prog-fill');
+    count.textContent = '';
+    fill.style.width = '0%';
 
-    const full = button('btn ghost prpbtn', '⛶ Fullscreen');
+    const full = button('btn ghost prpbtn', 'Fullscreen');
+    full.prepend(VT.icon('expand'));
     full.title = 'Fill the screen';
     full.addEventListener('click', () => {
       // documentElement, never .rvbody or the review section: a modal <dialog>
@@ -473,13 +498,8 @@ const PRACTICE = (() => {
         ? document.exitFullscreen() : document.documentElement.requestFullscreen();
       request?.catch?.((err) => console.error('[vocab-track] fullscreen refused', err));
     });
-    const exit = button('btn ghost prpbtn', 'Exit');
-    exit.addEventListener('click', () => pick(FLASHCARD));
-    head.append(full, exit);
-
-    const prog = node('div', 'rvprog');
-    const fill = node('span');
-    prog.appendChild(fill);
+    // No Exit beside it: the Flashcard tab, and Esc, are the way out.
+    head.appendChild(full);
 
     const ctl = node('div', 'rvctl');
     ctl.append(...sessionControl(mode), ...directionControl(mode));
@@ -496,7 +516,8 @@ const PRACTICE = (() => {
     body.tabIndex = -1;
 
     const foot = node('div', 'prfoot');
-    const hint = button('btn ghost prhintbtn', '❓ Hint');
+    const hint = button('btn ghost prhintbtn', 'Hint');
+    hint.prepend(VT.icon('bulb'));
     hint.title = 'h — costs you the Easy';
     const give = button('btn ghost prgivebtn', "I don't know");
     // Not "Skip". #rv-skip on the review card means "don't ask again", and
@@ -505,7 +526,7 @@ const PRACTICE = (() => {
     give.title = '? — graded as wrong';
     foot.append(hint, give);
 
-    root.append(head, prog, ctl, status, body, foot);
+    root.append(head, ctl, status, body, foot);
     let picks = 0;
     const ui = {
       root, body, status, count, fill, foot, hint, give,
@@ -690,6 +711,9 @@ const PRACTICE = (() => {
       panel.replaceChildren();
       panel.hidden = true;
     }
+    // The shared counter still reads the round just abandoned.
+    const count = document.getElementById('rv-sub');
+    if (count) count.textContent = '';
     paintTabs();
     hooks.changed();
   }

@@ -1,32 +1,51 @@
 /* Paper-and-serif direction: the page is a reading surface, not a console.
    That is the default and stays pixel-for-pixel what it was. The night theme
    (data-theme="night" on <html>, the moon button in the top bar) is a second
-   design rather than a flipped palette: navy starry cards, an olive primary
-   and a rounded sans. It lives in the tokens below plus the night block at
-   the end of this file, so every rule above reads the same in both. */
+   palette, not a second product: navy starry cards and an olive primary, on
+   the same Fraunces headings, sizes and shapes as paper. It lives in the
+   tokens below plus the night block at the end of this file, so every rule
+   above reads the same in both. */
 /* Fonts are vendored under fonts/, not fetched from Google: the dashboard
    should make no third-party request just to render, and it has to work
    offline. Regenerate with tools/vendor-fonts.py. */
 @import url('fonts/fonts.css');
 
 :root{
-  --paper:#faf7f2; --panel:#f4efe6; --ink:#1c1a17; --ink2:#6b655c; --ink3:#938c80;
-  --rule:#e4ded3; --bar:#2a78d6; --danger:#a8362f;
-  --sage:#e7ece0; --sage-ink:#4a5d3f;
-  --clay:#f3e3dc; --clay-ink:#7a4b3a;
-  --ochre:#f7ecd7; --ochre-ink:#7d5f23;
-  --sky:#e2eaf2;  --sky-ink:#38546e;
+  /* Text tokens hold WCAG AA (4.5:1) on every surface they sit on: --ink3 on
+     --panel, --paper and --card; --bar as .lvl text on the same three. */
+  --paper:#faf7f2; --panel:#f4efe6; --ink:#1c1a17; --ink2:#6b655c; --ink3:#736b5f;
+  --rule:#e4ded3; --bar:#216bc5; --danger:#a8362f;
+  /* Each folder tint has two inks: the title's, and a second for the card's
+     quieter lines. Explicit colours, not opacity, so each pair is measurable
+     (title >=7:1, second >=5:1 on its tint). */
+  --sage:#e7ece0; --sage-ink:#415237; --sage-ink2:#4a5d3f;
+  --clay:#f3e3dc; --clay-ink:#694132; --clay-ink2:#7a4b3a;
+  --ochre:#f7ecd7; --ochre-ink:#634b1c; --ochre-ink2:#7d5f23;
+  --sky:#e2eaf2;  --sky-ink:#354f67;  --sky-ink2:#38546e;
   /* The raised surface a card sits on. */
   --card:#fff;
-  /* Headings and the big word. Night swaps it for a rounded sans. */
+  /* Chart bars take the sage ink rather than the link blue, so a chart reads
+     as part of the paper; the blue is kept for the one share a chart has to
+     tell apart (new words in the review forecast), a hue pair that survives
+     red-green colour blindness. Both clear 3:1 on --card in either theme. */
+  --plot:var(--sage-ink);
+  /* Headings and the big word, in both themes. */
   --serif:Fraunces,Georgia,serif;
   /* Every literal the rules used to carry, named so the night theme can
      redefine it in one place. Same values as before: light is unchanged. */
   --hover:#0000000a; --shade:#0000004d; --rule-hi:#d7cfc0; --tag-hi:#e8e1d4;
-  --ring:#2a78d61f; --kbd-rule:#ffffff4d; --badge:#ffffffb8;
+  --ring:#216bc51f; --kbd-rule:#ffffff4d; --badge:#ffffffb8;
   --lift:0 1px 2px #1c1a1708,0 12px 32px -18px #1c1a1726;
 }
 *{box-sizing:border-box}
+/* One focus ring for every control, in both themes (--bar is redefined at
+   night). :where() keeps it at zero specificity, so a control that draws its
+   own focus state — the search box, the answer box — keeps that instead. */
+:where(a,button,input,select,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--bar);outline-offset:2px}
+/* Read by a screen reader, drawn nowhere: the review's live region. */
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap;border:0}
 body{margin:0;background:var(--paper);color:var(--ink);
      font:14.5px/1.6 Inter,system-ui,sans-serif;display:flex;min-height:100vh}
 
@@ -36,15 +55,32 @@ aside{width:236px;flex:none;background:var(--panel);border-right:1px solid var(-
 .mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--paper);
       display:grid;place-items:center;font:600 15px var(--serif)}
 .brand b{font:600 15px Inter;letter-spacing:-.01em}
-.navlabel{font:600 10.5px Inter;letter-spacing:.11em;text-transform:uppercase;
+.navlabel{font:600 11.5px Inter;letter-spacing:.11em;text-transform:uppercase;
           color:var(--ink3);padding:14px 10px 8px}
-nav a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
+nav a,nav button{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
       color:var(--ink);text-decoration:none;font-weight:500;font-size:14px}
-nav a:hover{background:var(--hover)}
+nav a:hover,nav button:hover{background:var(--hover)}
+/* The Help items that open a sheet are buttons, drawn as the links beside them. */
+nav button{width:100%;border:0;background:none;font-family:inherit;line-height:inherit;text-align:left;cursor:pointer}
 nav a.on{background:var(--ink);color:var(--paper)}
-nav a svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;
+nav a svg,nav button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;
           stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
 nav a.on svg{opacity:1}
+/* Every other interface icon (lib.js VT.icon, and the inline ones in
+   dashboard.html): the nav's stroke, sat on the text's baseline. */
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;
+    stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px}
+.ic.after{margin:0 0 0 5px}
+/* The controls that are an icon and nothing else (named by aria-label): no
+   gap for text that is not there, or the icon sits off centre. */
+.f .pin .ic,.rvstar .ic,#rv-speaker-play .ic,.prq-play .ic,.pr-speak-mic .ic{margin:0}
+/* The same drawings for a state CSS marks on its own (::before/::after), as
+   masks painted in currentColor. Keep the paths in step with lib.js VT.ICONS. */
+:root{
+  --ic-check:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 8.5 6.5 12 13 4.5'/></svg>");
+  --ic-x:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='m4 4 8 8M12 4l-8 8'/></svg>");
+  --ic-open:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='8' cy='8' r='5'/></svg>");
+}
 .streak{margin-top:auto;background:var(--paper);border:1px solid var(--rule);
         border-radius:12px;padding:14px}
 .streak .d{font:600 22px/1 var(--serif)}
@@ -68,11 +104,15 @@ main > section{flex:1 0 auto}
      border:1px solid var(--rule);border-radius:6px;padding:3px 7px;background:var(--panel);
      pointer-events:none}
 .top .sp{flex:1}
+/* One way into the review per screen: while the overview's Due today block
+   shows its own Start review, the top bar's Review steps aside. */
+main:has(#view-overview:not([hidden]) #ov-today-head:not([hidden])) #review-btn{display:none}
 .btn{background:var(--ink);color:var(--paper);border:0;border-radius:10px;
      padding:11px 18px;font:500 13.5px Inter;cursor:pointer}
 .btn:hover{opacity:.88}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
 .btn.small{padding:6px 11px;font-size:12.5px;border-radius:8px}
+.btn.danger{background:var(--danger);color:var(--paper)}
 
 h1{font:600 30px/1.15 var(--serif);margin:0;letter-spacing:-.015em}
 .sub{color:var(--ink2);font-size:14px;margin-top:7px}
@@ -85,27 +125,78 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .stat .n{font:600 30px/1 var(--serif);letter-spacing:-.02em}
 .stat .l{color:var(--ink2);font-size:12.5px;margin-top:5px}
 .stat .l.tight{margin:0 0 6px}
-.bars{display:flex;align-items:flex-end;gap:6px;height:34px}
-.bars i{display:block;width:13px;background:var(--bar);border-radius:3px 3px 0 0}
-.bars u{display:block;font-size:10px;color:var(--ink3);text-decoration:none;
+/* The tallest bar (29px) plus its caption; less and the bars climb over
+   the "By level" label above. */
+.bars{display:flex;align-items:flex-end;gap:6px;height:48px}
+.bars i{display:block;width:13px;background:var(--plot);border-radius:3px 3px 0 0}
+.bars u{display:block;font-size:11px;color:var(--ink3);text-decoration:none;
         text-align:center;margin-top:4px}
+.bars i[hidden]{display:none}
+.stats[hidden]{display:none}
+
+/* First run (dashboard.js renderOverview): three steps on one sheet of
+   paper, not three cards. The numerals are the sequence, so they are drawn. */
+.start{margin:26px 0 34px;padding:28px 30px 24px;border:1px solid var(--rule);
+       border-radius:16px;background:var(--card);box-shadow:var(--lift);max-width:760px}
+.start-title{font:600 22px/1.25 var(--serif);letter-spacing:-.01em;text-transform:none;
+             color:var(--ink);margin:0 0 20px;text-wrap:balance}
+.steps{list-style:none;margin:0;padding:0;counter-reset:step;display:grid;gap:18px}
+.steps li{counter-increment:step;position:relative;padding-left:46px}
+.steps li::before{content:counter(step);position:absolute;left:0;top:-1px;width:30px;height:30px;
+                  border-radius:50%;border:1px solid var(--rule-hi);display:grid;place-items:center;
+                  font:600 15px/1 var(--serif);color:var(--ink2);background:var(--paper)}
+.steps b{display:block;font-weight:600;font-size:15px;color:var(--ink)}
+.steps span{display:block;color:var(--ink2);font-size:13.5px;max-width:62ch;margin-top:2px}
+.steps .wc-seen{margin-top:10px}
+.start-alt{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--rule);
+           color:var(--ink2);font-size:13px}
+.start-alt button{background:none;border:0;padding:0;font:500 13px Inter;color:var(--ink);
+                  cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+/* The due words (dashboard.js renderToday): one ruled sheet, a line per
+   word — word, meaning, the sentence it came from — read before the folders.
+   One line each, cut with an ellipsis, so six words stay a glance. */
+.today{list-style:none;margin:0 0 30px;padding:0;border:1px solid var(--rule);
+       border-radius:14px;background:var(--card);overflow:hidden}
+.today[hidden]{display:none}
+.today li{display:grid;grid-template-columns:minmax(0,13rem) minmax(0,1fr) minmax(0,1.5fr);
+          gap:18px;align-items:baseline;padding:12px 20px}
+.today li + li{border-top:1px solid var(--rule)}
+.today-word{font:600 18px/1.3 var(--serif);letter-spacing:-.01em}
+.today-gloss{font-size:13.5px;color:var(--ink2)}
+.today-word,.today-gloss,.today .wc-seen{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today .wc-seen{grid-column:3;margin:0;padding:2px 0 2px 10px;background:none;
+                font-size:13px;line-height:1.5;max-width:none}
+@media (max-width:900px){
+  .today li{grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:4px 12px;padding:12px 16px}
+  .today .wc-seen{grid-column:1 / -1;margin-top:4px}
+}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
 .f{border-radius:16px;padding:20px 22px;border:1px solid var(--rule);position:relative;
    min-height:150px;display:flex;flex-direction:column;cursor:pointer;text-align:left;
    font:inherit;color:inherit}
 .f:hover{filter:brightness(.98)}
-.f .meta{font:500 11.5px Inter;letter-spacing:.05em;text-transform:uppercase;opacity:.72}
+.f .meta{order:-1;font:500 11.5px Inter;letter-spacing:.05em;text-transform:uppercase;color:var(--f-ink2)}
 .f h3{font:600 21px/1.2 var(--serif);margin:9px 0 5px;letter-spacing:-.01em}
-.f p{margin:0;font-size:13px;opacity:.78;line-height:1.5}
-.f .foot{margin-top:auto;padding-top:14px;font-size:12.5px;font-weight:500;opacity:.8;
+/* The card's primary button is its title (dashboard.js folderCard). It looks
+   like the heading it sits in, and its ::after covers the whole card, so the
+   card is clickable everywhere without being a button around other buttons.
+   The ring goes on the card, which is what the button stands for. */
+.fopen{background:none;border:0;padding:0;margin:0;font:inherit;letter-spacing:inherit;
+       color:inherit;text-align:inherit;cursor:pointer}
+.fopen::after{content:"";position:absolute;inset:0;border-radius:16px}
+.fopen:focus-visible{outline:none}
+.f:has(.fopen:focus-visible){outline:2px solid var(--bar);outline-offset:2px}
+.f p{margin:0;font-size:13px;color:var(--f-ink2);line-height:1.5}
+.f .foot{margin-top:auto;padding-top:14px;font-size:12.5px;font-weight:500;color:var(--f-ink2);
          display:flex;gap:10px;align-items:center}
 .f .badge{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:9px;
           background:var(--badge);display:grid;place-items:center;font-size:15px}
-.f.sage{background:var(--sage);color:var(--sage-ink)}
-.f.clay{background:var(--clay);color:var(--clay-ink)}
-.f.ochre{background:var(--ochre);color:var(--ochre-ink)}
-.f.sky{background:var(--sky);color:var(--sky-ink)}
+.f.sage{background:var(--sage);color:var(--sage-ink);--f-ink2:var(--sage-ink2)}
+.f.clay{background:var(--clay);color:var(--clay-ink);--f-ink2:var(--clay-ink2)}
+.f.ochre{background:var(--ochre);color:var(--ochre-ink);--f-ink2:var(--ochre-ink2)}
+.f.sky{background:var(--sky);color:var(--sky-ink);--f-ink2:var(--sky-ink2)}
 .f.new{background:transparent;border:1.5px dashed var(--rule);color:var(--ink2);
        align-items:center;justify-content:center;text-align:center}
 .f.new .plus{font:400 26px Inter;line-height:1}
@@ -114,18 +205,28 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .secthead[hidden],.grid[hidden]{display:none}
 #view-overview .grid:not(:last-child){margin-bottom:30px}
 .f .pin{position:absolute;top:18px;right:56px;width:30px;height:30px;border:0;border-radius:9px;
-        background:none;cursor:pointer;font-size:14px;opacity:0;transition:opacity .12s}
-.f:hover .pin,.f .pin:focus-visible{opacity:.5}
+        background:none;cursor:pointer;font-size:14px;opacity:0;transition:opacity .12s;
+        z-index:1}
+/* Shown to the keyboard as well as the mouse: whenever focus is anywhere in
+   the card, so tabbing onto the title already says the pin is there. */
+.f:hover .pin,.f:focus-within .pin,.f .pin:focus-visible{opacity:.5}
 .f .pin:hover,.f .pin.on{opacity:1}
-.f .why{font-weight:600;opacity:.9}
+.f .pin.on .ic{fill:currentColor}
+.f .why{font-weight:600;color:inherit}
 .fprog{display:flex;gap:2px;height:6px;margin-top:14px;border-radius:99px;overflow:hidden}
 .fprog i{min-width:0}
 .fprog .m{background:currentColor}
 .fprog .l{background:currentColor;opacity:.45}
 .fprog .n{background:currentColor;opacity:.14}
-.fcounts{margin-top:7px;font-size:12px;opacity:.75;font-variant-numeric:tabular-nums}
-.f .edit{background:none;border:0;padding:0;font:500 12.5px Inter;color:inherit;
-         opacity:.7;cursor:pointer;text-decoration:underline}
+.fcounts{margin-top:7px;font-size:12px;color:var(--f-ink2);font-variant-numeric:tabular-nums}
+/* A small pill on the card's own badge tint, not underlined text: they are
+   buttons, and an underline says link. */
+.f .edit{background:var(--badge);border:0;padding:4px 10px;border-radius:8px;
+         font:500 12.5px Inter;color:inherit;cursor:pointer;
+         /* Above the title's card-wide ::after, or the click opens the folder. */
+         position:relative;z-index:1}
+.f .edit:hover{box-shadow:inset 0 0 0 1px currentColor}
+.f .edit:first-of-type{margin-left:auto}
 
 .lvl{font:600 11px Inter;letter-spacing:.04em;color:var(--bar);
      border:1px solid var(--rule);padding:2px 7px;border-radius:6px;white-space:nowrap}
@@ -134,20 +235,35 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 .tag{font-size:11.5px;padding:2px 8px;border-radius:999px;background:var(--panel);
      color:var(--ink2);white-space:nowrap;cursor:pointer}
 .when{color:var(--ink3);font-size:12.5px;white-space:nowrap}
-.rowdel{background:none;border:0;color:var(--ink3);cursor:pointer;font-size:15px;padding:0 4px}
+.rowdel{background:none;border:0;color:var(--ink3);cursor:pointer;font-size:15px;padding:0;
+        /* The glyph is small; the target is not (WCAG 2.5.8's 24px). */
+        min-width:24px;min-height:24px}
 .rowdel:hover{color:var(--danger)}
 .empty{padding:34px 18px;color:var(--ink2);margin:0;text-align:center}
+.empty .btn{margin-left:8px}
 .lookupcta{padding:22px 18px;text-align:center;color:var(--ink2)}
 .lookupcta b{color:var(--ink);font-weight:600}
 
 .iocards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
          gap:16px;margin-top:26px}
 .iocard{border:1px solid var(--rule);border-radius:14px;padding:22px;background:var(--card)}
-.iocard h3{font:600 19px var(--serif);margin:0 0 7px}
+/* An h2 under the view's h1, so the global h2 (small caps label) is undone. */
+.iocard h2{font:600 19px var(--serif);margin:0 0 7px;letter-spacing:normal;
+           text-transform:none;color:var(--ink)}
 .iocard p{margin:0 0 16px;color:var(--ink2);font-size:13.5px}
-/* The GIPHY key field. Monospace because it is a key, not prose, and full width
-   so the whole of it is visible at once. */
-#giphy-key{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--rule);
+/* Ink, not the UA's blue, which is off-palette on paper and harsh at night. */
+.iocard a{color:var(--ink);text-underline-offset:3px;text-decoration-color:var(--rule-hi)}
+.iocard a:hover{text-decoration-color:currentColor}
+/* The backup file picker: the UA's grey button dressed as a .btn.ghost. */
+#import-file{max-width:100%;font:400 13px Inter;color:var(--ink2)}
+#import-file::file-selector-button{margin-right:12px;padding:8px 14px;border:1px solid var(--rule);
+  border-radius:10px;background:transparent;color:var(--ink);font:500 13px Inter;cursor:pointer}
+#import-file::file-selector-button:hover{background:var(--hover)}
+/* Actions start at the text's edge in every card, Anki's two included. */
+.iocard .dlgrow{justify-content:flex-start}
+/* The API key fields (GIPHY, translation, krdict). Monospace because a key is
+   not prose, and full width so the whole of it is visible at once. */
+.keyfield{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--rule);
            border-radius:9px;background:var(--panel);color:var(--ink);
            font:13px ui-monospace,Menlo,monospace}
 /* The AnkiConnect origin, shown to copy verbatim: wraps rather than overflowing
@@ -160,6 +276,17 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #anki-deck{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);
            border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px}
 .note{margin-top:12px;font-size:13px;color:var(--ink2);min-height:1.2em}
+/* A failure in a note line: the danger colour and a touch more weight, so it
+   cannot be mistaken for the quiet success line it replaced. The detail line
+   under it is the technical cause, for a bug report, not the thing to act on. */
+.note.err{color:var(--danger);font-weight:500}
+.note-detail{margin-top:3px;font-size:12px;font-weight:400;color:var(--ink2);
+             overflow-wrap:anywhere}
+.note-detail summary{width:max-content;cursor:pointer;text-underline-offset:3px}
+.note-detail summary:hover{text-decoration:underline}
+/* The import's Import / Cancel, under the counts they answer. */
+.note .dlgrow{margin-top:10px}
+.wradd input[aria-invalid="true"],.keyfield[aria-invalid="true"]{border-color:var(--danger)}
 .cloudbtns{display:flex;gap:8px;flex-wrap:wrap}
 
 dialog{border:1px solid var(--rule);border-radius:16px;padding:24px;background:var(--paper);
@@ -171,6 +298,7 @@ dialog input,dialog select{display:block;width:100%;margin-top:5px;padding:9px 1
        border:1px solid var(--rule);border-radius:9px;background:var(--card);
        font:400 14px Inter;color:var(--ink)}
 .dlgrow{display:flex;gap:9px;justify-content:flex-end;margin-top:20px}
+.dlgtext{margin:0;font-size:14px;line-height:1.5;color:var(--ink2)}
 .taglist{max-height:min(46vh,340px);overflow-y:auto;margin-top:10px;
          display:flex;flex-direction:column;gap:2px}
 dialog .tagrow{display:flex;align-items:center;gap:10px;margin:0;padding:7px 9px;
@@ -179,19 +307,92 @@ dialog .tagrow{display:flex;align-items:center;gap:10px;margin:0;padding:7px 9px
 dialog .tagrow input{display:inline;width:auto;margin:0}
 /* A preset you have not used yet: on offer, but not yet yours. */
 .tagrow.suggested{color:var(--ink2)}
+/* Your folders / Suggested: small caps-height labels, more air above than below. */
+.taggroup + .taggroup{margin-top:10px}
+.taghead{margin:0 0 2px;padding:0 9px;font:600 11.5px Inter;letter-spacing:.02em;color:var(--ink2)}
+/* ---- help sheets (dashboard.js openHelp) ---- */
+.helpdlg{width:min(560px,92vw);padding:0}
+.helpdlg form{padding:22px 26px 26px}
+/* Sticky, so Close stays in reach while the sheet scrolls under it. */
+.helphead{position:sticky;top:0;z-index:1;display:flex;align-items:center;
+          justify-content:space-between;gap:12px;margin:-22px -26px 4px;
+          padding:22px 26px 12px;background:var(--paper);border-bottom:1px solid var(--rule)}
+.helpdlg h3{margin:0}
+.helpdlg h4{font:600 16px/1.3 var(--serif);margin:20px 0 6px;scroll-margin-top:72px}
+.helpdlg h4:focus{outline:none}
+.helpdlg p{margin:0 0 10px;font-size:14px;line-height:1.6;color:var(--ink2);max-width:62ch}
+.helpdlg p b,.helpdlg dt{color:var(--ink);font-weight:600}
+.helpdlg dl{margin:0 0 10px}
+.helpdlg dl > div{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:baseline;
+                  padding:6px 0;border-top:1px solid var(--rule)}
+.helpdlg dl > div:first-child{border-top:0}
+.helpdlg dd{margin:0;font-size:14px;line-height:1.5;color:var(--ink2)}
+.helpdlg dt{font-size:12.5px;color:var(--ink3)}
+.helpdlg dt kbd{margin:0;opacity:1;border-color:var(--rule-hi);background:var(--card);
+                color:var(--ink);font-variant-numeric:tabular-nums}
+.howgrades dt{font:600 14px Inter;color:var(--ink)}
+/* The (?) beside a heading: small, round and quiet until you look for it. */
+.helpq{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:6px;
+       padding:0;border:1px solid var(--rule-hi);border-radius:50%;background:none;
+       font:600 11px/1 Inter;letter-spacing:0;color:var(--ink2);cursor:pointer;
+       vertical-align:1px;text-transform:none}
+.helpq:hover{background:var(--hover);color:var(--ink)}
+/* On a folder card: above the title's stretched ::after, in the card's own ink. */
+.f .helpq{position:relative;z-index:1;width:16px;height:16px;margin-left:5px;font-size:10px;
+          border-color:currentColor;color:var(--f-ink2);vertical-align:0}
+.f .helpq:hover{background:var(--badge);color:inherit}
 .tagrow.create{background:none;border:0;font:500 14px Inter;text-align:left;
        color:var(--ink)}
 
+/* At full width the two navs are just the column's children and Help is a
+   plain list: the wrapper draws nothing, the toggle is not drawn, and the
+   popover's UA box (fixed, centred, bordered) is undone. An id selector, so
+   it outranks the UA's [popover]:not(:popover-open){display:none}. */
+.navs{display:contents}
+.helptoggle{display:none}
+#help-nav{display:block;position:static;inset:auto;margin:0;padding:0;border:0;
+          width:auto;height:auto;overflow:visible;background:none;color:inherit}
+
 @media (max-width:900px){
   body{flex-direction:column}
-  aside{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;
-        align-items:center;gap:8px;padding:12px 16px}
-  .brand{padding:0 10px 0 0}
+  /* One band: brand, the seven links, then Help. The links wrap rather than
+     scroll: a sideways row with its scrollbar hidden cut Import & export and
+     Settings off at 800px with nothing to say they were there. Learn and
+     Library each keep to one line while they fit, so the break falls between
+     the two groups. Brand and Help stay on the first line, level with it,
+     so the Help sheet still opens just under its toggle. */
+  aside{width:auto;height:auto;position:static;flex-direction:row;
+        align-items:flex-start;gap:12px;padding:10px 16px}
+  .brand{padding:0;min-height:40px}
   .navlabel,.streak{display:none}
-  nav{display:flex;gap:4px}
+  .navs{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+  nav{display:flex;flex-wrap:wrap;gap:4px}
+  nav a{white-space:nowrap}
+  .helptoggle{display:block;flex:none;min-height:40px;border:1px solid var(--rule);border-radius:9px;
+              background:none;padding:8px 12px;font:500 14px Inter;color:var(--ink);cursor:pointer}
+  .helptoggle:hover{background:var(--hover)}
+  /* The folded Help: a small sheet under the toggle. Fixed is enough, since
+     this row sits at the very top of the page and is the only way to open it. */
+  #help-nav:not(:popover-open){display:none}
+  #help-nav:popover-open{display:flex;flex-direction:column;gap:2px;position:fixed;
+          inset:54px 16px auto auto;padding:6px;min-width:220px;background:var(--card);
+          border:1px solid var(--rule);border-radius:12px;box-shadow:var(--lift)}
+  nav button{width:auto}
+  #help-nav button{width:100%}
   main{padding:18px 16px 48px}
+  /* No spare width to split with a spacer: the search box takes it all. */
+  .top .sp{display:none}
+  .search{max-width:none}
   .stats{flex-wrap:wrap;gap:26px}
   .stat.push{margin-left:0}
+  .start{padding:22px 18px 18px}
+}
+/* Too narrow to share a line with the brand: the links take a line of their
+   own under it, where they wrap two or three to a row instead of one. */
+@media (max-width:640px){
+  aside{flex-wrap:wrap}
+  .navs{order:1;flex-basis:100%}
+  .helptoggle{margin-left:auto}
 }
 
 /* ---- review ---- */
@@ -213,6 +414,13 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 .rvempty{border:1px solid var(--rule);border-radius:16px;background:var(--card);
          padding:56px 24px;text-align:center;color:var(--ink2)}
 .rvempty p{margin:0 0 18px;font-size:15px}
+.rvlocked{max-width:420px;margin:0 auto 22px;text-align:left}
+.rvlocked[hidden]{display:none}
+.rvempty .rvlocked p{margin:0 0 6px;font-size:13px;color:var(--ink2)}
+.rvlocked ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink2);line-height:1.7}
+/* The locked-tab reason practice.js pick() writes under the tab strip. */
+.prwhy{margin:8px 0 0;font-size:12.5px;color:var(--ink2)}
+.prwhy[hidden]{display:none}
 .rvcard{max-width:620px;width:100%;margin:0 auto;border:1px solid var(--rule);
         border-radius:20px;background:var(--card);padding:44px 44px 40px;text-align:center;
         box-shadow:var(--lift);
@@ -246,8 +454,12 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 /* The correction itself. `u` is the wrong letters — an underline reads as a
    correction mark and survives being screenshotted in greyscale, which colour
    alone does not. */
-.rvdiff{margin:18px 0 0;font:500 15px Inter,sans-serif;color:var(--ink2)}
-.rvdiff span{font:600 19px/1.4 'SF Mono',ui-monospace,Menlo,monospace;
+/* Whatever was typed lands here, so it breaks anywhere rather than run past
+   the card, and the mono line steps down on a narrow card (#rv-answer is the
+   size container). `>`: the marked letters are spans too, and the gap after
+   the line must not open up between them. */
+.rvdiff{margin:18px 0 0;font:500 15px Inter,sans-serif;color:var(--ink2);overflow-wrap:anywhere}
+.rvdiff > span{font:600 clamp(15px,3.6cqi,19px)/1.4 'SF Mono',ui-monospace,Menlo,monospace;
              letter-spacing:.01em;color:var(--ink);margin-right:.4em}
 .rvdiff u{text-decoration:underline wavy currentColor;text-underline-offset:3px}
 .rvdiff.good{color:var(--sage-ink);font-weight:600}
@@ -282,6 +494,10 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
    swapping a tab swaps what fills this one cell and .rvside never moves. */
 .rvbody > .rvempty,.rvbody > .rvcard,.rvbody > .prpanel{grid-column:1;grid-row:1}
 .rvside{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:16px}
+/* An empty set hides the side cards (dashboard.js renderSide); the card then
+   takes the whole row rather than sitting left of an empty column. */
+.rvside[hidden]{display:none}
+.rvbody:has(> .rvside[hidden]){grid-template-columns:minmax(0,1fr)}
 /* Below the card once the column would squeeze it: the card is the session,
    the side cards are commentary on it. */
 @media (max-width:1100px){
@@ -289,8 +505,22 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
   .rvside{grid-column:1;grid-row:2;display:grid;
           grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
 }
-.rvprog{height:3px;border-radius:2px;background:var(--rule);overflow:hidden;margin-top:14px}
-.rvprog span{display:block;height:100%;background:var(--ink);border-radius:2px;
+/* The last grade and its Undo, pushed against the count. .on toggles
+   visibility rather than [hidden]: the row keeps its shape whether or not it
+   is showing, and visibility also takes the button out of the tab order. */
+.rvundo{display:flex;align-items:baseline;gap:8px;margin:0 0 0 auto;
+        color:var(--ink2);font-size:12.5px}
+.rvundo:not(.on){visibility:hidden}
+.rvundo button{display:inline-flex;align-items:center;gap:6px;background:none;border:0;
+               padding:1px 4px;border-radius:5px;cursor:pointer;font:600 12.5px Inter,sans-serif;
+               color:var(--bar);text-decoration:underline;text-underline-offset:3px}
+.rvundo button:hover{background:var(--hover)}
+.rvundo kbd{font:500 10.5px Inter,sans-serif;border:1px solid var(--rule);border-radius:4px;
+            padding:0 4px;background:var(--panel);color:var(--ink2);opacity:1;text-decoration:none}
+/* Thick enough, and in the accent, to read as the session's progress rather
+   than as a rule under the heading. */
+.rvprog{height:6px;border-radius:99px;background:var(--rule);overflow:hidden;margin-top:12px}
+.rvprog span{display:block;height:100%;background:var(--bar);border-radius:99px;
              transition:width .22s ease}
 .rvmeta{display:flex;align-items:center;justify-content:center;gap:10px;
         color:var(--ink2);font-size:13.5px;min-height:26px}
@@ -308,8 +538,12 @@ dialog .tagrow input{display:inline;width:auto;margin:0}
 #rv-tag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Explicitly undoes the section-heading h2 rule (uppercase, muted, small):
    this is an h2 semantically but the card's own headline visually. */
-.rvword{font:600 46px/1.1 var(--serif);margin:6px 0 0;
-        letter-spacing:-.02em;text-transform:none;color:var(--ink)}
+/* Sized to the word: --len is its length (renderCard), so a long one like
+   antidisestablishmentarianism is set to fit the card's width on one line,
+   down to a floor; past the floor, on a phone, it breaks rather than overflow. */
+#rv-answer{container-type:inline-size}
+.rvword{font:600 clamp(24px,calc(150cqi / var(--len,8)),46px)/1.1 var(--serif);margin:6px 0 0;
+        letter-spacing:-.02em;text-transform:none;color:var(--ink);overflow-wrap:anywhere}
 /* The prompt now, so it carries the card. */
 .rvvi{font:600 28px/1.3 Inter,sans-serif;margin:18px 0 10px}
 .rvdef{color:var(--ink2);font-size:15px;margin:0 auto;max-width:48ch;line-height:1.6}
@@ -332,20 +566,34 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .chart{margin:0;border:1px solid var(--rule);border-radius:14px;background:var(--card);padding:20px 22px}
 .chart figcaption{font:600 12px Inter;letter-spacing:.06em;text-transform:uppercase;
                   color:var(--ink2);margin-bottom:18px}
-.plot{display:flex;align-items:flex-end;gap:3px;height:96px}
+.plot{display:flex;align-items:flex-end;gap:3px;height:96px;position:relative}
+/* The top of the scale (plotSeries sets data-max): a hairline where the
+   tallest bar ends, its value above it on the right. */
+.plot[data-max]{border-top:1px dashed var(--rule)}
+.plot[data-max]::before{content:attr(data-max);position:absolute;right:0;bottom:100%;
+  margin-bottom:3px;font-size:11px;line-height:1;color:var(--ink3);font-variant-numeric:tabular-nums}
 .plot.tall{gap:10px}
 /* No flex on the bar: inside the column flex .col, flex:1 would make it
    grow to full height and silently discard the height we just set. */
-.plot i{display:block;width:100%;background:var(--bar);
+.plot i{display:block;width:100%;background:var(--plot);
         border-radius:3px 3px 0 0;min-height:2px}
 .plot i.none{background:var(--rule)}
-.plot i b{display:block;background:var(--card);opacity:.45}
+.plot i b{display:block;background:var(--bar)}
 .chartnote{margin:10px 0 0;font-size:12.5px;color:var(--ink2)}
 .plot .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
 .plot .col u{text-decoration:none;font-size:11px;color:var(--ink3);text-align:center;
              margin-top:6px;display:block}
 .axis{display:flex;justify-content:space-between;margin-top:10px;
       font-size:11.5px;color:var(--ink3)}
+/* The one note that stands in for the review-history cards: a strip, not a
+   card-sized hole in the grid. */
+#st-nohistory{grid-column:1/-1}
+.legend{display:flex;gap:16px;list-style:none;margin:10px 0 0;padding:0;
+        font-size:12px;color:var(--ink2)}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;background:var(--plot)}
+.legend i.new{background:var(--bar)}
+.legend[hidden]{display:none}
 .sources{list-style:none;margin:0;padding:0}
 .sources li{display:flex;justify-content:space-between;gap:14px;padding:9px 0;
             border-bottom:1px solid var(--rule);font-size:13.5px}
@@ -368,13 +616,100 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
    into a tall ribbon and blew the row height out. A card gives the sentence
    full width and leaves room for the links. */
 .cards{display:flex;flex-direction:column;gap:14px;margin-top:26px}
-.wcard{border:1px solid var(--rule);border-radius:14px;background:var(--card);padding:20px 22px}
+.wcard{position:relative;border:1px solid var(--rule);border-radius:14px;background:var(--card);
+       padding:20px 22px}
+/* The × is the card's last child, so it is the last Tab stop (dashboard.js
+   wordCard), drawn back at the end of the headline row. */
+.wcard > .rowdel{position:absolute;top:21px;right:16px}
+.wcard > .wc-head{padding-right:26px}
 .wcard:hover{border-color:var(--rule-hi)}
+
+/* The All words filter row (dashboard.html #w-filter): the review's .rvopt
+   controls a size down, so they read as settings for the list under them. */
+.wfilter{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:20px}
+.wfilter[hidden]{display:none}
+.wfilter:not([hidden]) ~ .cards{margin-top:18px}
+.wgroup{display:flex;flex-wrap:wrap;gap:6px}
+.wdensity{margin-left:auto}
+.wchip{gap:6px;padding:5px 11px;font-size:12.5px}
+.wchip select{font-size:12.5px}
+.wchip span{color:var(--ink3);font-variant-numeric:tabular-nums}
+.wchip[aria-pressed="true"] span{color:var(--ink2)}
+
+/* List density: one ruled sheet, a line per word, each opening into its full
+   card (dashboard.js wordRow). The marker is drawn, and turns when open. */
+.cards.list{gap:0;border:1px solid var(--rule);border-radius:14px;background:var(--card);
+            overflow:hidden}
+/* No sheet at all when the filters leave nothing: the empty line says so. */
+.cards.list:empty{display:none}
+.wline{position:relative}
+.wline + .wline{border-top:1px solid var(--rule)}
+/* The row's tick box, beside the summary rather than in it (dashboard.js
+   wordRow), laid over its left padding and centred on the first line. */
+.wsel{position:absolute;left:16px;top:12px;z-index:1;width:18px;height:18px;margin:0;
+      accent-color:var(--ink);cursor:pointer}
+.wline:has(.wsel:checked) > .wrow > summary{background:var(--hover)}
+.wrow summary{display:grid;grid-template-columns:minmax(7em,13em) minmax(0,1fr) 4em 6em;
+              gap:16px;align-items:baseline;position:relative;padding:11px 18px 11px 66px;
+              cursor:pointer;list-style:none}
+.wrow summary::-webkit-details-marker{display:none}
+.wrow summary::before{content:"";position:absolute;left:45px;top:50%;width:6px;height:6px;
+              border:solid var(--ink3);border-width:0 1.5px 1.5px 0;
+              transform:translateY(-60%) rotate(-45deg);transition:transform .15s}
+.wrow[open] summary::before{transform:translateY(-75%) rotate(45deg)}
+.wrow summary:hover{background:var(--hover)}
+/* Inset: the sheet clips anything drawn outside a row. */
+.wrow summary:focus-visible{outline-offset:-2px}
+.wrow-word{font:600 16px/1.3 var(--serif);letter-spacing:-.01em;
+           overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wrow-gloss{color:var(--ink2);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;
+            white-space:nowrap}
+.wrow-lvl{font:600 11.5px Inter;letter-spacing:.04em;color:var(--bar)}
+.wrow-due{color:var(--ink3);font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+/* The opened card, set into the sheet rather than floating on it. */
+.wrow > .wcard{border:0;border-top:1px solid var(--rule);border-radius:0;background:var(--paper)}
+@media (max-width:640px){
+  .wrow summary{grid-template-columns:minmax(0,1fr) auto auto;gap:2px 12px}
+  .wrow-gloss{grid-column:1 / -1;grid-row:2}
+  .wdensity{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){.wrow summary::before{transition:none}}
+
+/* Select all, in the filter row while the list is lines. */
+.wall input{width:15px;height:15px;margin:0;accent-color:var(--ink);cursor:pointer}
+/* The bulk bar: a paper slip pinned to the foot of the window while rows are
+   ticked. Fixed rather than sticky, so it sits before the list in Tab order
+   without pushing the list down when it appears. */
+.wbulk{position:fixed;left:calc(50% + 118px);bottom:20px;transform:translateX(-50%);z-index:40;
+       display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;
+       width:max-content;max-width:calc(100vw - 32px);padding:8px 10px 8px 16px;
+       border:1px solid var(--rule-hi);border-radius:14px;background:var(--card);
+       box-shadow:0 2px 4px -1px var(--shade),0 18px 40px -20px var(--shade)}
+.wbulk[hidden]{display:none}
+.wbulk-count{font:600 13.5px Inter;color:var(--ink);margin-right:6px;
+             font-variant-numeric:tabular-nums;white-space:nowrap}
+.wbulk .btn[hidden]{display:none}
+.wbulk .btn:disabled{opacity:.6;cursor:progress}
+.wbulk .wbulk-del{color:var(--danger)}
+.wbulk .wbulk-clear{border-color:transparent;color:var(--ink2)}
+.wbulk .wbulk-clear:hover{color:var(--ink)}
+/* Room under the last row, so the bar never covers it. */
+#view-words:has(.wbulk:not([hidden])) .cards{margin-bottom:64px}
+/* Centred on the list, not the window: half the sidebar's 236px to the right,
+   until the sidebar folds into the top bar. */
+@media (max-width:900px){.wbulk{left:50%}}
+@media (max-width:640px){
+  .wbulk{bottom:12px;padding:8px 10px}
+  .wbulk-count{flex-basis:100%}
+}
 
 .wc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .wc-word{font:600 23px/1.15 var(--serif);margin:0;letter-spacing:-.015em;
-         cursor:pointer;text-transform:none;color:var(--ink)}
-.wc-word:hover{text-decoration:underline dotted}
+         text-transform:none;color:var(--ink);overflow-wrap:anywhere;min-width:0}
+/* The Pronounce button inside the heading, dressed as the heading. */
+.wc-say{background:none;border:0;padding:0;margin:0;font:inherit;letter-spacing:inherit;
+        color:inherit;text-align:inherit;cursor:pointer}
+.wc-say:hover{text-decoration:underline dotted}
 .wc-pos{color:var(--ink2);font-size:13px;font-style:italic}
 .wc-ipa{color:var(--ink3);font-size:13px}
 .wc-spacer{flex:1}
@@ -410,12 +745,24 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .wc-link{color:var(--ink2);font-size:12.5px;text-decoration:none;
          border-bottom:1px solid var(--rule);padding-bottom:1px}
 .wc-link:hover{color:var(--ink);border-bottom-color:var(--ink3)}
+.wc-extra{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* Faint until the card is hovered or anything in it has focus: dimmed, not
+   hidden, so they can still be found by eye, and opacity rather than display
+   or visibility keeps them in the tab order. A touch screen has no hover to
+   reveal them with: shown. */
+@media (hover:hover){
+  .wc-extra{opacity:.45;transition:opacity .16s cubic-bezier(.16,1,.3,1)}
+  .wcard:hover .wc-extra,.wcard:focus-within .wc-extra{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){.wc-extra{transition:none}}
 .tag.clickable{cursor:pointer}
+/* The clickable chips are buttons; this takes the button chrome off again. */
+button.tag{border:0;margin:0;font-family:inherit;line-height:inherit}
 .tag.clickable:hover{background:var(--tag-hi);color:var(--ink)}
 /* A word already pushed to Anki: a quiet green tick. .anki-err flags a push
    that failed, with the reason in the tag's title. */
 .tag.anki-on{color:#2f7d4f}
-.tag.anki-err{color:#c0392b}
+.tag.anki-err{color:var(--danger)}
 
 /* Words that arrived from another Mac app while the dashboard was shut. */
 .capnote{margin:0 0 18px;padding:10px 14px;border:1px solid var(--rule);
@@ -427,7 +774,7 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
   padding:12px 14px;border:1px solid var(--rule);border-radius:11px;background:var(--card)}
 .cloudhint[hidden]{display:none}
 .cloudhint p{margin:0;flex:1 1 280px;font-size:13.5px;color:var(--ink2)}
-.cloudhint .cloudhint-err{flex-basis:100%;color:#c0392b;font-size:13px}
+.cloudhint .cloudhint-err{flex-basis:100%;color:var(--danger);font-size:13px}
 
 /* ---- writing ----
    No `display` on #view-writing: the section must stay a plain block so the UA
@@ -497,7 +844,14 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 
 /* ---------- review controls ---------- */
 /* Settings for the session, so they read quieter than the card's own buttons. */
-.rvctl{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.rvsettings{margin-top:10px}
+.rvsettings summary{width:max-content;cursor:pointer;padding:4px 0;list-style-position:inside;
+                    font:500 13px Inter;color:var(--ink2)}
+.rvsettings summary:hover{color:var(--ink)}
+/* Settings for a card that is not there are noise on the empty and first-run
+   screens. One rule rather than a flag set beside every #rv-empty toggle. */
+#view-review:has(#rv-empty:not([hidden])) .rvsettings{display:none}
+.rvctl{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .rvopt{display:inline-flex;align-items:center;gap:9px;padding:6px 12px;
        border:1px solid var(--rule);border-radius:10px;background:var(--card);
        font:500 13px Inter;color:var(--ink2);cursor:pointer}
@@ -527,6 +881,7 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 
 .rvstar{font-size:15px;line-height:1.2;padding:1px 8px}
 .rvstar[aria-pressed="true"]{color:var(--ochre-ink);border-color:var(--ochre-ink)}
+.rvstar[aria-pressed="true"] .ic{fill:currentColor}
 
 /* ---------- side cards ---------- */
 .rvsidecard{border:1px solid var(--rule);border-radius:16px;background:var(--card);
@@ -537,23 +892,17 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 .rvleft{margin:0;padding:8px 12px;border-radius:10px;background:var(--ochre);
         color:var(--ochre-ink);font-size:13px;font-weight:600}
 .rvmasthead{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.rvlevel{font:600 11.5px Inter;padding:3px 9px;border-radius:999px;
-         background:var(--panel);color:var(--ink2)}
 .rvmastbody{display:flex;align-items:center;gap:14px;margin-top:12px}
 .rvringwrap{position:relative;flex:none;width:64px;height:64px}
 .rvring{width:100%;height:100%;transform:rotate(-90deg)}
 .rvring circle{fill:none;stroke:var(--rule);stroke-width:6}
 .rvring circle + circle{stroke:var(--bar);stroke-linecap:round}
 .rvring circle.way{opacity:.35}
-.rvnext{margin:12px 0 0;font-size:12.5px;color:var(--ink2)}
-.rvnext[hidden]{display:none}
+.rvleft[hidden]{display:none}
 .rvpct{position:absolute;inset:0;display:grid;place-items:center;
        font:600 14px Inter;color:var(--ink);font-variant-numeric:tabular-nums}
 .rvmastered{margin:0;font-size:13px;line-height:1.5;color:var(--ink2)}
 .rvmastered b{color:var(--ink)}
-.rvsegs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:14px}
-.rvsegs i{height:5px;border-radius:3px;background:var(--rule)}
-.rvsegs i.on{background:var(--bar)}
 
 /* ---------- theme button ---------- */
 /* Both themes. Quiet in paper, where it is a setting; the moon fills in and
@@ -578,12 +927,11 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
   color-scheme:dark;
   --paper:#1b1c16; --panel:#25271e; --ink:#f1ede2; --ink2:#d0cbbd; --ink3:#bab5a6;
   --rule:#3b3e31; --bar:#8fb3f5; --danger:#f0917f;
-  --sage:#29331f;  --sage-ink:#c6dab0;
-  --clay:#3b2822;  --clay-ink:#efbba5;
-  --ochre:#3b3020; --ochre-ink:#f0c877;
-  --sky:#1f2c3f;   --sky-ink:#abc8ea;
+  --sage:#29331f;  --sage-ink:#c6dab0; --sage-ink2:#a3b590;
+  --clay:#3b2822;  --clay-ink:#efbba5; --clay-ink2:#cfa18d;
+  --ochre:#3b3020; --ochre-ink:#f0c877; --ochre-ink2:#cfad67;
+  --sky:#1f2c3f;   --sky-ink:#abc8ea;  --sky-ink2:#92accb;
   --card:#23251d;
-  --serif:Nunito,ui-rounded,system-ui,sans-serif;
   --hover:#ffffff0d; --shade:#000000b3; --rule-hi:#5a5e4c; --tag-hi:#383b2e;
   --ring:#8fb3f533; --kbd-rule:#ffffff4d; --badge:#ffffff1f;
   --lift:0 20px 44px -22px #000000e6;
@@ -596,16 +944,15 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
    reads the background (and the probe's contrast check) sees near-black. */
 :root[data-theme="night"] body{
   background:radial-gradient(#ffffff12 1px,transparent 1.4px) 0 0/22px 22px,var(--paper)}
-:root[data-theme="night"] aside{background:var(--paper)}
 /* A backdrop does not reliably inherit custom properties, so it is named. */
 :root[data-theme="night"] dialog::backdrop{background:#000000a6}
 
 /* Olive, not the paper theme's ink-on-paper inversion, which at night would
    be a glaring off-white slab. */
-:root[data-theme="night"] .btn:not(.ghost),
+:root[data-theme="night"] .btn:not(.ghost):not(.danger),
 :root[data-theme="night"] nav a.on,
 :root[data-theme="night"] .mark{background:var(--olive);color:var(--ink)}
-:root[data-theme="night"] .btn:not(.ghost):hover{background:var(--olive-hi);opacity:1}
+:root[data-theme="night"] .btn:not(.ghost):not(.danger):hover{background:var(--olive-hi);opacity:1}
 :root[data-theme="night"] .rvopt[aria-pressed="true"]{border-color:var(--ink2)}
 :root[data-theme="night"] .rvopt input[role="switch"]:checked{background:#8a9a4a}
 
@@ -618,25 +965,29 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
   background:var(--navy);background-color:#2b3f7c;
   border-color:#ffffff1a;color:var(--ink);box-shadow:var(--lift)}
 /* Stars and the shooting star sit under the content (z-index -1 inside the
-   card's own stacking context), so they never cover a letter. */
-:root[data-theme="night"] .rvcard::before,
-:root[data-theme="night"] .rvsidecard::before{
+   card's own stacking context), so they never cover a letter. The side cards
+   get neither: they are small text from edge to edge, with nowhere for a star
+   to sit that is not behind a line. The moon is their night touch. */
+:root[data-theme="night"] .rvcard::before{
   content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-  background:var(--stars) 0 0/360px 280px;animation:twinkle 3.6s ease-in-out infinite alternate}
-:root[data-theme="night"] .rvcard::after,
-:root[data-theme="night"] .rvsidecard::after{
+  background:var(--stars) 0 0/360px 280px;animation:twinkle 3.6s ease-in-out infinite alternate;
+  /* Under the content is not enough: a star beside "type the word" or behind
+     a letter still breaks the shape of it. The card's text is a centred
+     column, so the field is clear in the middle and the stars keep to the
+     corners and edges. */
+  -webkit-mask:radial-gradient(closest-side,#0000 84%,#000 100%);
+  mask:radial-gradient(closest-side,#0000 84%,#000 100%)}
+:root[data-theme="night"] .rvcard::after{
   content:"";position:absolute;z-index:-1;pointer-events:none;width:110px;height:2px;
   top:13%;right:24%;border-radius:2px;transform:rotate(-38deg);
   background:linear-gradient(90deg,#fff,#fff0);animation:shoot 9s ease-in infinite}
-:root[data-theme="night"] .rvsidecard::after{width:70px;top:30%;right:18%;animation-delay:4s}
 @keyframes twinkle{from{opacity:.55}to{opacity:1}}
 /* Mostly still; a quick streak down its own line once per cycle. */
 @keyframes shoot{0%,84%{opacity:0;translate:0 0}88%{opacity:1}100%{opacity:0;translate:-130px 102px}}
 @media (prefers-reduced-motion:reduce){
-  :root[data-theme="night"] .rvcard::before,
-  :root[data-theme="night"] .rvsidecard::before,
-  :root[data-theme="night"] .rvcard::after,
-  :root[data-theme="night"] .rvsidecard::after{animation:none}
+  :root[data-theme="night"] .rvcard::before{animation:none}
+  /* Held still, the streak is a line drawn through the chips row. */
+  :root[data-theme="night"] .rvcard::after{display:none}
 }
 
 /* The mascot: peeking from the card's bottom-left corner, and over the top
@@ -650,7 +1001,6 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 
 /* Inside the cards: translucent chips and wells instead of paper ones. */
 :root[data-theme="night"] .rvcard .lvl,
-:root[data-theme="night"] .rvlevel,
 :root[data-theme="night"] .tag{background:#ffffff17;border-color:#ffffff29;color:var(--ink)}
 :root[data-theme="night"] .rvcard .rvplay{background:#ffffff17;border-color:#ffffff33}
 :root[data-theme="night"] .rvcard .rvplay:hover{background:#ffffff26}
@@ -660,33 +1010,32 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
 :root[data-theme="night"] .rvfull{background:#0000002b;border-color:#ffffff26}
 :root[data-theme="night"] .rvtype input{background:#0000003a;border-color:#ffffff33}
 :root[data-theme="night"] .rvtype input:focus{background:#00000052}
+/* The shell's olive is a night-on-paper colour; on the navy card it reads as
+   a patch from another screen. The card's own action takes the card's hue,
+   lifted a step, the way Easy is tinted. White on it is 6:1. */
+:root[data-theme="night"] .rvcard .btn:not(.ghost):not(.danger){background:#3f5aa6;color:#fff}
+:root[data-theme="night"] .rvcard .btn:not(.ghost):not(.danger):hover{background:#4a67b8}
 :root[data-theme="night"] .rvleft{background:#0000002e;color:var(--ochre-ink)}
 :root[data-theme="night"] .rvring circle{stroke:#ffffff26}
 :root[data-theme="night"] .rvring circle + circle{stroke:var(--ochre-ink)}
 :root[data-theme="night"] .rvpct{color:var(--ochre-ink)}
-:root[data-theme="night"] .rvsegs i{background:#ffffff26}
-:root[data-theme="night"] .rvsegs i.on{background:var(--ochre-ink)}
-:root[data-theme="night"] .rvword{font-weight:800;letter-spacing:0}
 
 /* The grades, tinted like the design: Blank red-brown, Hard amber-brown, Good
-   olive, Easy navy. By position — renderGrades builds them in GRADES order. */
+   olive, Easy navy. By position — renderGrades builds them in GRADES order.
+   Flat, with paper's inset ring on the pick: the colour is night's, the shape
+   is the one shape both themes share. */
 :root[data-theme="night"] .rvgrades button{color:var(--g-ink);background:var(--g-bg);
-  border-color:var(--g-edge);box-shadow:0 3px 0 var(--g-edge)}
+  border-color:var(--g-edge)}
 :root[data-theme="night"] .rvgrades button:hover{background:var(--g-edge)}
 :root[data-theme="night"] .rvgrades button span{color:inherit;opacity:.9}
 :root[data-theme="night"] .rvgrades button kbd,
 :root[data-theme="night"] .rvgrades button:hover kbd{background:#00000033;border-color:#ffffff2e;color:inherit}
-:root[data-theme="night"] .rvgrades button.pick{box-shadow:inset 0 0 0 1px var(--g-ink),0 3px 0 var(--g-edge);
+:root[data-theme="night"] .rvgrades button.pick{box-shadow:inset 0 0 0 1px var(--g-ink);
   border-color:var(--g-ink)}
 :root[data-theme="night"] .rvgrades button:nth-child(1){--g-bg:#3a231e;--g-edge:#6e3b2f;--g-ink:#f4b9a5}
 :root[data-theme="night"] .rvgrades button:nth-child(2){--g-bg:#3d2f15;--g-edge:#7a5b22;--g-ink:#f1ca7e}
 :root[data-theme="night"] .rvgrades button:nth-child(3){--g-bg:#2b2f1b;--g-edge:#525b30;--g-ink:#d6dfae}
 :root[data-theme="night"] .rvgrades button:nth-child(4){--g-bg:#1e2c46;--g-edge:#3f6194;--g-ink:#b3cff3}
-
-/* The folder card's quiet links read at 70% on paper; on a dark tint that
-   falls under 4.5:1. */
-:root[data-theme="night"] .f .edit,
-:root[data-theme="night"] .f p{opacity:.9}
 
 /* The "no voice installed" line speakWord shows when there is nothing to say
    a word with. Fixed, because the word can be played from any view. */
@@ -694,3 +1043,12 @@ kbd{font:500 11px Inter;border:1px solid var(--kbd-rule);border-radius:5px;paddi
            max-width:min(560px,calc(100vw - 32px));margin:0;padding:10px 16px;
            border-radius:10px;background:var(--ink);color:var(--paper);
            font:500 13px/1.4 Inter}
+/* The same strip with an Undo in it. The button is underlined text in the
+   paper colour, as review's Undo is underlined in the accent: a link-weight
+   way back, not a second call to action. */
+.toast:not([hidden]){display:flex;align-items:baseline;gap:12px}
+.toast button{background:none;border:0;padding:1px 4px;border-radius:5px;cursor:pointer;
+              font:600 13px Inter,sans-serif;color:inherit;
+              text-decoration:underline;text-underline-offset:3px}
+.toast button:hover{background:color-mix(in srgb,currentColor 16%,transparent)}
+.toast button:focus-visible{outline:2px solid currentColor;outline-offset:2px}

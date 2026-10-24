@@ -106,7 +106,8 @@
   // it until the answer was the alternative — dead chrome for the whole
   // question, inviting the click it refuses.
   function playButton(entry, ctx) {
-    const b = ctx.node('button', 'prf-play', '▶ Say it');
+    const b = ctx.node('button', 'prf-play', 'Say it');
+    b.prepend(VT.icon('play'));
     b.type = 'button';
     b.setAttribute('aria-label', `Listen to ${entry.word}`);
     b.addEventListener('click', () => ctx.speak(entry));
@@ -495,7 +496,7 @@
   PRACTICE.register('fill', {
     title: 'Fill the gap',
     blurb: 'Put the word back in the sentence',
-    icon: 'T',
+    icon: 'type',
     color: 'red',
     // Four, for four options to pick from. A count, so it lives in min and the
     // tab says so, rather than in eligible where it read as "no sentences".

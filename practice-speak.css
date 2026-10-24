@@ -5,6 +5,7 @@
 .pr-speak-mic{width:64px;height:64px;border-radius:50%;border:0;cursor:pointer;font-size:26px;
               background:var(--purple);color:var(--purple-ink);transition:box-shadow .15s ease}
 .pr-speak-mic:disabled{cursor:default;opacity:.5}
+.pr-speak-mic .ic{width:28px;height:28px;vertical-align:middle}
 /* Listening: a ring in the mode's own ink, so you can see the mic is open. */
 .pr-speak-mic.on{box-shadow:0 0 0 4px var(--purple-ink)}
 .pr-speak-live{margin:0;min-height:1.4em;color:var(--ink2);font-style:italic}
@@ -18,12 +19,14 @@
 .pr-speak-count{font:600 13px Inter;color:var(--ink2);font-variant-numeric:tabular-nums}
 .pr-speak-count:empty{display:none}
 /* The two rules grading applies, ticked as the sentence satisfies them. The
-   glyph carries the state and the colour only agrees with it: --good against
+   icon carries the state and the colour only agrees with it: --good against
    --ink2 is a distinction you can see only if you see colour. */
 .pr-speak-checks{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;
                  gap:6px 18px;font:500 13px Inter;color:var(--ink2)}
-.pr-speak-check::before{content:"\25CB  "}
+.pr-speak-check::before{content:"";display:inline-block;width:14px;height:14px;margin-right:5px;
+       vertical-align:-2px;background:currentColor;
+       -webkit-mask:var(--ic-open) center/contain no-repeat;mask:var(--ic-open) center/contain no-repeat}
 .pr-speak-check.on{color:var(--good)}
-.pr-speak-check.on::before{content:"\2713  "}
+.pr-speak-check.on::before{-webkit-mask-image:var(--ic-check);mask-image:var(--ic-check)}
 .pr-speak-send kbd{margin-left:6px}
 .pr-speak-send:disabled{cursor:default;opacity:.5}

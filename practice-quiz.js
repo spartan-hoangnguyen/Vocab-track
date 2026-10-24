@@ -35,7 +35,7 @@
   PRACTICE.register('quiz', {
     title: 'Quiz',
     blurb: 'Pick the meaning, or the word',
-    icon: '✓',
+    icon: 'choice',
     color: 'amber',
     why: 'Needs four words with a meaning',
     // Picking one of four is recognition, so a right answer is worth Hard and
@@ -187,7 +187,8 @@
   }
 
   function playButton(entry, ctx, say, signal) {
-    const play = ctx.node('button', 'prq-play', '▶');
+    const play = ctx.node('button', 'prq-play');
+    play.appendChild(VT.icon('play'));
     play.type = 'button';
     play.title = 'Listen — space';
     play.setAttribute('aria-label', `Listen to ${entry.word}`);

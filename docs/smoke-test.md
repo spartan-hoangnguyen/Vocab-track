@@ -249,7 +249,7 @@ Open it from **Open dashboard →** in the side panel.
     Hard is the ringed grade — not Good.
 
 45. **Blank means blank.** Press <kbd>enter</kbd> with an empty box: the answer
-    appears, it says Skipped, and Blank is ringed.
+    appears, it says No answer, and Blank is ringed.
 
 46. **The number keys grade, they do not type.** After committing, press `3`.
     It grades Good rather than putting a 3 in the box. Before committing, `3`
@@ -758,7 +758,7 @@ cannot be produced on demand; the unit tests cover that path.
      up a new word. The banner is the one in 87, and it names Google Translate
      and MyMemory, each with its reason. Go back online and look the same word
      up again: the banner goes, and the gloss fills in with its source line.
-107. **The key answers before MyMemory.** Dashboard → **Import & export** →
+107. **The key answers before MyMemory.** Dashboard → **Settings** →
      **Translation key**: paste a Google Cloud Translation key. Block
      `translate.googleapis.com` again and look up a new word: **via Google
      Cloud Translation**. Paste `bad-key` instead and look up another: the
@@ -842,7 +842,7 @@ leave B empty or with different words.
      Network on the service worker shows no request to `www.googleapis.com`.
      With the placeholder client id, **Sign in with Google** shows "Could not
      sign in with Google: …" on the card, and nothing else changes.
-110. **First sign-in merges.** In A: **Import & export** → **Cloud sync** →
+110. **First sign-in merges.** In A: **Settings** → **Cloud sync** →
      **Sign in with Google**. The card shows the account email and a "Last
      synced" time. Do the same in B: B now holds A's words and its own, and
      for a word both had, the schedule of the one reviewed last.

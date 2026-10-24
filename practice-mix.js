@@ -52,13 +52,15 @@
   PRACTICE.register('mix', {
     title: 'Mix',
     blurb: 'A bit of every mode',
-    icon: '✦',
+    icon: 'sparkle',
     color: 'magenta',
     // Never read: every question Mix draws is recorded under the mode that
     // actually asked it, so the grade comes from that mode's own `produces`.
     // The one question the shell records for Mix is a give-up, and a wrong
     // answer is 0 before gradeFor reaches `produces` at all (practice.js:266).
     produces: false,
+    // Speak can ask any word, so Mix is locked exactly when the set is empty.
+    why: 'Needs one saved word',
     eligible: (entry, pool) => askers(entry, pool).length > 0,
     async ask(entry, host, ctx) {
       const mode = draw(askers(entry, ctx.pool), entry);
