@@ -1,9 +1,26 @@
 # Automatic release
 
 `.github/workflows/release.yml` releases the extension to the Chrome Web Store.
-It runs on every push to `main`, once a day, and on demand. The decisions are in
-`tools/release.py`. This page explains what a run does and records the one-time
-setup.
+It runs only when you start it. Each release waits days for Google's review, so
+merges collect on `main` until you release them together. The decisions are in
+`tools/release.py`. This page explains how to release, what a run does, and the
+one-time setup.
+
+## How to release
+
+1. Pull `main` and make sure that it holds what you want to ship.
+2. Start the workflow:
+
+   ```bash
+   gh workflow run release.yml
+   gh run watch
+   ```
+
+   Or open **Actions > release > Run workflow** on GitHub. Leave **dry_run**
+   off to release. Turn it on to check sign-in and packaging only.
+3. The log ends with `submitted: PENDING_REVIEW`. Chrome publishes the version
+   when the review passes.
+4. Pull `main` again. The run pushed a `chore(release): vX.Y.Z` commit.
 
 ## What a run does
 
@@ -25,17 +42,14 @@ setup.
 5. The script builds the tag with `tools/package.sh`, uploads the zip, and
    submits it for review. Chrome publishes the version when the review passes.
 
-If a version is in review, the commits that land meanwhile wait. The daily run
-releases them together after the review clears. If an upload fails after the
-push, the next run finds a tag newer than the store and uploads that tag.
-
-The bot commit means `main` moves after each release. Pull `main` before you
-branch.
+If a version is in review, the run stops and releases nothing. Start it again
+after the review clears. If an upload fails after the push, the next run finds a
+tag newer than the store and uploads that tag.
 
 ## One-time setup
 
 Do these steps once. Until the GitHub variables exist, the workflow skips and
-does nothing.
+does nothing. This setup is complete for this repository.
 
 ### 1. Make sure that the account is ready
 
@@ -115,8 +129,11 @@ gh workflow run release.yml -f dry_run=true
 gh run watch
 ```
 
+The identity pool accepts only runs on `main`. A run started on another branch
+fails at sign-in.
+
 A dry run tests, signs in, reads the store status, and packages the last tag. It
-uploads nothing. If it passes, the next push to `main` releases for real.
+uploads nothing.
 
 ## Known limits
 

@@ -1,24 +1,20 @@
-# Releases to the Chrome Web Store on every push to main. The decision
-# (pending review, which version, retry) lives in tools/release.py; this file
-# only gets it a tested checkout and a store token. One-time setup:
-# docs/release.md.
+# Releases to the Chrome Web Store when you start it by hand: Actions >
+# release > Run workflow, or `gh workflow run release.yml`. Each release waits
+# days for Google's review, so releases are batched, not one per merge.
+# The decision (pending review, which version, retry) lives in
+# tools/release.py; this file only gets it a tested checkout and a store
+# token. One-time setup: docs/release.md.
 name: release
 
 on:
-  push:
-    branches: [main]
-  # A merge that lands while a version is in review is released by the first
-  # run after the review clears.
-  schedule:
-    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Check auth, store status and packaging, then stop'
         type: boolean
-        default: true
+        default: false
 
-# Two merges in a row must not both compute the same next version.
+# Two runs started at once must not both compute the same next version.
 concurrency:
   group: release
   cancel-in-progress: false

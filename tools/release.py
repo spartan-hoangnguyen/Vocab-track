@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Release Vocab-track to the Chrome Web Store from CI.
 
-Run by .github/workflows/release.yml on every push to main and once a day.
+Run by .github/workflows/release.yml when you start a release by hand.
 One run does at most one release:
 
 1. Ask the store for the item's status. If a version is still in review,
-   stop: a new upload would restart a review that takes days, and the next
-   run picks the commits up once the queue is clear.
+   stop: a new upload would restart a review that takes days. Start the
+   release again once the review clears.
 2. If the last v* tag is newer than anything the store has seen, an earlier
    run pushed the tag but did not finish the upload. Upload that tag.
 3. Otherwise read the commit subjects since the last tag. feat is a minor
