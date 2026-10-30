@@ -247,6 +247,7 @@ function render() {
   renderCard();
   renderPractice(all);
   renderWriting();
+  renderDecks();
 }
 
 /* ---------- overview ---------- */
@@ -1475,12 +1476,14 @@ $('import-file').addEventListener('change', async (event) => {
 
 // Nothing is written until the file's effect has been read: an import merges
 // into folders and pins across the whole library and has no undo, so a wrong
-// or old backup is caught here, by its counts, or not at all.
-function confirmImport(note, data, current) {
+// or old backup is caught here, by its counts, or not at all. `what` names
+// the source and `back` is where focus returns: a word list (importDeck) is not
+// a file, and its button is not the file picker.
+function confirmImport(note, data, current, { what = 'This file', back = $('import-file') } = {}) {
   const words = Object.keys(data.words);
   const merged = words.filter((word) => current[word]).length;
   const added = words.length - merged;
-  setNote(note, `This file adds ${added} word${added === 1 ? '' : 's'} and merges `
+  setNote(note, `${what} adds ${added} word${added === 1 ? '' : 's'} and merges `
     + `${merged} with words you already have.`);
   const row = el('div', 'dlgrow');
   const go = el('button', 'btn small', 'Import');
@@ -1491,12 +1494,12 @@ function confirmImport(note, data, current) {
   go.focus();
   cancel.addEventListener('click', () => {
     setNote(note, 'Nothing was imported.');
-    $('import-file').focus();
+    back.focus();
   });
   go.addEventListener('click', async () => {
     go.disabled = cancel.disabled = true;
     await importBackup(note, data);
-    $('import-file').focus();
+    back.focus();
   });
 }
 
@@ -1563,6 +1566,82 @@ async function importBackup(note, data) {
     console.error('[vocab-track] import failed', err);
     setNote(note, 'Could not save the imported words. Import the file again; '
       + 'it merges, so nothing is doubled.', { error: true, detail: err.message });
+  }
+}
+
+/* ---------- bundled word lists ---------- */
+
+// data/decks.json: one row per folder of every list shipped in data/, written
+// by tools/build-en-decks.py, so the card can list them without loading the
+// lists themselves (megabytes). Fetched once, the first time it is drawn.
+let decks = null;
+
+async function loadDecks() {
+  if (!decks) {
+    try {
+      decks = await (await fetch('data/decks.json')).json();
+    } catch (err) {
+      console.error('[vocab-track] word lists unreadable', err);
+      decks = [];
+    }
+  }
+  return decks;
+}
+
+// The active language's lists, under their headings (Topics, Phrasal verbs…).
+// A folder reads Imported once you hold as many of its words as it has.
+async function renderDecks() {
+  const rows = (await loadDecks()).filter((d) => d.lang === activeLang);
+  const held = {};
+  for (const entry of Object.values(words)) {
+    for (const id of VT.foldersOf(entry)) held[id] = (held[id] ?? 0) + 1;
+  }
+  const parts = [];
+  let group = null;
+  let list = null;
+  for (const deck of rows) {
+    if (deck.group !== group) {
+      group = deck.group;
+      list = el('ul', 'decklist');
+      parts.push(el('h3', null, group), list);
+    }
+    const item = el('li', 'deckrow');
+    // Under its heading the folder's prefix is said already: "B1", not
+    // "Phrasal verbs · B1". The folder keeps its full name everywhere else.
+    item.title = deck.desc;
+    item.append(el('span', 'deckicon', deck.icon ?? ''), el('span', 'deckname', deck.name.split(' · ').pop()),
+      el('span', 'deckcount', plural(deck.count, 'word')));
+    const done = (held[deck.folder] ?? 0) >= deck.count;
+    const go = el('button', 'btn ghost small', done ? 'Imported' : 'Import');
+    go.type = 'button';
+    go.disabled = done;
+    go.setAttribute('aria-label', `${done ? 'Imported' : 'Import'} ${deck.name}`);
+    go.addEventListener('click', () => importDeck(deck, go));
+    item.appendChild(go);
+    list.appendChild(item);
+  }
+  if (!rows.length) parts.push(el('p', null, `No word lists for ${LANG.get(activeLang)?.name ?? activeLang} yet.`));
+  $('deck-list').replaceChildren(...parts);
+}
+
+// One folder of a list, through the backup import's own confirm and merge.
+// Only that folder's words come in, filed under it alone. A folder you already
+// have (a topic you tagged by hand) keeps its own name and colour.
+async function importDeck(deck, button) {
+  const note = $('deck-note');
+  try {
+    const { data, error, detail } = readBackup(await (await fetch(`data/${deck.file}`)).text());
+    if (error) { setNote(note, error, { error: true, detail }); return; }
+    const picked = Object.fromEntries(Object.entries(data.words)
+      .filter(([, entry]) => entry.folders?.includes(deck.folder))
+      .map(([word, entry]) => [word, { ...entry, folders: [deck.folder] }]));
+    confirmImport(note, {
+      folders: folders[deck.folder] ? {} : { [deck.folder]: data.folders[deck.folder] },
+      words: picked
+    }, await getWords(), { what: deck.name, back: button });
+  } catch (err) {
+    console.error('[vocab-track] word list read failed', deck.file, err);
+    setNote(note, 'Could not read this word list. Try again.', { error: true, detail: err.message });
   }
 }
 

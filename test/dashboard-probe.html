@@ -1512,6 +1512,53 @@ ready.then(() => setTimeout(async () => {
   STORE.reviewPrefs = { ...STORE.reviewPrefs, ...ROOMY };
   await refresh();
 
+  /* ---- a bundled word list imports one folder ---- */
+  const deckFetch = window.fetch;
+  const DECKS = [
+    { file: 'en/probe.json', folder: 'pr-a', name: 'Probe A', icon: 'A', lang: 'en', desc: '', count: 3, group: 'Topics' },
+    { file: 'en/probe.json', folder: 'pr-b', name: 'Probe B', icon: 'B', lang: 'en', desc: '', count: 1, group: 'Idioms' },
+    { file: 'ko/probe.json', folder: 'pr-ko', name: 'Probe KO', icon: 'K', lang: 'ko', desc: '', count: 5, group: 'Levels' }
+  ];
+  const deckWord = (word, folder, extra) => mk(word, { lang: 'en', folders: [folder], def: null, ipa: null, ...extra });
+  const DECK_FILE = {
+    exported: '2026-10-30T00:00:00Z',
+    folders: { 'pr-a': { id: 'pr-a', name: 'Probe A', lang: 'en', auto: false },
+               'pr-b': { id: 'pr-b', name: 'Probe B', lang: 'en', auto: false } },
+    words: { deckone: deckWord('deckone', 'pr-a', { vi: 'một' }), decktwo: deckWord('decktwo', 'pr-a'),
+             paceold: deckWord('paceold', 'pr-a'), deckthree: deckWord('deckthree', 'pr-b') }
+  };
+  window.fetch = async (url) => {
+    if (/data\/decks\.json$/.test(url)) return { json: async () => DECKS };
+    if (/data\/en\/probe\.json$/.test(url)) return { text: async () => JSON.stringify(DECK_FILE) };
+    return deckFetch(url);
+  };
+  decks = null;
+  const paceReps = STORE.words.paceold.reps;
+  showView('io');
+  await renderDecks();
+  const deckRows = () => [...document.querySelectorAll('#deck-list .deckrow')];
+  check('the word lists show the active language only, under their headings',
+        deckRows().length === 2 && [...document.querySelectorAll('#deck-list h3')].map((h) => h.textContent).join() === 'Topics,Idioms',
+        deckRows().map((r) => r.textContent).join(' | '));
+  deckRows()[0].querySelector('button').click();
+  await tick();
+  const deckNote = document.getElementById('deck-note');
+  check('importing a folder says what it adds first',
+        /^Probe A adds 2 words and merges 1/.test(deckNote.textContent), deckNote.textContent);
+  [...deckNote.querySelectorAll('button')].find((b) => b.textContent === 'Import').click();
+  await tick(); await tick();
+  check('only that folder’s words come in, filed under it',
+        STORE.words.deckone?.folders.join() === 'pr-a' && !STORE.words.deckthree && STORE.folders?.['pr-a']?.name === 'Probe A',
+        JSON.stringify(STORE.words.deckone?.folders));
+  check('a word you already have is merged, its schedule kept',
+        STORE.words.paceold.reps === paceReps && STORE.words.paceold.folders.includes('pr-a'),
+        JSON.stringify(STORE.words.paceold.folders));
+  await renderDecks();
+  check('and the folder then reads Imported', deckRows()[0].querySelector('button').disabled
+        && deckRows()[0].querySelector('button').textContent === 'Imported', deckRows()[0].textContent);
+  window.fetch = deckFetch;
+  decks = null;
+
   /* ---- the mastery card previews the next words to master ---- */
   const DAYMS = 24 * 60 * 60 * 1000;
   Object.assign(words.scarce, { reps: 2, interval: 11, stability: 10.96, difficulty: 2.11,
@@ -2055,10 +2102,10 @@ ready.then(() => setTimeout(async () => {
   const tkey = document.getElementById('translate-key');
   check('the translation key field is under Settings',
         !!tkey && tkey.closest('section')?.id === 'view-settings' && /Translation key/.test(tkey.closest('.iocard').textContent));
-  // Import & export holds only the backup tasks; every key, sign-in and Anki
-  // card lives in Settings, where someone setting them up would look.
-  check('Import & export has only Export and Import',
-        [...document.querySelectorAll('#view-io .iocard h2')].map((h) => h.textContent).join() === 'Export,Import');
+  // Import & export holds only the word lists and the backup tasks; every key,
+  // sign-in and Anki card lives in Settings, where someone setting them up would look.
+  check('Import & export has only Word lists, Export and Import',
+        [...document.querySelectorAll('#view-io .iocard h2')].map((h) => h.textContent).join() === 'Word lists,Export,Import');
   check('Settings holds cloud sync, the three keys and Anki',
         ['cloud-signin', 'giphy-key', 'translate-key', 'krdict-key', 'anki-push']
           .every((id) => document.getElementById(id)?.closest('section')?.id === 'view-settings'));

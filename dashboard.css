@@ -261,6 +261,17 @@ h2{font:600 12px Inter;letter-spacing:.09em;text-transform:uppercase;color:var(-
 #import-file::file-selector-button:hover{background:var(--hover)}
 /* Actions start at the text's edge in every card, Anki's two included. */
 .iocard .dlgrow{justify-content:flex-start}
+/* The bundled word lists (dashboard.js renderDecks): one row per folder, a
+   whole row wide, so the card spans the grid. */
+.iocard.decks{grid-column:1/-1}
+.decks h3{margin:16px 0 4px;font:600 11.5px Inter;letter-spacing:.06em;
+          text-transform:uppercase;color:var(--ink3)}
+.decklist{list-style:none;margin:0;padding:0;display:grid;
+          grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));column-gap:20px}
+.deckrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);
+         font-size:14px;min-width:0}
+.deckname{flex:1;min-width:0;overflow-wrap:anywhere}
+.deckcount{color:var(--ink3);font-size:12.5px;font-variant-numeric:tabular-nums}
 /* The API key fields (GIPHY, translation, krdict). Monospace because a key is
    not prose, and full width so the whole of it is visible at once. */
 .keyfield{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--rule);

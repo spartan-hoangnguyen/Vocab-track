@@ -109,7 +109,7 @@
             time you remember them.</span></li>
       </ol>
       <p class="start-alt">Moving from another computer?
-        <button type="button" id="ov-start-import">Import a backup</button></p>
+        <button type="button" id="ov-start-import">Import a word list or a backup</button></p>
     </div>
     <div class="stats" id="ov-stats">
       <div class="stat"><div class="n" id="ov-total">0</div><div class="l">Total words</div></div>
@@ -483,6 +483,15 @@
        to Downloads/vocab-track a minute after you change them; seven days are kept.</div>
     <p class="note" id="backup-status">No automatic backup yet.</p>
     <div class="iocards">
+      <!-- The lists that ship with the extension (data/decks.json), one folder
+           at a time. Filled by dashboard.js renderDecks. -->
+      <div class="iocard decks">
+        <h2>Word lists</h2>
+        <p>Ready-made folders for the language you are studying. Importing one adds
+           its words as new cards, and the daily limits pace them.</p>
+        <div id="deck-list"></div>
+        <div class="note" id="deck-note" role="status"></div>
+      </div>
       <div class="iocard">
         <h2>Export</h2>
         <p>Downloads your words, folders, pins, review history and practice
