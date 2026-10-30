@@ -157,6 +157,10 @@ const cs = (el) => getComputedStyle(el);
 // The markup and the four scripts are all fetched, so the assertions wait on
 // that chain; the short timer after it is for the dashboard's own first render.
 ready.then(() => setTimeout(async () => {
+  // The review card asks the dictionary for any word with no definition
+  // (fillEntry). Offline here, so no check depends on what Datamuse answers;
+  // the checks that need a lookup stub their own.
+  window.fetchEntry = async () => ({ failed: 'offline in the probe' });
   /* ---- view switching ----
      The trap this guards: any author `display` on a view section beats the UA
      stylesheet's [hidden]{display:none}, so #view-review{display:flex} without
@@ -1558,6 +1562,27 @@ ready.then(() => setTimeout(async () => {
         && deckRows()[0].querySelector('button').textContent === 'Imported', deckRows()[0].textContent);
   window.fetch = deckFetch;
   decks = null;
+
+  /* ---- a list word gets its definition the first time it is shown ---- */
+  let lookups = 0;
+  window.fetchEntry = async () => { lookups++; return { def: 'a probe meaning', ipa: '/prəʊb/', pos: 'noun', synonyms: ['test'] }; };
+  await fillEntry(words.deckone);
+  check('the dictionary fills the empty fields and keeps the list’s gloss',
+        STORE.words.deckone.def === 'a probe meaning' && STORE.words.deckone.vi === 'một'
+        && STORE.words.deckone.synonyms.join() === 'test' && STORE.words.deckone.looked > 0,
+        JSON.stringify(STORE.words.deckone));
+  await fillEntry(words.deckone);
+  check('and is not asked again', lookups === 1, String(lookups));
+  window.fetchEntry = async () => { lookups++; return { notFound: true }; };
+  await fillEntry(words.decktwo);
+  await fillEntry(words.decktwo);
+  check('a phrase with no entry is asked once', lookups === 2 && STORE.words.decktwo.looked > 0 && !STORE.words.decktwo.def,
+        String(lookups));
+  window.fetchEntry = async () => { lookups++; return { failed: 'offline' }; };
+  const offline = deckWord('deckoffline', 'pr-a');
+  await fillEntry(offline);
+  check('a lookup that could not be made is not recorded', lookups === 3 && !offline.looked, String(lookups));
+  window.fetchEntry = async () => ({ failed: 'offline in the probe' });
 
   /* ---- the mastery card previews the next words to master ---- */
   const DAYMS = 24 * 60 * 60 * 1000;

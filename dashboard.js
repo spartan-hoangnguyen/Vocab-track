@@ -746,6 +746,7 @@ function wordRow(entry) {
   const build = () => {
     if (built) return;
     built = true;
+    fillEntry(entry);
     row.appendChild(wordCard(entry));
   };
   if (openRows.has(entry.word)) {
@@ -2389,6 +2390,40 @@ function routeFromHash() {
   showView(name, { push: false });
 }
 
+// A word from a bundled list (data/en) comes with a level and a gloss but no
+// definition, which may not be shipped. The dictionary is asked the first time
+// the word is on screen, and only empty fields are filled — the list's own
+// gloss and example stay. `looked` records the attempt, so a phrase with no
+// entry ("heavy rain") is not asked again on every render; a network failure
+// is not recorded, so it is. The write's storage event redraws the card.
+const filling = new Set();
+
+async function fillEntry(entry) {
+  if (!entry) return;
+  const lang = LANG.of(entry).id;
+  if (entry.def || entry.looked || filling.has(entry.word) || !LANG.dict(lang)) return;
+  filling.add(entry.word);
+  try {
+    const parsed = await fetchEntry(entry.word, lang, entry.word);
+    if (parsed.failed && !parsed.def) return;
+    const patch = { looked: Date.now() };
+    if (!parsed.notFound) {
+      for (const field of ['ipa', 'ipaUs', 'audio', 'audioUs', 'def', 'pos', 'gram']) {
+        if (parsed[field] != null && entry[field] == null) patch[field] = parsed[field];
+      }
+      for (const field of ['senses', 'synonyms', 'related', 'opposites']) {
+        if (parsed[field]?.length && !entry[field]?.length) patch[field] = parsed[field];
+      }
+    }
+    Object.assign(entry, patch);
+    await putWord(entry.word, patch);
+  } catch (err) {
+    console.error('[vocab-track] lookup failed for', entry.word, err);
+  } finally {
+    filling.delete(entry.word);
+  }
+}
+
 // The prompt must not contain its own answer. The sentence a word was saved
 // from nearly always does, so it is blanked — VT.find is the same matcher
 // the page highlighter uses, so `read` does not blank `already`.
@@ -2463,6 +2498,8 @@ function renderCard() {
   }
 
   const entry = past?.entry ?? queue[0];
+  // Asked while you are still recalling the word, so the answer has it.
+  fillEntry(entry);
   // A past card is shown as it ended: answer up, nothing left to do on it.
   const shown = !!past || revealed;
   const done = sessionTotal - queue.length;

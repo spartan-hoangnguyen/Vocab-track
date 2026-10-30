@@ -299,7 +299,34 @@ tooltip names the deck. A per-word push uses the deck the picker holds.
 
 ## Word lists
 
-**The two English lists are not committed here — you build them.** Their
+**Import & export → Word lists** lists every folder that ships with the
+extension for the language you are studying. **Import** on one row brings in
+that folder only, through the same confirm-and-merge step as a backup. A word
+you already have keeps its schedule and gains the folder. The cards arrive due
+all at once, easiest first, and the daily new-card limit paces them.
+
+The English lists (`data/en/`, built by `tools/build-en-decks.py`):
+
+| List | Folders | Words |
+|---|---|---|
+| Topics | 27, from *Health* to *Core words* | 8,678 CEFR-J / Octanove headwords, A1–C2 |
+| Phrasal verbs | A1–A2, B1, B2, C1–C2 | 1,144 |
+| Collocations | 8 themes | 501, each with an example sentence |
+| Idioms | 8 themes | 313, each with an example sentence |
+| Academic | up to B1, B2, C1–C2 | 957 (New Academic Word List) |
+
+They carry a word, its level, part of speech and a Vietnamese meaning, and
+nothing from a dictionary. The definition, IPA and synonyms are looked up the
+first time the word is on screen (`fillEntry` in dashboard.js) and saved on it.
+The topic of each word, the phrasal-verb bands, and every collocation and idiom
+are curated in `tools/en/*.tsv`. To change a list, edit the TSV and run
+`python3 tools/build-en-decks.py`. That also rewrites `data/decks.json`, the
+index the card reads; `python3 tools/build-en-decks.py index` rewrites only the
+index. The Korean and Chinese lists below appear in the same card.
+
+### Cambridge lists, built on your machine
+
+**These two English lists are not committed here — you build them.** Their
 definitions, IPA, examples and audio links are Cambridge content, which this
 project has no right to redistribute. The builders below fetch them onto your
 own machine, one page at a time, which is the same request clicking a word
