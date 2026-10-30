@@ -37,6 +37,27 @@ https://creativecommons.org/licenses/by-sa/4.0/ — see ../NOTICE, section 5.
 Reuse it under CC BY-SA 4.0: credit CC-CEDICT and share alike.
 
 
+data/en/*.json and data/decks.json
+----------------------------------
+The English word lists, built by tools/build-en-decks.py. Derived work,
+CC BY-SA 4.0: credit the sources below and share alike.
+
+  * Headwords and CEFR levels: CEFR-J Vocabulary Profile 1.5 (Tono Lab, TUFS)
+    and the Octanove Vocabulary Profile C1/C2 (CC BY-SA 4.0). ../NOTICE,
+    sections 7 and 8.
+  * academic.json: the New Academic Word List 1.2 (CC BY-SA 4.0). ../NOTICE,
+    section 9.
+  * The topic of each word, the phrasal-verb bands, and every collocation,
+    idiom, example sentence and Vietnamese meaning in collocations.json and
+    idioms.json were written for this project (tools/en/*.tsv).
+  * The Vietnamese gloss on the other entries is machine translation. It is
+    not edited by a person and carries no claim of accuracy.
+
+No definition, IPA or audio is included: the extension looks those up on your
+machine the first time a word is shown.
+data/decks.json is only an index of the folders in data/en, data/ko and data/zh.
+
+
 What is NOT here
 ----------------
 data/ielts-c1-c2.json and data/phrasal-verbs.json are not committed. Their

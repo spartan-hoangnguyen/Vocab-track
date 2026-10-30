@@ -15,7 +15,7 @@ ZIP="$ROOT/dist/vocab-track-$VERSION.zip"
 # Tracked files only, so untracked reference/ and the gitignored Cambridge
 # lists never get a chance; then the allowlist of what the extension runs.
 FILES=$(git ls-files | grep -E \
-  '^([^/]+\.(js|html|css)|manifest\.json|LICENSE|NOTICE|lang/.*|fonts/.*|icons/.*|data/zh/.*|data/ko/.*|data/LICENSE)$')
+  '^([^/]+\.(js|html|css)|manifest\.json|LICENSE|NOTICE|lang/.*|fonts/.*|icons/.*|data/zh/.*|data/ko/.*|data/en/.*|data/decks\.json|data/LICENSE)$')
 
 # The guard behind the allowlist: none of these may ship, whatever the
 # allowlist above grows into.

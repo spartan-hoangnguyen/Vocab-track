@@ -412,7 +412,16 @@ const VT = {
     { id: 't_food', name: 'Food & Drink', icon: '\u{1F35C}' },
     { id: 't_emotions', name: 'Emotions & Personality', icon: '\u{1F60A}' },
     { id: 't_arts', name: 'Arts & Entertainment', icon: '\u{1F3A8}' },
-    { id: 't_nature', name: 'Nature & Animals', icon: '\u{1F43E}' }
+    { id: 't_nature', name: 'Nature & Animals', icon: '\u{1F43E}' },
+    // Everyday topics, added with the bundled English word lists (data/en),
+    // which file every CEFR word under one of these or the ones above.
+    { id: 't_people', name: 'People & Family', icon: '\u{1F46A}' },
+    { id: 't_home', name: 'Home & Daily life', icon: '\u{1F3E0}' },
+    { id: 't_shopping', name: 'Shopping & Clothes', icon: '\u{1F6CD}\u{FE0F}' },
+    { id: 't_sports', name: 'Sports & Hobbies', icon: '\u{26BD}' },
+    { id: 't_body', name: 'Body & Appearance', icon: '\u{1F9CD}' },
+    { id: 't_city', name: 'City & Places', icon: '\u{1F3D9}\u{FE0F}' },
+    { id: 't_time', name: 'Time & Numbers', icon: '\u{23F0}' }
   ],
 
   // Folder membership lives on the word, and words saved before folders

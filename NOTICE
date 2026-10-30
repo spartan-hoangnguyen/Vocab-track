@@ -147,16 +147,31 @@ Vendored web fonts, all three under the SIL Open Font License 1.1.
 The full licence and the three copyright lines are in fonts/OFL.txt.
 
 
-7. Octanove Vocabulary Profile C1/C2 — not redistributed
---------------------------------------------------------
-tools/build-ielts-list.py fetches this CEFR-graded word list at build time; no
-part of it is committed here. It is published by Open Language Profiles under
-CC BY-SA 4.0, so a list you build from it carries that licence too.
+7. Octanove Vocabulary Profile C1/C2 — data/en/, lang/en/cefr.js
+-----------------------------------------------------------------
+The C1 and C2 headwords and levels in data/en/topics.json and data/en/academic.json,
+and the levels in lang/en/cefr.js. Published by Open Language Profiles under
+CC BY-SA 4.0, so those files carry that licence too.
 https://github.com/openlanguageprofiles/olp-en-cefrj
+
+
+8. CEFR-J Vocabulary Profile 1.5 — data/en/, lang/en/cefr.js
+-------------------------------------------------------------
+The A1 to B2 headwords and levels. Copyright Tono Laboratory, Tokyo University
+of Foreign Studies; free for research and commercial use with this citation:
+  Tono, Y. (ed.) CEFR-J Vocabulary Profile 1.5. Tokyo University of Foreign Studies.
+Via https://github.com/openlanguageprofiles/olp-en-cefrj
+
+
+9. New Academic Word List 1.2 — data/en/academic.json
+-----------------------------------------------------
+Browne, C., Culligan, B., & Phillips, J. (2013). New Academic Word List 1.20.
+https://www.newgeneralservicelist.com/ — licensed under CC BY-SA 4.0.
 
 
 Services used at runtime, not bundled
 -------------------------------------
 Cambridge Dictionary, Google Translate and LanguageTool are queried live from
-your own browser. Nothing from them is redistributed in this repository. See
+your own browser. Nothing from them is redistributed in this repository,
+except the machine-translated Vietnamese glosses in data/ (see data/LICENSE). See
 the Privacy section of README.md for what is sent where.

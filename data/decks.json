@@ -1,0 +1,592 @@
+[
+ {
+  "file": "en/topics.json",
+  "folder": "t_actions",
+  "name": "Actions & Movement",
+  "icon": "🏃",
+  "lang": "en",
+  "desc": "Actions & Movement: words from A1 to C2.",
+  "count": 433,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_arts",
+  "name": "Arts & Entertainment",
+  "icon": "🎨",
+  "lang": "en",
+  "desc": "Arts & Entertainment: words from A1 to C2.",
+  "count": 363,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_body",
+  "name": "Body & Appearance",
+  "icon": "🧍",
+  "lang": "en",
+  "desc": "Body & Appearance: words from A1 to C2.",
+  "count": 167,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_city",
+  "name": "City & Places",
+  "icon": "🏙️",
+  "lang": "en",
+  "desc": "City & Places: words from A1 to C2.",
+  "count": 131,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_core",
+  "name": "Core words",
+  "icon": "🧱",
+  "lang": "en",
+  "desc": "Core words: words from A1 to C2.",
+  "count": 449,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_describing",
+  "name": "Describing things",
+  "icon": "✨",
+  "lang": "en",
+  "desc": "Describing things: words from A1 to C2.",
+  "count": 1067,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_economy",
+  "name": "Economy & Money",
+  "icon": "💰",
+  "lang": "en",
+  "desc": "Economy & Money: words from A1 to C2.",
+  "count": 171,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_education",
+  "name": "Education",
+  "icon": "🎓",
+  "lang": "en",
+  "desc": "Education: words from A1 to C2.",
+  "count": 224,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_emotions",
+  "name": "Emotions & Personality",
+  "icon": "😊",
+  "lang": "en",
+  "desc": "Emotions & Personality: words from A1 to C2.",
+  "count": 897,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_environment",
+  "name": "Environment",
+  "icon": "🌱",
+  "lang": "en",
+  "desc": "Environment: words from A1 to C2.",
+  "count": 61,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_food",
+  "name": "Food & Drink",
+  "icon": "🍜",
+  "lang": "en",
+  "desc": "Food & Drink: words from A1 to C2.",
+  "count": 282,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_health",
+  "name": "Health",
+  "icon": "🩺",
+  "lang": "en",
+  "desc": "Health: words from A1 to C2.",
+  "count": 284,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_home",
+  "name": "Home & Daily life",
+  "icon": "🏠",
+  "lang": "en",
+  "desc": "Home & Daily life: words from A1 to C2.",
+  "count": 269,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_law",
+  "name": "Law & Crime",
+  "icon": "⚖️",
+  "lang": "en",
+  "desc": "Law & Crime: words from A1 to C2.",
+  "count": 237,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_media",
+  "name": "Media & Communication",
+  "icon": "📰",
+  "lang": "en",
+  "desc": "Media & Communication: words from A1 to C2.",
+  "count": 348,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_nature",
+  "name": "Nature & Animals",
+  "icon": "🐾",
+  "lang": "en",
+  "desc": "Nature & Animals: words from A1 to C2.",
+  "count": 393,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_people",
+  "name": "People & Family",
+  "icon": "👪",
+  "lang": "en",
+  "desc": "People & Family: words from A1 to C2.",
+  "count": 195,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_politics",
+  "name": "Politics & Government",
+  "icon": "🏛️",
+  "lang": "en",
+  "desc": "Politics & Government: words from A1 to C2.",
+  "count": 225,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_science",
+  "name": "Science",
+  "icon": "🔬",
+  "lang": "en",
+  "desc": "Science: words from A1 to C2.",
+  "count": 233,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_shopping",
+  "name": "Shopping & Clothes",
+  "icon": "🛍️",
+  "lang": "en",
+  "desc": "Shopping & Clothes: words from A1 to C2.",
+  "count": 179,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_society",
+  "name": "Society & Culture",
+  "icon": "👥",
+  "lang": "en",
+  "desc": "Society & Culture: words from A1 to C2.",
+  "count": 264,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_sports",
+  "name": "Sports & Hobbies",
+  "icon": "⚽",
+  "lang": "en",
+  "desc": "Sports & Hobbies: words from A1 to C2.",
+  "count": 169,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_technology",
+  "name": "Technology",
+  "icon": "💻",
+  "lang": "en",
+  "desc": "Technology: words from A1 to C2.",
+  "count": 195,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_thinking",
+  "name": "Thinking & Ideas",
+  "icon": "💭",
+  "lang": "en",
+  "desc": "Thinking & Ideas: words from A1 to C2.",
+  "count": 494,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_time",
+  "name": "Time & Numbers",
+  "icon": "⏰",
+  "lang": "en",
+  "desc": "Time & Numbers: words from A1 to C2.",
+  "count": 367,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_travel",
+  "name": "Travel & Transport",
+  "icon": "✈️",
+  "lang": "en",
+  "desc": "Travel & Transport: words from A1 to C2.",
+  "count": 252,
+  "group": "Topics"
+ },
+ {
+  "file": "en/topics.json",
+  "folder": "t_work",
+  "name": "Work & Business",
+  "icon": "💼",
+  "lang": "en",
+  "desc": "Work & Business: words from A1 to C2.",
+  "count": 329,
+  "group": "Topics"
+ },
+ {
+  "file": "en/phrasal.json",
+  "folder": "en-pv-a",
+  "name": "Phrasal verbs · A1–A2",
+  "icon": "🔗",
+  "lang": "en",
+  "desc": "Common phrasal verbs, A1–A2.",
+  "count": 95,
+  "group": "Phrasal verbs"
+ },
+ {
+  "file": "en/phrasal.json",
+  "folder": "en-pv-b1",
+  "name": "Phrasal verbs · B1",
+  "icon": "🔗",
+  "lang": "en",
+  "desc": "Common phrasal verbs, B1.",
+  "count": 354,
+  "group": "Phrasal verbs"
+ },
+ {
+  "file": "en/phrasal.json",
+  "folder": "en-pv-b2",
+  "name": "Phrasal verbs · B2",
+  "icon": "🔗",
+  "lang": "en",
+  "desc": "Common phrasal verbs, B2.",
+  "count": 433,
+  "group": "Phrasal verbs"
+ },
+ {
+  "file": "en/phrasal.json",
+  "folder": "en-pv-c",
+  "name": "Phrasal verbs · C1–C2",
+  "icon": "🔗",
+  "lang": "en",
+  "desc": "Common phrasal verbs, C1–C2.",
+  "count": 262,
+  "group": "Phrasal verbs"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-daily",
+  "name": "Collocations · Daily life & home",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about daily life & home, with an example each.",
+  "count": 67,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-health",
+  "name": "Collocations · Health & body",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about health & body, with an example each.",
+  "count": 61,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-money",
+  "name": "Collocations · Money & business",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about money & business, with an example each.",
+  "count": 61,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-ideas",
+  "name": "Collocations · Opinions & arguments",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about opinions & arguments, with an example each.",
+  "count": 63,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-people",
+  "name": "Collocations · People & feelings",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about people & feelings, with an example each.",
+  "count": 61,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-society",
+  "name": "Collocations · Society & environment",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about society & environment, with an example each.",
+  "count": 61,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-travel",
+  "name": "Collocations · Travel & places",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about travel & places, with an example each.",
+  "count": 61,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/collocations.json",
+  "folder": "en-col-work",
+  "name": "Collocations · Work & study",
+  "icon": "🤝",
+  "lang": "en",
+  "desc": "Collocations about work & study, with an example each.",
+  "count": 66,
+  "group": "Collocations"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-life",
+  "name": "Idioms · Everyday life",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about everyday life, with an example each.",
+  "count": 39,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-feelings",
+  "name": "Idioms · Feelings & moods",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about feelings & moods, with an example each.",
+  "count": 39,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-money",
+  "name": "Idioms · Money & business",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about money & business, with an example each.",
+  "count": 41,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-people",
+  "name": "Idioms · People & relationships",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about people & relationships, with an example each.",
+  "count": 38,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-problems",
+  "name": "Idioms · Problems & risk",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about problems & risk, with an example each.",
+  "count": 39,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-talk",
+  "name": "Idioms · Talking",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about talking, with an example each.",
+  "count": 38,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-time",
+  "name": "Idioms · Time & speed",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about time & speed, with an example each.",
+  "count": 38,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/idioms.json",
+  "folder": "en-idiom-work",
+  "name": "Idioms · Work & success",
+  "icon": "💬",
+  "lang": "en",
+  "desc": "Idioms about work & success, with an example each.",
+  "count": 41,
+  "group": "Idioms"
+ },
+ {
+  "file": "en/academic.json",
+  "folder": "en-acad-b1",
+  "name": "Academic · up to B1",
+  "icon": "📚",
+  "lang": "en",
+  "desc": "New Academic Word List, up to B1. For IELTS and academic writing.",
+  "count": 261,
+  "group": "Academic"
+ },
+ {
+  "file": "en/academic.json",
+  "folder": "en-acad-b2",
+  "name": "Academic · B2",
+  "icon": "📚",
+  "lang": "en",
+  "desc": "New Academic Word List, B2. For IELTS and academic writing.",
+  "count": 211,
+  "group": "Academic"
+ },
+ {
+  "file": "en/academic.json",
+  "folder": "en-acad-c",
+  "name": "Academic · C1–C2 and specialist",
+  "icon": "📚",
+  "lang": "en",
+  "desc": "New Academic Word List, C1–C2 and specialist. For IELTS and academic writing.",
+  "count": 485,
+  "group": "Academic"
+ },
+ {
+  "file": "ko/starter.json",
+  "folder": "ko-a",
+  "name": "초급",
+  "icon": "🌱",
+  "lang": "ko",
+  "desc": "Beginner band. 국립국어원 A grade.",
+  "count": 669,
+  "group": "Levels"
+ },
+ {
+  "file": "ko/starter.json",
+  "folder": "ko-b",
+  "name": "중급",
+  "icon": "🌿",
+  "lang": "ko",
+  "desc": "Intermediate band. 국립국어원 B grade.",
+  "count": 1395,
+  "group": "Levels"
+ },
+ {
+  "file": "ko/starter.json",
+  "folder": "ko-c",
+  "name": "고급",
+  "icon": "🌳",
+  "lang": "ko",
+  "desc": "Advanced band. 국립국어원 C grade.",
+  "count": 1832,
+  "group": "Levels"
+ },
+ {
+  "file": "zh/hsk.json",
+  "folder": "zh-hsk1",
+  "name": "HSK 1",
+  "icon": "📕",
+  "lang": "zh",
+  "desc": "HSK 2.0 level 1.",
+  "count": 150,
+  "group": "Levels"
+ },
+ {
+  "file": "zh/hsk.json",
+  "folder": "zh-hsk2",
+  "name": "HSK 2",
+  "icon": "📕",
+  "lang": "zh",
+  "desc": "HSK 2.0 level 2.",
+  "count": 147,
+  "group": "Levels"
+ },
+ {
+  "file": "zh/hsk.json",
+  "folder": "zh-hsk3",
+  "name": "HSK 3",
+  "icon": "📕",
+  "lang": "zh",
+  "desc": "HSK 2.0 level 3.",
+  "count": 298,
+  "group": "Levels"
+ },
+ {
+  "file": "zh/hsk.json",
+  "folder": "zh-hsk4",
+  "name": "HSK 4",
+  "icon": "📕",
+  "lang": "zh",
+  "desc": "HSK 2.0 level 4.",
+  "count": 598,
+  "group": "Levels"
+ },
+ {
+  "file": "zh/hsk.json",
+  "folder": "zh-hsk5",
+  "name": "HSK 5",
+  "icon": "📕",
+  "lang": "zh",
+  "desc": "HSK 2.0 level 5.",
+  "count": 1298,
+  "group": "Levels"
+ },
+ {
+  "file": "zh/hsk.json",
+  "folder": "zh-hsk6",
+  "name": "HSK 6",
+  "icon": "📕",
+  "lang": "zh",
+  "desc": "HSK 2.0 level 6.",
+  "count": 2500,
+  "group": "Levels"
+ }
+]
