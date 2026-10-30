@@ -827,9 +827,39 @@ button.tag{border:0;margin:0;font-family:inherit;line-height:inherit}
 .rvfull .chips,#word-dlg-body .chips{display:flex;flex-wrap:wrap;gap:6px}
 /* The word from a chip (dashboard.js paintWordDlg). */
 #word-dlg-body{padding-top:10px}
+/* The word is the dialog's subject, set like the card's answer, not like a
+   help sheet's title. */
+#word-dlg-title{font:600 28px/1.15 var(--serif);letter-spacing:-.015em;overflow-wrap:anywhere}
 .wd-head,.wd-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .helpdlg .wd-foot{margin-top:18px;padding-top:12px;border-top:1px solid var(--rule)}
 .wd-foot .tag{margin-left:auto}
+#word-dlg-body > p:only-child{color:var(--ink2)}
+/* Motion. The dialog grows out of the chip that opened it: openWordDlg puts
+   transform-origin on the chip, so the scale reads as the word coming forward
+   rather than a box appearing. It leaves faster than it arrives. display and
+   overlay transition discretely so the exit plays before the top layer drops
+   the element. */
+#word-dlg{opacity:1;transform:none;
+       transition:opacity .26s cubic-bezier(.16,1,.3,1),transform .26s cubic-bezier(.16,1,.3,1),
+                  display .26s allow-discrete,overlay .26s allow-discrete}
+#word-dlg:not([open]){opacity:0;transform:scale(.97);
+       transition-duration:.15s;transition-timing-function:cubic-bezier(.4,0,1,1)}
+@starting-style{#word-dlg[open]{opacity:0;transform:scale(.96)}}
+#word-dlg::backdrop{transition:background-color .2s ease-out,display .2s allow-discrete,overlay .2s allow-discrete}
+#word-dlg:not([open])::backdrop{background-color:transparent;transition-duration:.15s}
+@starting-style{#word-dlg[open]::backdrop{background-color:transparent}}
+/* Browsing chip to chip, or a lookup landing, changes the words in place:
+   a short cross-fade says "same dialog, new word" where a cut reads as a jump. */
+@keyframes wdswap{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.wdswap{animation:wdswap .18s cubic-bezier(.16,1,.3,1)}
+/* Reduced motion keeps the fades, which say what changed, and drops the
+   scale and the drift. */
+@media (prefers-reduced-motion:reduce){
+  #word-dlg:not([open]){transform:none}
+  @starting-style{#word-dlg[open]{transform:none}}
+  .wdswap{animation-name:wdfade}
+}
+@keyframes wdfade{from{opacity:0}to{opacity:1}}
 
 /* The GIF mnemonic. Capped so a tall GIF cannot blow the card out, and
    object-fit:contain so a wide one is letterboxed rather than cropped. */

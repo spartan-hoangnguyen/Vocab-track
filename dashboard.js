@@ -2892,7 +2892,7 @@ function wordChips(groups, lang) {
     for (const word of items) {
       const chip = tagButton('', word);
       chip.title = `Open ${word}`;
-      chip.addEventListener('click', () => openWordDlg(word, lang));
+      chip.addEventListener('click', () => openWordDlg(word, lang, chip));
       chips.appendChild(chip);
     }
     return [el('h3', null, label), chips];
@@ -2903,23 +2903,49 @@ function wordChips(groups, lang) {
 // clicked is for a word no longer asked about, and is dropped.
 let wordDlgFor = null;
 
+// The title and body changed words under an open dialog: replays the short
+// cross-fade in dashboard.css (.wdswap), the same restart trick as .rvcard.fresh.
+// A lookup landing changes only the body; the title already named the word.
+function swapWordDlg(title = true) {
+  for (const node of title ? [$('word-dlg-title'), $('word-dlg-body')] : [$('word-dlg-body')]) {
+    node.classList.remove('wdswap');
+    void node.offsetWidth;
+    node.classList.add('wdswap');
+  }
+}
+
 // A word from a chip, in a dialog over the review. A saved word shows what is
 // stored; anything else is looked up live — the dictionary and the gloss, the
 // same two calls resolveWord makes — and only saved if Save word is pressed.
-async function openWordDlg(raw, langId) {
+//
+// `from` is the chip clicked. Opening, the dialog scales out of it; already
+// open, the new word cross-fades in place.
+async function openWordDlg(raw, langId, from) {
   const pack = LANG.pick(langId, raw);
   const key = pack.lemma(pack.normalise(raw));
   wordDlgFor = key;
   const dlg = $('word-dlg');
   $('word-dlg-title').textContent = key;
   $('word-dlg-title').lang = pack.id;
-  if (!dlg.open) dlg.showModal();
+  if (dlg.open) {
+    swapWordDlg();
+  } else {
+    dlg.showModal();
+    // Read after showModal, when the dialog has its box, and before the first
+    // frame, so @starting-style scales from here.
+    if (from) {
+      const box = dlg.getBoundingClientRect();
+      const chip = from.getBoundingClientRect();
+      dlg.style.transformOrigin = `${chip.left + chip.width / 2 - box.left}px ${chip.top + chip.height / 2 - box.top}px`;
+    }
+  }
   dlg.scrollTop = 0;
   if (words[key]) { paintWordDlg(words[key], true); return; }
 
   $('word-dlg-body').replaceChildren(el('p', null, `Looking up “${key}”…`));
   const [parsed, gloss] = await Promise.all([fetchEntry(key, pack.id, raw), glossFor(key, pack.id)]);
   if (wordDlgFor !== key) return;
+  swapWordDlg(false);
   const vi = parsed.vi ?? gloss.vi;
   if (parsed.notFound && !vi) {
     const dict = LANG.dict(pack.id);
