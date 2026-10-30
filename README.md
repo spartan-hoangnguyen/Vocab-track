@@ -1,4 +1,4 @@
-# Vocab-track
+# Sheaf
 
 A personal Chrome extension for learning vocabulary while reading. English and
 Korean.
@@ -22,7 +22,7 @@ Korean is newer and much thinner: a Vietnamese gloss, the sentence, the
 highlighting and the review schedule, plus krdict's definition, pronunciation
 and level once you paste a free krdict key. See *Languages* below, which says plainly what it does and does not do.
 
-There is no Vocab-track server and no Vocab-track account. Your words stay in
+There is no Sheaf server and no Sheaf account. Your words stay in
 your own Chrome profile unless you choose to sign in with Google: then they
 sync, through your own Google Drive, to every Chrome you sign in to. See
 *Privacy* below for exactly what that sends.
@@ -94,7 +94,7 @@ sync, through your own Google Drive, to every Chrome you sign in to. See
 - **Take it to another computer.** Optional: **Sign in with Google** under
   **Settings** and the same words, folders and review schedule follow
   you to every Chrome you sign in to. They are kept in a hidden app folder of
-  your own Google Drive that only Vocab-track can read. A change goes up half a
+  your own Google Drive that only Sheaf can read. A change goes up half a
   minute after you make it; another machine picks it up when its dashboard or
   panel opens, or within 30 minutes. A word deleted on one machine stays
   deleted on the others. Sign out and your local words stay; the Drive copy is
@@ -219,7 +219,7 @@ there is no writing check, since LanguageTool's Chinese is out of scope.
 Then assign the hotkey by hand — macOS does not let a script do this:
 
 > System Settings → Keyboard → **Keyboard Shortcuts…** → **Services** → **Text**
-> → tick **Save to Vocab-track** and click at its right to set a key.
+> → tick **Save to Sheaf** and click at its right to set a key.
 
 Select a word anywhere and press it. A notification confirms the capture; the
 word is looked up the next time you open the dashboard.
@@ -276,7 +276,7 @@ is the whole change if you ever want nothing to leave the machine at all.
 The dashboard can create Anki cards from your words, through the AnkiConnect
 add-on. Each card shows the word on the front. The back shows the meaning, the
 definition, an example, the level and the GIF. The review schedule stays in
-Vocab-track. Anki runs its own.
+Sheaf. Anki runs its own.
 
 Set it up once:
 
@@ -518,7 +518,7 @@ the same licence.
 
 ## Privacy
 
-No Vocab-track account, no server, no analytics. Your words live in
+No Sheaf account, no server, no analytics. Your words live in
 `chrome.storage.local` on your own machine, and are uploaded only if you sign in
 for cloud sync (below). The automatic backup is a file in your own Downloads
 folder (`Downloads/vocab-track/backup-<date>.json`), written by the extension a
@@ -569,11 +569,11 @@ pins, practice misses and the list of what you deleted. Settings and API keys
 are not in it. It lives in Drive's hidden `appDataFolder`, which only this
 extension can read; the `drive.appdata` scope reaches nothing else in your
 Drive. Sign out to stop it. To delete the Drive copy: Google Drive → gear →
-**Settings** → **Manage apps** → **Vocab-track** → **Options** → **Delete
+**Settings** → **Manage apps** → **Sheaf** → **Options** → **Delete
 hidden app data**. [PRIVACY.md](PRIVACY.md) has the details.
 
 Cloud sync needs **`identity`**, for Chrome's own Google sign-in
-(`chrome.identity.getAuthToken`, so Chrome holds the token and Vocab-track
+(`chrome.identity.getAuthToken`, so Chrome holds the token and Sheaf
 never sees a password), and the **`www.googleapis.com`** host, for the Drive
 API calls that read and write that one file. It does not ask for
 `identity.email`: the email on the card comes from Drive itself.

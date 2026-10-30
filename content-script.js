@@ -17,7 +17,7 @@ function staleNotice() {
   const note = document.createElement('div');
   note.setAttribute(OWN_UI, '');
   note.setAttribute('role', 'status');
-  note.textContent = 'Vocab-track was updated — reload this page to look words up again.';
+  note.textContent = 'Sheaf was updated — reload this page to look words up again.';
   note.style.cssText = [
     'all:revert', 'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
     'z-index:2147483647', 'font:13px/1.4 system-ui,sans-serif', 'padding:8px 12px',

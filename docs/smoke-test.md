@@ -1,4 +1,4 @@
-# Vocab-track — manual smoke test
+# Sheaf — manual smoke test
 
 Everything here needs a real browser. Automated checks cover the pure logic and
 the layout (`bash test/run.sh`, seven pages in headless Chrome), but no subagent
@@ -184,7 +184,7 @@ Open it from **Open dashboard →** in the side panel.
     seek the player to its own moment without changing whether it is playing.
 
 21. **The shortcut is actually bound.** Open `chrome://extensions/shortcuts` and
-    confirm Vocab-track has one — on macOS `Alt+Shift+R` is Option+Shift+R, and
+    confirm Sheaf has one — on macOS `Alt+Shift+R` is Option+Shift+R, and
     if another extension already claims it Chrome assigns nothing and says
     nothing.
 
@@ -213,7 +213,7 @@ Open it from **Open dashboard →** in the side panel.
 
 27. **Mac capture, end to end.** Run `./tools/install-macos.sh`, assign the
     hotkey in System Settings, then select a word in **Preview or Kindle** — not
-    Chrome — and press it. A notification must say "Saved to Vocab-track". Open
+    Chrome — and press it. A notification must say "Saved to Sheaf". Open
     the dashboard: a note at the top of Overview must report the word being
     looked up, and it must then appear in All words with its CEFR level.
 
@@ -230,7 +230,7 @@ Open it from **Open dashboard →** in the side panel.
     from web pages must still show theirs.
 
 31. **Uninstall is clean.** `./tools/uninstall-macos.sh`, then confirm
-    "Save to Vocab-track" is gone from System Settings → Services, and that the
+    "Save to Sheaf" is gone from System Settings → Services, and that the
     dashboard still opens without errors.
 
 ## Typing the answer
@@ -853,7 +853,7 @@ leave B empty or with different words.
      (open its dashboard, or **Sync now**): both are gone. Press **Sync now**
      in A and again in B: neither comes back.
 113. **The Drive copy is hidden.** Open drive.google.com: no `vocab-track.json`
-     in My Drive. Settings → **Manage apps** lists Vocab-track with hidden app
+     in My Drive. Settings → **Manage apps** lists Sheaf with hidden app
      data.
 114. **Sign out keeps your words.** In B, **Sign out**. The card returns to
      **Sign in with Google**, every word is still there, and saving a word

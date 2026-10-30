@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Vocab-track",
+  "name": "Sheaf",
   "version": "0.3.0",
   "description": "Look up words while reading, and review them as flashcards.",
   "minimum_chrome_version": "116",

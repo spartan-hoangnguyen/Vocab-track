@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#1c1a17"/>
+  <defs>
+    <!-- One stalk: its ear of paired grains above the tie at (64,80). -->
+    <g id="ear">
+      <path d="M64 80V40" stroke="#faf7f2" stroke-width="4" stroke-linecap="round"/>
+      <g fill="#faf7f2">
+        <ellipse cx="64" cy="14" rx="3.8" ry="7"/>
+        <ellipse cx="59" cy="24" rx="3.8" ry="7" transform="rotate(-30 59 24)"/>
+        <ellipse cx="69" cy="24" rx="3.8" ry="7" transform="rotate(30 69 24)"/>
+        <ellipse cx="59" cy="33" rx="3.8" ry="7" transform="rotate(-30 59 33)"/>
+        <ellipse cx="69" cy="33" rx="3.8" ry="7" transform="rotate(30 69 33)"/>
+        <ellipse cx="59" cy="42" rx="3.8" ry="7" transform="rotate(-30 59 42)"/>
+        <ellipse cx="69" cy="42" rx="3.8" ry="7" transform="rotate(30 69 42)"/>
+      </g>
+    </g>
+  </defs>
+  <use href="#ear" transform="rotate(-30 64 80)"/>
+  <use href="#ear" transform="rotate(30 64 80)"/>
+  <use href="#ear"/>
+  <path d="M64 80 50 108M64 80 58 110M64 80 70 110M64 80 78 108" fill="none"
+        stroke="#faf7f2" stroke-width="4" stroke-linecap="round"/>
+  <rect x="50" y="75" width="28" height="10" rx="5" fill="#d9b56a"/>
+</svg>

@@ -2559,9 +2559,9 @@ ready.then(() => setTimeout(async () => {
   // The file read is real I/O under a virtual clock, so only one import goes
   // through the input; the rest of the mapping is checked on readBackup itself.
   const wordsBefore = JSON.stringify(STORE.words);
-  const io = await importText('<!doctype html><html>', /not a Vocab-track backup/);
+  const io = await importText('<!doctype html><html>', /not a Sheaf backup/);
   check('an HTML file says it is not a backup, parser text only in the detail',
-        /not a Vocab-track backup/.test(io.firstChild?.textContent) && io.classList.contains('err')
+        /not a Sheaf backup/.test(io.firstChild?.textContent) && io.classList.contains('err')
         && /JSON/.test(io.querySelector('.note-detail')?.textContent ?? ''), io.textContent);
   check('and it wrote nothing', JSON.stringify(STORE.words) === wordsBefore);
   check('a cut-off backup reads as damaged',

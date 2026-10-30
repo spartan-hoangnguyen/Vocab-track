@@ -1,5 +1,5 @@
 #!/bin/bash
-# Queue the selected text for Vocab-track. Called by the macOS Quick Action,
+# Queue the selected text for Sheaf. Called by the macOS Quick Action,
 # so it runs in whatever app you were reading in — Kindle, Preview, Mail,
 # Notes, Slack.
 #
@@ -46,8 +46,8 @@ if [ -n "$SAVED" ]; then
   # osascript parses -e as AppleScript, so a selection beginning with a double
   # quote would close the string literal and have the rest evaluated as code.
   osascript -e 'on run {msg}
-display notification msg with title "Saved to Vocab-track"
+display notification msg with title "Saved to Sheaf"
 end run' "$SAVED" >/dev/null 2>&1
 else
-  osascript -e 'display notification "Nothing was selected" with title "Vocab-track"' >/dev/null 2>&1
+  osascript -e 'display notification "Nothing was selected" with title "Sheaf"' >/dev/null 2>&1
 fi

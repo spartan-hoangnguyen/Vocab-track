@@ -1,19 +1,19 @@
-# Vocab-track privacy policy
+# Sheaf privacy policy
 
 Last updated: 2026-10-15
 
-Vocab-track is a Chrome extension for learning vocabulary while you read. This
+Sheaf is a Chrome extension for learning vocabulary while you read. This
 page says what it keeps, what it sends, and to whom. It covers the version in
 the Chrome Web Store.
 
 ## What it keeps, and where
 
-Everything Vocab-track keeps is in `chrome.storage.local`, in the Chrome
+Everything Sheaf keeps is in `chrome.storage.local`, in the Chrome
 profile you installed it in. That is your saved words, the sentence you met
 each word in, the address of the page it came from, your review schedule, your
 folders, the writing mistakes you make most often, and your settings. Unless
 you sign in with Google for cloud sync (below), none of it is uploaded. There
-is no Vocab-track account and no Vocab-track server. Removing the extension
+is no Sheaf account and no Sheaf server. Removing the extension
 deletes all of it, except the automatic backups and, if you signed in, the
 copy in your Google Drive.
 
@@ -93,9 +93,9 @@ Your settings, theme, voices, and your GIPHY, translation and krdict keys are
 not part of it and stay on this machine.
 
 **Where it goes.** To your own Google Drive, in its *app data* folder: a
-hidden folder that does not show in your Drive and that only Vocab-track can
+hidden folder that does not show in your Drive and that only Sheaf can
 read or write. The extension asks only for that folder
-(`drive.appdata`), not for the rest of your Drive. There is no Vocab-track
+(`drive.appdata`), not for the rest of your Drive. There is no Sheaf
 server; the file goes straight from your browser to Google. Google's privacy
 policy applies to it there. To show which account is signed in, the extension
 also asks Drive for your account's email address and keeps it in
@@ -111,7 +111,7 @@ your words on this machine stay as they are. The copy in Drive is left as it
 was.
 
 **How to delete the Drive copy.** Open Google Drive in a browser → the gear
-icon → **Settings** → **Manage apps** → find **Vocab-track** → **Options** →
+icon → **Settings** → **Manage apps** → find **Sheaf** → **Options** →
 **Delete hidden app data**. Sign out on every machine first, or the next sync
 uploads the file again.
 

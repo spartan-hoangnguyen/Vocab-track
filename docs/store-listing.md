@@ -8,7 +8,7 @@ three.
 
 ## Store listing
 
-**Name:** Vocab-track
+**Name:** Sheaf
 
 **Summary** (≤132 characters):
 
@@ -37,10 +37,10 @@ three.
 > level once you add a free krdict key. Chinese adds pinyin, English senses and
 > an HSK level from bundled data, with no key.
 >
-> No Vocab-track account and no Vocab-track server. Your words stay in this
+> No Sheaf account and no Sheaf server. Your words stay in this
 > Chrome profile, unless you choose to sign in with Google: then they sync to
 > every Chrome you sign in to, through a hidden app folder in your own Google
-> Drive that only Vocab-track can read. The synced file includes the sentences
+> Drive that only Sheaf can read. The synced file includes the sentences
 > you saved and the addresses of the pages you saved words on.
 > Privacy policy: https://github.com/spartan-hoangnguyen/Vocab-track/blob/main/PRIVACY.md
 

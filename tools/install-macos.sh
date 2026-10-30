@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wire the macOS side of Vocab-track: a Quick Action that queues the selected
+# Wire the macOS side of Sheaf: a Quick Action that queues the selected
 # word from any app, and the native messaging host the dashboard drains it with.
 #
 # Safe to re-run. Undo with tools/uninstall-macos.sh.
@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST_NAME="com.vocab_track.capture"
-SERVICE="$HOME/Library/Services/Save to Vocab-track.workflow"
+SERVICE="$HOME/Library/Services/Save to Sheaf.workflow"
 HOSTS_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 
 # An unpacked extension's id is derived from the absolute path of its folder:
@@ -27,7 +27,7 @@ mkdir -p "$HOSTS_DIR"
 cat > "$HOSTS_DIR/$HOST_NAME.json" <<JSON
 {
   "name": "$HOST_NAME",
-  "description": "Vocab-track capture queue",
+  "description": "Sheaf capture queue",
   "path": "$REPO/tools/vocab-host.py",
   "type": "stdio",
   "allowed_origins": ["chrome-extension://$EXT_ID/"]
@@ -49,7 +49,7 @@ cat > "$SERVICE/Contents/Info.plist" <<'PLIST'
   <array>
     <dict>
       <key>NSMenuItem</key>
-      <dict><key>default</key><string>Save to Vocab-track</string></dict>
+      <dict><key>default</key><string>Save to Sheaf</string></dict>
       <key>NSMessage</key><string>runWorkflowAsService</string>
       <key>NSSendTypes</key>
       <array><string>NSStringPboardType</string></array>
@@ -169,7 +169,7 @@ fi
 # not seeing it immediately means nothing is wrong.
 registered=no
 for _ in $(seq 1 20); do
-  if /System/Library/CoreServices/pbs -dump_pboard 2>/dev/null | grep -q "Save to Vocab-track"; then
+  if /System/Library/CoreServices/pbs -dump_pboard 2>/dev/null | grep -q "Save to Sheaf"; then
     registered=yes
     break
   fi
@@ -188,7 +188,7 @@ Last step, which has to be done by hand — macOS does not let a script assign
 a global hotkey:
 
   System Settings -> Keyboard -> Keyboard Shortcuts... -> Services -> Text
-  tick "Save to Vocab-track" and click its right-hand side to set a key.
+  tick "Save to Sheaf" and click its right-hand side to set a key.
 
 Then: select a word in any app, press the key. A notification confirms it.
 The words appear in the dashboard next time you open it.

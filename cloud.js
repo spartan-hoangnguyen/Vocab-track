@@ -83,7 +83,7 @@ async function downloadCloudFile(id) {
     console.error('[vocab-track] Drive copy is not JSON', err);
   }
   if (!data || typeof data.words !== 'object') {
-    throw new Error('The copy in your Google Drive is not a Vocab-track file. Nothing was changed.');
+    throw new Error('The copy in your Google Drive is not a Sheaf file. Nothing was changed.');
   }
   return data;
 }

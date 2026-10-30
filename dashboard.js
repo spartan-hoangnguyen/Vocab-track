@@ -1422,7 +1422,7 @@ function setNote(note, text, { error = false, detail = '' } = {}) {
   note.append(more);
 }
 
-const IMPORT_NOT_BACKUP = 'This is not a Vocab-track backup. Choose a .json file made with '
+const IMPORT_NOT_BACKUP = 'This is not a Sheaf backup. Choose a .json file made with '
   + 'Export JSON, or one from Downloads/vocab-track.';
 const IMPORT_DAMAGED = 'This backup is damaged, possibly cut off while it downloaded. '
   + 'Nothing was imported. Try an earlier one from Downloads/vocab-track.';
@@ -1451,7 +1451,7 @@ function readBackup(text) {
   const unknown = [...new Set(entries.map((e) => e.lang).filter((id) => id && !LANG.get(id)))];
   if (unknown.length) {
     return {
-      error: 'This file holds words in a language this version of Vocab-track does not have. '
+      error: 'This file holds words in a language this version of Sheaf does not have. '
         + 'Nothing was imported. Update the extension, then import it again.',
       detail: `Language code: ${unknown.join(', ')}`
     };

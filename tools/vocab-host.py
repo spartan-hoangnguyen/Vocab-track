@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Chrome native messaging host for Vocab-track.
+"""Chrome native messaging host for Sheaf.
 
 The only job: hand the dashboard whatever vocab-capture.sh has queued from
 other Mac apps, and clear the queue. Chrome starts this on demand and it exits

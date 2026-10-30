@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release Vocab-track to the Chrome Web Store from CI.
+"""Release Sheaf to the Chrome Web Store from CI.
 
 Run by .github/workflows/release.yml when you start a release by hand.
 One run does at most one release:
