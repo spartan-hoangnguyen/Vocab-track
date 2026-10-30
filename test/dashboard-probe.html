@@ -118,7 +118,11 @@ const listeners = [];
 // A real chrome.storage.local, minus persistence: get takes a key or an array
 // of them and omits what is absent, which is the whole point of the writeOn
 // tests — `{}` back from get is what "the user has never touched this" looks like.
-const STORE = { words: WORDS };
+// The daily limits and batches are off for every check but their own: the
+// rest of this probe was written against a session that asks everything due,
+// and grades far more than twenty words in one day. ROOMY puts that back.
+const ROOMY = { newPerDay: 1e6, reviewsPerDay: 1e6, batchSize: 1e6 };
+const STORE = { words: WORDS, reviewPrefs: { ...ROOMY } };
 window.chrome = {
   storage:{ local:{
       get: async (keys) => {
@@ -888,7 +892,9 @@ ready.then(() => setTimeout(async () => {
   await tick();
 
   // A folder full of words none of which are due yet — an imported list on any
-  // day but the first. Opening it must still offer a way in.
+  // day but the first. Opening it must still offer a way in: one batch of the
+  // next new words, here a batch of twenty.
+  STORE.reviewPrefs = { ...STORE.reviewPrefs, batchSize: 20 };
   openFolder('bulk-new');
   await refresh();
   const study = document.getElementById('w-review');
@@ -929,6 +935,7 @@ ready.then(() => setTimeout(async () => {
   check('and that button starts them without leaving the review',
         queue.length === 20 && document.getElementById('rv-card').hidden === false,
         String(queue.length));
+  STORE.reviewPrefs = { ...STORE.reviewPrefs, batchSize: ROOMY.batchSize };
   check('with a card up the session settings are back, folded shut',
         document.querySelector('.rvsettings').checkVisibility()
         && !document.querySelector('.rvsettings').open
@@ -939,7 +946,7 @@ ready.then(() => setTimeout(async () => {
   openFolder('ielts-c1');
   await refresh();
   check('a folder with work due says so on the button',
-        document.getElementById('w-review').textContent === 'Review 1 due',
+        document.getElementById('w-review').textContent === 'Review 1 today',
         document.getElementById('w-review').textContent);
   check('All words does not repeat the button already in the top bar',
         (openFolder(null), document.getElementById('w-review').hidden));
@@ -962,6 +969,11 @@ ready.then(() => setTimeout(async () => {
         && document.getElementById('rv-shuffle').getAttribute('aria-pressed') === 'false'
         && document.getElementById('rv-autoplay').checked
         && document.getElementById('rv-voice').value === 'uk', JSON.stringify(prefs));
+  check('and the limits are Anki’s: 20 new and 100 reviews a day, in batches of 10',
+        prefs.newPerDay === 20 && prefs.reviewsPerDay === 100 && prefs.batchSize === 10
+        && document.getElementById('rv-new-day').value === '20', JSON.stringify(prefs));
+  STORE.reviewPrefs = { ...ROOMY };
+  await refresh();
   startReview('shuf');
   showView('review');
   renderCard();
@@ -1441,6 +1453,64 @@ ready.then(() => setTimeout(async () => {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
   await tick();
   check('a later Enter does', !revealed, `revealed=${revealed}`);
+
+  /* ---- daily limits, Anki-style, asked in batches ----
+     Limits are set relative to what this probe has already graded today, so
+     the checks read "three more new cards and one more review". */
+  for (let i = 0; i < 6; i++) {
+    STORE.words['pace' + i] = mk('pace' + i, { folders: ['pace'], due: Date.now() - 50000 + i });
+  }
+  STORE.words.paceold = mk('paceold', { folders: ['pace'], reps: 2, interval: 3, stability: 3,
+    difficulty: 5, lastReview: Date.now() - 3 * 86400000, due: Date.now() - 60000 });
+  await refresh();
+  const paceBase = doneToday();
+  STORE.reviewPrefs = { ...STORE.reviewPrefs, newPerDay: paceBase.news + 3,
+    reviewsPerDay: paceBase.reviews + 1, batchSize: 2 };
+  await refresh();
+  startReview('pace');
+  showView('review');
+  renderCard();
+  check('the day is cut to the limits — 1 review and 3 new — and asked 2 at a time',
+        queue.length === 2 && held.length === 2 && queue[0].word === 'paceold',
+        `${queue.map((e) => e.word)} | ${held.map((e) => e.word)}`);
+  check('the counter names the batch', /1 of 2 · batch 1\/2/.test(document.getElementById('rv-sub').textContent),
+        document.getElementById('rv-sub').textContent);
+  const gradeShown = async () => { revealed = true; await grade(4); await tick(); };
+  await gradeShown();
+  await gradeShown();
+  check('the end of a batch offers a break, not the next card',
+        !document.getElementById('rv-card').checkVisibility()
+        && document.getElementById('rv-next').checkVisibility()
+        && /^Batch 1 of 2 done/.test(document.getElementById('rv-empty-text').textContent),
+        document.getElementById('rv-empty-text').textContent);
+  check('with focus on Next batch', document.activeElement === document.getElementById('rv-next'));
+  document.activeElement.blur();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+  check('Enter starts the next batch', queue.length === 2 && !held.length && batchNo === 2,
+        `${queue.length} ${held.length} ${batchNo}`);
+  await gradeShown();
+  await gradeShown();
+  check('today’s grades are counted against the limits',
+        doneToday().news === paceBase.news + 3 && doneToday().reviews === paceBase.reviews + 1,
+        JSON.stringify([paceBase, doneToday()]));
+  await undoGrade();
+  await tick();
+  check('an undone grade gives its place back', doneToday().news === paceBase.news + 2 && queue.length === 1,
+        JSON.stringify(doneToday()));
+  await gradeShown();
+  const paceMore = document.getElementById('rv-more');
+  check('with the limits reached the day is done, and says what waits',
+        /^Today’s target is done — \d+ cards\. 3 more are due/.test(document.getElementById('rv-empty-text').textContent)
+        && document.getElementById('rv-next').hidden,
+        document.getElementById('rv-empty-text').textContent);
+  check('studying past the limits is still one click',
+        !paceMore.hidden && paceMore.textContent === 'Study 2 more anyway', paceMore.textContent);
+  paceMore.click();
+  check('and asks one batch of the held-back cards',
+        queue.length === 2 && queue.every((e) => /^pace\d$/.test(e.word) && !e.reps),
+        queue.map((e) => e.word).join());
+  STORE.reviewPrefs = { ...STORE.reviewPrefs, ...ROOMY };
+  await refresh();
 
   /* ---- the mastery card previews the next words to master ---- */
   const DAYMS = 24 * 60 * 60 * 1000;

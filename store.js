@@ -211,19 +211,21 @@ function setWordsFolders(byWord) {
 
 // Every grade, kept so FSRS's weights can one day be fitted to you rather
 // than to everyone. One key per day, so a grade rewrites a few KB, not the
-// whole history. Rows are [word, quality, time].
+// whole history. Rows are [word, quality, time], with a fourth element 1 when
+// the grade was the word's first ever (it was a new card) — what review's
+// daily new-card limit counts. Rows written before that have three.
 // ponytail: nothing prunes it; at ~40 bytes a row the 10MB quota is about a
 // quarter-million reviews away. Prune or add unlimitedStorage before then.
 const HISTORY_PREFIX = 'history:';
 // How far back the insights read: 13 weeks, so one read is at most 91 keys.
 const HISTORY_DAYS = 91;
 
-function recordReview(word, quality, at = Date.now()) {
+function recordReview(word, quality, at = Date.now(), fresh = false) {
   writeQueue = writeQueue.then(async () => {
     try {
       const key = HISTORY_PREFIX + VT.dayKey(at);
       const { [key]: rows } = await chrome.storage.local.get(key);
-      await chrome.storage.local.set({ [key]: [...(rows ?? []), [word, quality, at]] });
+      await chrome.storage.local.set({ [key]: [...(rows ?? []), fresh ? [word, quality, at, 1] : [word, quality, at]] });
     } catch (err) {
       console.error('[vocab-track] review log failed for', word, err);
     }
@@ -247,14 +249,14 @@ function unrecordReview(word, at) {
   return writeQueue;
 }
 
-// The last `days` local days of grades as { word, quality, at }, oldest
+// The last `days` local days of grades as { word, quality, at, fresh }, oldest
 // first. Named keys, never get(null): that would load every word too.
 async function getHistory(days = HISTORY_DAYS) {
   const DAY = 24 * 60 * 60 * 1000;
   const keys = [];
   for (let i = days - 1; i >= 0; i--) keys.push(HISTORY_PREFIX + VT.dayKey(Date.now() - i * DAY));
   const got = await chrome.storage.local.get(keys);
-  return keys.flatMap((key) => (got[key] ?? []).map(([word, quality, at]) => ({ word, quality, at })));
+  return keys.flatMap((key) => (got[key] ?? []).map(([word, quality, at, fresh]) => ({ word, quality, at, fresh: !!fresh })));
 }
 
 // Practice's own books, kept beside the schedule rather than instead of it:

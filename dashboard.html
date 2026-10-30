@@ -227,6 +227,17 @@
           <input type="checkbox" role="switch" id="rv-autoplay" checked>
           Auto-play pronunciation
         </label>
+        <!-- Anki's two daily limits and the batch a sitting is cut into
+             (dashboard.js todayPlan / startReview). -->
+        <label class="rvopt" title="New words introduced per day">New / day
+          <input type="number" class="rvnum" id="rv-new-day" min="0" max="999" step="1">
+        </label>
+        <label class="rvopt" title="Most reviews per day">Reviews / day
+          <input type="number" class="rvnum" id="rv-rev-day" min="0" max="9999" step="1">
+        </label>
+        <label class="rvopt" title="Cards per batch, with a break between batches">Batch
+          <input type="number" class="rvnum" id="rv-batch" min="1" max="100" step="1">
+        </label>
         <!-- Empty: UK/US is a Cambridge fact, not a universal one. renderPrefs
              fills this from the active language's voices and hides the whole
              label when there is only one to pick. -->
@@ -255,6 +266,7 @@
         <p>Practice opens as your list grows:</p>
         <ul id="rv-locked-list"></ul>
       </div>
+      <button class="btn" id="rv-next" hidden>Next batch</button>
       <button class="btn" id="rv-more" hidden>Learn 20 more</button>
       <button class="btn ghost" id="rv-back">Back to overview</button>
     </div>

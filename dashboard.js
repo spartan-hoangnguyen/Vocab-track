@@ -38,7 +38,10 @@ let ankiDeck = '';
 // How a review session runs. A key missing from storage is a default, not
 // false: a profile that never touched the switch still hears the word.
 // `voices` is { [packId]: voiceURI }; a language with no key is Automatic.
-const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10, voices: {} };
+// newPerDay / reviewsPerDay are Anki's two daily limits, and batchSize is how
+// many cards one sitting asks before offering a break (startReview).
+const REVIEW_DEFAULTS = { shuffle: false, autoplay: true, accent: 'uk', practiceSession: 10, voices: {},
+  newPerDay: 20, reviewsPerDay: 100, batchSize: 10 };
 let prefs = { ...REVIEW_DEFAULTS };
 // How All words is narrowed and drawn, per viewer: a flat key of its own, read
 // with the rest in refresh(). `level` '' is every level; `status` is a
@@ -292,11 +295,15 @@ function renderOverview(all) {
   $('ov-sub').textContent =
     `${all.length} word${all.length === 1 ? '' : 's'} collected while reading · ` +
     `${shown.length} folder${shown.length === 1 ? '' : 's'}`;
-  renderToday(all, due);
-  $('review-btn').textContent = due ? `Review ${due} due` : 'Review';
+  // What today's limits let through, not everything due: a day after saving
+  // eighty words the button would otherwise promise one eighty-card sitting.
+  const plan = todayPlan(all).cards;
+  const planned = plan.length;
+  renderToday(plan);
+  $('review-btn').textContent = planned ? `Review ${planned} today` : 'Review';
   // The darkest button on the page only when there is something to review:
   // with nothing due, or no words yet, it would point at an empty session.
-  $('review-btn').classList.toggle('ghost', !due);
+  $('review-btn').classList.toggle('ghost', !planned);
 
   // One hue, not one per level: the axis already names the level, so colouring
   // by level would encode nothing the label does not already say.
@@ -370,14 +377,12 @@ function renderOverview(all) {
 // How many due words the overview names before handing over to the review.
 const TODAY_SHOWN = 6;
 
-// The words due now, in the order the review will ask them (startReview's
-// sort, without its shuffle), each with its meaning and the sentence it came
+// Today's cards (todayPlan: what is due, inside the daily limits), in the
+// order the review will ask them, without its shuffle, each with its meaning and the sentence it came
 // from. A preview, so nothing here is a control except the one Start review.
-function renderToday(all, due) {
-  const now = Date.now();
-  const next = all.filter((e) => VT.isLearnable(e) && e.due <= now)
-    .sort((a, b) => a.due - b.due)
-    .slice(0, TODAY_SHOWN);
+function renderToday(plan) {
+  const due = plan.length;
+  const next = plan.slice(0, TODAY_SHOWN);
   fillGrid('ov-today', next.map((entry) => {
     const item = el('li');
     // The whole word on hover, for one the column cuts short.
@@ -612,9 +617,12 @@ function renderWords(all) {
   const due = dueCount(scope);
   const fresh = newCards(scope).length;
   study.hidden = !activeFolder || !(due || fresh);
-  study.textContent = due
-    ? `Review ${due} due`
-    : `Learn ${Math.min(AHEAD_BATCH, fresh)} new`;
+  // Today's share of what is due, after the daily limits; "Review" alone when
+  // the limits have it all held back, and the review says why.
+  const planned = todayPlan(scope).cards.length;
+  study.textContent = planned ? `Review ${planned} today`
+    : due ? 'Review'
+    : `Learn ${Math.min(prefs.batchSize, fresh)} new`;
 
   const list = density === 'list';
   pageWords = list ? page.map((e) => e.word) : [];
@@ -2166,9 +2174,13 @@ const pastCard = () => (lookBack ? graded[graded.length - lookBack] : null);
 // The card on screen, past or live. What the star, `r` and `t` act on.
 const shownEntry = () => pastCard()?.entry ?? queue[0];
 
+// The rest of today's cards after the batch on screen, and which batch this is.
+// A session is today's plan (todayPlan) asked prefs.batchSize at a time; when
+// a batch runs out the card offers a break before the next one (nextBatch).
+let held = [];
+let batchNo = 1;
+
 const GRADE_FOR = { exact: 4, synonym: 4, near: 3, wrong: 0 };
-// One day's worth, the same pace the imported list arrives at.
-const AHEAD_BATCH = 20;
 
 // The words a review session may draw from: learnable, in the active language,
 // and in the folder if there is one.
@@ -2194,29 +2206,66 @@ function newCards(entries) {
     .sort((a, b) => a.due - b.due);
 }
 
-function startReview(folderId, { ahead = false } = {}) {
+// What today's grades have used of the two daily limits, in the active
+// language: distinct words, so a lapse asked again later today is not counted
+// twice. A word's first grade ever is marked `fresh` by applyGrade.
+function doneToday() {
+  const today = VT.dayKey(Date.now());
+  const done = { news: 0, reviews: 0 };
+  for (const row of VT.dailyFirsts(reviewLog)) {
+    const entry = words[row.word];
+    if (VT.dayKey(row.at) !== today || !entry || LANG.of(entry).id !== activeLang) continue;
+    if (row.fresh) done.news++;
+    else done.reviews++;
+  }
+  return done;
+}
+
+// The due cards today's limits still allow, oldest due first: the most
+// overdue card is the one most at risk, and each limit keeps the oldest of its
+// kind. New and review cards stay mixed in that one order, as before the
+// limits. `over` is how many due cards the limits held back.
+function todayPlan(scope) {
+  const now = Date.now();
+  const done = doneToday();
+  const due = scope.filter((e) => VT.isLearnable(e) && e.due <= now).sort((a, b) => a.due - b.due);
+  const allowed = new Set([
+    ...due.filter((e) => e.reps).slice(0, Math.max(0, prefs.reviewsPerDay - done.reviews)),
+    ...due.filter((e) => !e.reps).slice(0, Math.max(0, prefs.newPerDay - done.news))
+  ]);
+  const cards = due.filter((e) => allowed.has(e));
+  return { cards, over: due.length - cards.length };
+}
+
+// `more` goes past the daily limits on purpose: one batch of the due cards
+// they held back. `ahead` is for when nothing is due at all.
+function startReview(folderId, { ahead = false, more = false } = {}) {
   reviewScope = folderId;
   // Recorded, not assumed: this is what lets refresh() tell a queue that has
   // gone stale from one that was just rebuilt for the same change.
   queueLang = activeLang;
-  const now = Date.now();
   // isLearnable first, so a skipped word cannot be reached even by a
   // folder-scoped session or by the ahead-of-schedule new queue below.
   const scope = inScope(folderId);
-  queue = scope
-    .filter((e) => e.due <= now)
-    // Oldest due first: the most overdue card is the one most at risk.
-    .sort((a, b) => a.due - b.due);
-  if (prefs.shuffle) queue = VT.shuffled(queue);
-  // Anki's new cards are not overdue, they are simply not started yet, and an
-  // imported word list is a thousand of them held back twenty a day. With the
-  // day's work done, opening the folder has to offer the next ones rather than
-  // an empty screen — the schedule is a pace, not a lock.
-  if (ahead && !queue.length) {
-    queue = newCards(scope).slice(0, AHEAD_BATCH);
-    // Which twenty is still the schedule's call; shuffle only reorders them.
-    if (prefs.shuffle) queue = VT.shuffled(queue);
+  const plan = todayPlan(scope);
+  let day = plan.cards;
+  if (more) {
+    const now = Date.now();
+    const planned = new Set(day);
+    day = scope.filter((e) => e.due <= now && !planned.has(e))
+      .sort((a, b) => a.due - b.due).slice(0, prefs.batchSize);
+  } else if (ahead && !day.length && !plan.over) {
+    // Anki's new cards are not overdue, they are simply not started yet, and an
+    // imported word list is a thousand of them held back twenty a day. With the
+    // day's work done, opening the folder has to offer the next ones rather than
+    // an empty screen — the schedule is a pace, not a lock. Which ones is still
+    // the schedule's call; shuffle only reorders them.
+    day = newCards(scope).slice(0, prefs.batchSize);
   }
+  if (prefs.shuffle) day = VT.shuffled(day);
+  queue = day.slice(0, prefs.batchSize);
+  held = day.slice(prefs.batchSize);
+  batchNo = 1;
   sessionTotal = queue.length;
   revealed = false;
   typed = '';
@@ -2226,6 +2275,26 @@ function startReview(folderId, { ahead = false } = {}) {
   // The queue Undo would put the card back into is gone.
   clearUndo();
 }
+
+// The break between batches is over: the next prefs.batchSize of today's
+// cards. The cards already done stay reachable with ←.
+function nextBatch() {
+  if (queue.length || !held.length) return;
+  queue = held.slice(0, prefs.batchSize);
+  held = held.slice(prefs.batchSize);
+  batchNo++;
+  sessionTotal = queue.length;
+  revealed = false;
+  typed = '';
+  lookBack = 0;
+  $('rv-input').value = '';
+  renderCard();
+  placeFocus();
+  announce(`Batch ${batchNo}: ${queue.length} card${queue.length === 1 ? '' : 's'}.`);
+}
+
+// How many batches today's session runs to, counting the one on screen.
+const batchCount = () => batchNo + Math.ceil(held.length / prefs.batchSize);
 
 // A review reached by address — a bookmark, Back, a typed #review — rather than
 // by a Review button. The queue is the one that button would build, but only
@@ -2270,8 +2339,16 @@ function renderCard() {
     $('rv-sub').textContent = '';
     $('rv-prog-fill').style.width = sessionTotal ? '100%' : '0%';
     const scope = inScope(reviewScope);
-    $('rv-empty-text').textContent = sessionTotal
-      ? `Done — ${sessionTotal} card${sessionTotal === 1 ? '' : 's'} reviewed.`
+    const done = doneToday();
+    const did = done.news + done.reviews;
+    const plan = todayPlan(scope);
+    $('rv-next').hidden = !held.length;
+    $('rv-empty-text').textContent = held.length
+      ? `Batch ${batchNo} of ${batchCount()} done · ${did} of ${did + held.length} today. Take a break, or keep going.`
+      : plan.over && !plan.cards.length
+        ? `Today’s target is done — ${plural(did, 'card')}. ${plan.over} more ${plan.over === 1 ? 'is' : 'are'} due; `
+          + 'they wait for tomorrow.'
+      : sessionTotal ? `Done — ${plural(did, 'card')} today.`
       : (scope.length ? 'Nothing due. Come back later.'
         : 'Nothing to review yet. Save a word while you read and it comes back here as a flashcard.');
     // The locked practice tabs and what each is waiting for, in words on the
@@ -2289,9 +2366,20 @@ function renderCard() {
     // Without this the only way to the next twenty is back to the overview and
     // into the folder again — four clicks to keep doing the thing you are
     // already doing.
+    // One way on, and which one depends on why the session stopped: cards the
+    // limits now allow (a limit raised mid-session, a lapse due again), cards
+    // they held back, or new cards not due yet.
     const waiting = newCards(scope).length;
-    $('rv-more').hidden = !waiting;
-    $('rv-more').textContent = `Learn ${Math.min(AHEAD_BATCH, waiting)} more`;
+    const mode = held.length ? null
+      : plan.cards.length ? 'plan'
+      : plan.over ? 'more'
+      : waiting ? 'ahead' : null;
+    const size = prefs.batchSize;
+    $('rv-more').hidden = !mode;
+    $('rv-more').dataset.mode = mode ?? '';
+    $('rv-more').textContent = mode === 'plan' ? `Review ${Math.min(size, plan.cards.length)} more`
+      : mode === 'more' ? `Study ${Math.min(size, plan.over)} more anyway`
+      : `Learn ${Math.min(size, waiting)} more`;
     return;
   }
 
@@ -2305,7 +2393,8 @@ function renderCard() {
   if (past) {
     $('rv-sub').replaceChildren(`Looking back · ${past.label} `, kbd('→'));
   } else {
-    $('rv-sub').textContent = `${done + 1} of ${sessionTotal}`;
+    const batches = batchCount();
+    $('rv-sub').textContent = `${done + 1} of ${sessionTotal}${batches > 1 ? ` · batch ${batchNo}/${batches}` : ''}`;
   }
   $('rv-prog-fill').style.width = `${(done / sessionTotal) * 100}%`;
 
@@ -2588,7 +2677,7 @@ function placeFocus() {
   if ($('view-review').hidden) return;
   // A past card has nothing to press, so the card itself holds focus for ←/→.
   const target = lookBack ? $('rv-card')
-    : !queue.length ? [$('rv-more'), $('rv-back')].find((b) => !b.hidden)
+    : !queue.length ? [$('rv-next'), $('rv-more'), $('rv-back')].find((b) => !b.hidden)
     : !revealed ? (canType ? $('rv-input') : $('rv-type').querySelector('button'))
     : $('rv-grades').querySelector('.pick') ?? $('rv-card');
   target?.focus();
@@ -2617,12 +2706,14 @@ function announceNext(said) {
 // store nothing. Grepping the scheduler by name is how that invariant is
 // checked, so those three call sites are the only ones there should ever be.
 async function applyGrade(entry, quality) {
+  // A word's first grade ever is a new card, which the daily new-card limit counts.
+  const fresh = !entry.reps;
   const patch = VT.schedule(entry, quality);
   Object.assign(entry, patch);
   await putWord(entry.word, patch);
-  recordReview(entry.word, quality, patch.lastReview);
+  recordReview(entry.word, quality, patch.lastReview, fresh);
   // Mirrored here so Statistics moves without a reload, as `words` does.
-  reviewLog.push({ word: entry.word, quality, at: patch.lastReview });
+  reviewLog.push({ word: entry.word, quality, at: patch.lastReview, fresh });
   words[entry.word] = entry;
   return patch;
 }
@@ -2945,9 +3036,12 @@ $('w-review').addEventListener('click', () => {
 });
 
 $('rv-more').addEventListener('click', () => {
-  startReview(reviewScope, { ahead: true });
+  const mode = $('rv-more').dataset.mode;
+  startReview(reviewScope, { ahead: mode === 'ahead', more: mode === 'more' });
   renderCard();
+  placeFocus();
 });
+$('rv-next').addEventListener('click', nextBatch);
 
 $('rv-back').addEventListener('click', () => { showView('overview'); render(); });
 
@@ -3036,7 +3130,8 @@ document.addEventListener('keydown', (event) => {
     // A second Enter right behind the one that revealed, or the first one held
     // down, would grade a card whose answer you have not looked at yet.
     if (revealed && (event.repeat || performance.now() - revealedAt < ENTER_GRACE_MS)) return;
-    if (!revealed) submitAnswer();
+    if (!queue.length) nextBatch();
+    else if (!revealed) submitAnswer();
     else if (suggestedGrade() !== null) grade(suggestedGrade());
     return;
   }
@@ -3081,6 +3176,9 @@ function setReviewPrefs(patch) {
 function renderPrefs() {
   $('rv-shuffle').setAttribute('aria-pressed', String(prefs.shuffle));
   $('rv-autoplay').checked = prefs.autoplay;
+  $('rv-new-day').value = prefs.newPerDay;
+  $('rv-rev-day').value = prefs.reviewsPerDay;
+  $('rv-batch').value = prefs.batchSize;
 
   // The accents belong to the language, not to the app: English has Cambridge's
   // two recordings, Korean has one voice and nothing to choose between. A picker
@@ -3143,6 +3241,19 @@ $('rv-shuffle').addEventListener('click', () => {
     ...(prefs.shuffle ? VT.shuffled(rest) : rest.sort((a, b) => a.due - b.due))];
   refocusCard();
 });
+// The daily limits and the batch size. Whole numbers, clamped; a blank or junk
+// value goes back to the default. Read when a session or a batch starts, so a
+// change never reshuffles the batch on screen — but a finished screen is
+// redrawn, since what it offers next depends on them.
+for (const [id, key, min, max] of [['rv-new-day', 'newPerDay', 0, 999],
+  ['rv-rev-day', 'reviewsPerDay', 0, 9999], ['rv-batch', 'batchSize', 1, 100]]) {
+  $(id).addEventListener('change', async () => {
+    const n = Math.round(Number($(id).value));
+    await setReviewPrefs({ [key]: $(id).value !== '' && Number.isFinite(n)
+      ? Math.min(max, Math.max(min, n)) : REVIEW_DEFAULTS[key] });
+    if (!queue.length) renderCard();
+  });
+}
 $('rv-autoplay').addEventListener('change', (event) => {
   setReviewPrefs({ autoplay: event.target.checked });
   refocusCard();
