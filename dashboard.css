@@ -818,13 +818,18 @@ button.tag{border:0;margin:0;font-family:inherit;line-height:inherit}
 .rvfull summary:hover{color:var(--ink)}
 .rvfull[open] summary{border-bottom:1px solid var(--rule)}
 #rv-full-body{padding:4px 0 14px}
-.rvfull h3{margin:14px 0 7px;font:600 11.5px Inter;letter-spacing:.06em;
+.rvfull h3,#word-dlg-body h3{margin:14px 0 7px;font:600 11.5px Inter;letter-spacing:.06em;
            text-transform:uppercase;color:var(--ink3)}
-.rvfull ol{margin:0;padding-left:18px}
-.rvfull li{margin:0 0 9px;font-size:14px;line-height:1.55}
+.rvfull ol,#word-dlg-body ol{margin:0;padding-left:18px}
+.rvfull li,#word-dlg-body li{margin:0 0 9px;font-size:14px;line-height:1.55}
 .rvfull li .lvl{margin-left:7px}
-.rvfull .ex{display:block;color:var(--ink2);font-style:italic;margin-top:3px}
-.rvfull .chips{display:flex;flex-wrap:wrap;gap:6px}
+.rvfull .ex,#word-dlg-body .ex{display:block;color:var(--ink2);font-style:italic;margin-top:3px}
+.rvfull .chips,#word-dlg-body .chips{display:flex;flex-wrap:wrap;gap:6px}
+/* The word from a chip (dashboard.js paintWordDlg). */
+#word-dlg-body{padding-top:10px}
+.wd-head,.wd-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.helpdlg .wd-foot{margin-top:18px;padding-top:12px;border-top:1px solid var(--rule)}
+.wd-foot .tag{margin-left:auto}
 
 /* The GIF mnemonic. Capped so a tall GIF cannot blow the card out, and
    object-fit:contain so a wide one is letterboxed rather than cropped. */

@@ -1884,6 +1884,7 @@ function renderKeys() {
       [['s'], 'Star or unstar the word, when you are not typing'],
       [['t'], 'Add the word to a folder, once the answer shows'],
       [['z', `${MOD_KEY}Z`], 'Undo the last grade, for five seconds'],
+      [['←', '→'], 'Look back at the cards done this session, and return'],
       [['esc'], 'Finish for now']
     ]],
     ['Practice tabs', [
@@ -2155,6 +2156,15 @@ let typed = '';
 // definition nor a Vietnamese gloss, and prompting with a blank card is
 // unanswerable — those fall back to the old recognition card.
 let canType = false;
+// The cards graded or skipped this session, oldest first, each with what was
+// typed and what it got, so ← can show them again. `lookBack` is how many steps
+// behind the live card the screen is; 0 is the live card. Looking back is
+// read-only: a past card shows its answer and no grades.
+let graded = [];
+let lookBack = 0;
+const pastCard = () => (lookBack ? graded[graded.length - lookBack] : null);
+// The card on screen, past or live. What the star, `r` and `t` act on.
+const shownEntry = () => pastCard()?.entry ?? queue[0];
 
 const GRADE_FOR = { exact: 4, synonym: 4, near: 3, wrong: 0 };
 // One day's worth, the same pace the imported list arrives at.
@@ -2210,6 +2220,8 @@ function startReview(folderId, { ahead = false } = {}) {
   sessionTotal = queue.length;
   revealed = false;
   typed = '';
+  graded = [];
+  lookBack = 0;
   $('rv-input').value = '';
   // The queue Undo would put the card back into is gone.
   clearUndo();
@@ -2250,7 +2262,8 @@ function renderCard() {
   // Undo goes with it: practice can grade the very card the snapshot holds,
   // and putting the old schedule back would erase that answer.
   if (PRACTICE.active()) { clearUndo(); return; }
-  if (!queue.length) {
+  const past = pastCard();
+  if (!queue.length && !past) {
     $('rv-card').hidden = true;
     $('rv-empty').hidden = false;
     $('rv-exit').hidden = true;
@@ -2282,12 +2295,18 @@ function renderCard() {
     return;
   }
 
-  const entry = queue[0];
+  const entry = past?.entry ?? queue[0];
+  // A past card is shown as it ended: answer up, nothing left to do on it.
+  const shown = !!past || revealed;
   const done = sessionTotal - queue.length;
   $('rv-empty').hidden = true;
   $('rv-card').hidden = false;
   $('rv-exit').hidden = false;
-  $('rv-sub').textContent = `${done + 1} of ${sessionTotal}`;
+  if (past) {
+    $('rv-sub').replaceChildren(`Looking back · ${past.label} `, kbd('→'));
+  } else {
+    $('rv-sub').textContent = `${done + 1} of ${sessionTotal}`;
+  }
   $('rv-prog-fill').style.width = `${(done / sessionTotal) * 100}%`;
 
   // Replay the entry animation only when the card is showing a different word.
@@ -2322,7 +2341,7 @@ function renderCard() {
   const seen = $('rv-context');
   seen.lang = wordLang(entry);
   const context = entry.context
-    ? (revealed ? entry.context : maskContext(entry.context, entry.word, entry.lang))
+    ? (shown ? entry.context : maskContext(entry.context, entry.word, entry.lang))
     : '';
   seen.hidden = !context;
   seen.textContent = context;
@@ -2331,23 +2350,23 @@ function renderCard() {
   // Both would hand it to you, so neither appears until you have committed.
   //
   // IPA between slashes, or the pack's romanisation under its label (Pinyin).
-  $('rv-ipa').hidden = !(revealed && entry.ipa);
+  $('rv-ipa').hidden = !(shown && entry.ipa);
   $('rv-ipa').textContent = VT.pronText(entry.ipa, LANG.of(entry));
-  $('rv-play').hidden = !revealed;
+  $('rv-play').hidden = !shown;
   $('rv-play').onclick = () => speakWord(entry);
 
   // Labelled with where the word already is, so the card answers "did I file
   // this one?" without opening anything.
   const filed = VT.foldersOf(entry).filter((id) => folders[id] && !folders[id].auto)
     .map((id) => folders[id].name);
-  $('rv-tag').hidden = !revealed;
+  $('rv-tag').hidden = !shown;
   $('rv-tag').replaceChildren(...(filed.length ? [VT.icon('folder')] : []),
     el('span', null, filed.length ? filed.join(', ') : '+ Folder'), kbd('t'));
   $('rv-tag').setAttribute('aria-label', filed.length ? `In ${filed.join(', ')}. Change folders` : 'Add this word to a folder');
   $('rv-tag').onclick = () => openTagPicker(entry);
 
-  $('rv-type').hidden = revealed;
-  $('rv-tip').hidden = revealed || !canType;
+  $('rv-type').hidden = shown;
+  $('rv-tip').hidden = shown || !canType;
   $('rv-input').hidden = !canType;
   $('rv-type').querySelector('button').textContent = canType ? 'Check ' : 'Show answer ';
   $('rv-type').querySelector('button').append(kbd('enter'));
@@ -2356,22 +2375,22 @@ function renderCard() {
   // The box is emptied where the card changes (startReview, grade, skip), not
   // here: a star or a storage change re-renders mid-answer, and that must not
   // throw away half a typed word.
-  if (!revealed && canType) $('rv-input').focus();
+  if (!shown && canType) $('rv-input').focus();
   renderStar(entry);
 
-  // The answer is only written into the DOM once revealed, so it is never
+  // The answer is only written into the DOM once shown, so it is never
   // sitting in the page while you are still trying to recall it. The dictionary
   // href and the full entry are written here for the same reason: both spell
   // the word out.
-  $('rv-answer').hidden = !revealed;
-  $('rv-word').textContent = revealed ? entry.word : '';
+  $('rv-answer').hidden = !shown;
+  $('rv-word').textContent = shown ? entry.word : '';
   $('rv-word').lang = wordLang(entry);
   // How long the word is, for the size rule in dashboard.css: a long one is set
   // smaller to stay on one line rather than breaking mid-word at 46px.
   $('rv-word').style.setProperty('--len', [...entry.word].length);
   // The attribute is removed rather than blanked, so before the answer this is
   // an inert <a> and not a focusable link to the top of the page.
-  const dict = revealed ? LANG.dict(LANG.of(entry).id) : null;
+  const dict = shown ? LANG.dict(LANG.of(entry).id) : null;
   // The label is written with the href rather than left to dashboard.html's
   // static text. The side panel (sidepanel.js:126) and the word card
   // (dashboard.js:378) already read dict.name; this was the one surface that
@@ -2388,10 +2407,12 @@ function renderCard() {
   } else {
     $('rv-cam').removeAttribute('href');
   }
-  renderFull(revealed ? entry : null);
-  renderGif(revealed ? entry : null);
-  renderDiff(revealed && canType ? VT.checkAnswer(typed, entry) : null, entry.word);
-  renderGrades(revealed ? suggestedGrade() : null);
+  renderFull(shown ? entry : null);
+  renderGif(shown ? entry : null);
+  const said = past ? past.typed : typed;
+  renderDiff(shown && canType ? VT.checkAnswer(said, entry) : null, entry.word, said);
+  renderGrades(revealed && !past ? suggestedGrade() : null);
+  $('rv-skip').hidden = !!past;
 }
 
 let finding = false;
@@ -2503,7 +2524,7 @@ function suggestedGrade() {
   return GRADE_FOR.wrong;
 }
 
-function renderDiff(diff, word) {
+function renderDiff(diff, word, said = typed) {
   const node = $('rv-diff');
   node.replaceChildren();
   node.hidden = !diff;
@@ -2517,7 +2538,7 @@ function renderDiff(diff, word) {
   // Right word, just not this card's: shown as typed, never as a slip.
   if (diff.synonym) {
     node.className = 'rvdiff good';
-    node.textContent = `${typed.trim()} — a synonym of ${word}`;
+    node.textContent = `${said.trim()} — a synonym of ${word}`;
     return;
   }
   node.className = diff.near ? 'rvdiff near' : 'rvdiff bad';
@@ -2565,7 +2586,9 @@ function submitAnswer() {
 // pull focus off the star or the settings.
 function placeFocus() {
   if ($('view-review').hidden) return;
-  const target = !queue.length ? [$('rv-more'), $('rv-back')].find((b) => !b.hidden)
+  // A past card has nothing to press, so the card itself holds focus for ←/→.
+  const target = lookBack ? $('rv-card')
+    : !queue.length ? [$('rv-more'), $('rv-back')].find((b) => !b.hidden)
     : !revealed ? (canType ? $('rv-input') : $('rv-type').querySelector('button'))
     : $('rv-grades').querySelector('.pick') ?? $('rv-card');
   target?.focus();
@@ -2607,10 +2630,11 @@ async function applyGrade(entry, quality) {
 async function grade(quality) {
   // Re-entry guard: putWord awaits a storage round-trip during which the
   // buttons stay live, and a second press would shift a card the user never saw.
-  if (grading || !revealed || !queue.length) return;
+  if (grading || !revealed || !queue.length || lookBack) return;
   grading = true;
   try {
     const entry = queue.shift();
+    graded.push({ entry, typed, label: GRADES.find((g) => g.q === quality)?.label ?? 'Graded' });
     const before = Object.fromEntries(VT.SCHEDULE_FIELDS.map((f) => [f, entry[f]]));
     const patch = await applyGrade(entry, quality);
     // A lapse returns to the back of this session's queue, so it is seen again
@@ -2661,6 +2685,9 @@ async function undoGrade() {
   grading = true;
   const { entry, before, at, lapsed, typed: wasTyped, skip, wasRevealed } = lastGrade;
   clearUndo();
+  // The undone card is live again, so it is no longer one to look back at.
+  graded.pop();
+  lookBack = 0;
   try {
     if (lapsed) {
       const i = queue.findLastIndex((e) => e.word === entry.word);
@@ -2760,25 +2787,134 @@ function renderFull(entry) {
     body.appendChild(list);
   }
 
-  for (const [label, items] of groups) {
-    body.appendChild(el('h3', null, label));
-    const chips = inLang(el('div', 'chips'), wordLang(entry));
-    for (const word of items) chips.appendChild(el('span', 'tag', word));
-    body.appendChild(chips);
-  }
+  body.append(...wordChips(groups, wordLang(entry)));
 }
 
 $('rv-full').addEventListener('toggle', () => { fullOpen = $('rv-full').open; });
+
+// Synonyms, opposites and related words as chips that open the word in
+// #word-dlg. Shared by the card's Full entry and the dialog itself, so a word
+// can be browsed from one to the next without leaving the review.
+function wordChips(groups, lang) {
+  return groups.flatMap(([label, items]) => {
+    const chips = inLang(el('div', 'chips'), lang);
+    for (const word of items) {
+      const chip = tagButton('', word);
+      chip.title = `Open ${word}`;
+      chip.addEventListener('click', () => openWordDlg(word, lang));
+      chips.appendChild(chip);
+    }
+    return [el('h3', null, label), chips];
+  });
+}
+
+// Which word #word-dlg is for. A lookup that comes back after another chip was
+// clicked is for a word no longer asked about, and is dropped.
+let wordDlgFor = null;
+
+// A word from a chip, in a dialog over the review. A saved word shows what is
+// stored; anything else is looked up live — the dictionary and the gloss, the
+// same two calls resolveWord makes — and only saved if Save word is pressed.
+async function openWordDlg(raw, langId) {
+  const pack = LANG.pick(langId, raw);
+  const key = pack.lemma(pack.normalise(raw));
+  wordDlgFor = key;
+  const dlg = $('word-dlg');
+  $('word-dlg-title').textContent = key;
+  $('word-dlg-title').lang = pack.id;
+  if (!dlg.open) dlg.showModal();
+  dlg.scrollTop = 0;
+  if (words[key]) { paintWordDlg(words[key], true); return; }
+
+  $('word-dlg-body').replaceChildren(el('p', null, `Looking up “${key}”…`));
+  const [parsed, gloss] = await Promise.all([fetchEntry(key, pack.id, raw), glossFor(key, pack.id)]);
+  if (wordDlgFor !== key) return;
+  const vi = parsed.vi ?? gloss.vi;
+  if (parsed.notFound && !vi) {
+    const dict = LANG.dict(pack.id);
+    $('word-dlg-body').replaceChildren(el('p', null, `No ${dict?.name ?? 'dictionary'} entry for “${key}”.`));
+    if (dict) $('word-dlg-body').appendChild(dictLink(dict, key));
+    return;
+  }
+  // Built the way resolveWord builds a new word, and not stored.
+  const preview = VT.newEntry(key, parsed.notFound ? { level: null, ipa: null, def: null, audio: null } : parsed,
+    vi, null, pack.id, parsed.vi ? 'krdict' : gloss.source);
+  preview.opposites = parsed.opposites ?? [];
+  paintWordDlg(preview, false);
+}
+
+function dictLink(dict, word) {
+  const link = withIcon(el('a', 'wc-link', dict.name), 'external', true);
+  link.href = dict.href(word);
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  return link;
+}
+
+function paintWordDlg(entry, saved) {
+  const lang = wordLang(entry);
+  // tagButton is type=button: inside a method=dialog form any other button closes it.
+  const head = el('p', 'wd-head');
+  const say = withIcon(tagButton('', 'Pronounce'), 'play');
+  say.addEventListener('click', () => speakWord(entry));
+  head.appendChild(say);
+  const level = VT.levelText(entry);
+  if (level) head.appendChild(el('span', 'lvl', level));
+  if (entry.pos) head.appendChild(el('span', 'wc-pos', entry.pos));
+  if (entry.ipa) head.appendChild(el('span', 'wc-ipa', VT.pronText(entry.ipa, LANG.of(entry))));
+
+  const parts = [head];
+  if (entry.vi) parts.push(inLang(el('p', 'wc-vi', entry.vi), 'vi'));
+  if (entry.def) parts.push(inLang(el('p', 'wc-def', entry.def), defLang(entry)));
+  if (entry.senses?.length > 1) {
+    const list = el('ol');
+    for (const sense of entry.senses.slice(1)) {
+      const li = inLang(el('li', null, sense.def ?? DASH), defLang(entry));
+      if (sense.example) li.appendChild(inLang(el('span', 'ex', sense.example), lang));
+      list.appendChild(li);
+    }
+    parts.push(el('h3', null, 'Other meanings'), list);
+  }
+  parts.push(...wordChips([
+    ['Synonyms', entry.synonyms],
+    ['Opposites', entry.opposites],
+    ['Related words', entry.related]
+  ].filter(([, items]) => items?.length), lang));
+
+  const foot = el('p', 'wd-foot');
+  const dict = LANG.dict(LANG.of(entry).id);
+  if (dict) foot.appendChild(dictLink(dict, entry.word));
+  if (saved) {
+    foot.appendChild(withIcon(el('span', 'tag', 'Saved'), 'check'));
+  } else {
+    // Into the folder being reviewed, as a word looked up from the words list
+    // goes into the folder open there.
+    const save = tagButton('', 'Save word');
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      save.textContent = 'Saving…';
+      const { entry: stored, notFound } = await resolveWord(entry.word, null,
+        reviewScope ? [reviewScope] : [], null, LANG.of(entry).id);
+      if (notFound) { save.textContent = 'Could not save'; return; }
+      words[stored.word] = stored;
+      if (wordDlgFor === stored.word) paintWordDlg(stored, true);
+    });
+    foot.appendChild(save);
+  }
+  parts.push(foot);
+  $('word-dlg-body').replaceChildren(...parts);
+}
 
 // Not a delete and not a grade: the word leaves the rotation and keeps
 // everything else. No confirm() — it is undone in place, with the grade's Undo,
 // or later with one click in All words; a dialog on a button pressed dozens of
 // times a session is the wrong tax.
 async function skipCard() {
-  if (grading || !queue.length) return;
+  if (grading || !queue.length || lookBack) return;
   grading = true;
   try {
     const entry = queue.shift();
+    graded.push({ entry, typed, label: 'Won’t ask again' });
     const before = { skipped: entry.skipped };
     await putWord(entry.word, { skipped: true });
     entry.skipped = true;
@@ -2856,9 +2992,35 @@ document.addEventListener('keydown', (event) => {
       return;
     }
   }
+  // ← and → step through the cards already done this session and back to the
+  // live one. From the typing box only while it is empty: with a word in it
+  // the arrows move the caret.
+  if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+      && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+      && !(document.activeElement === $('rv-input') && $('rv-input').value)) {
+    const step = event.key === 'ArrowLeft' ? 1 : -1;
+    const to = lookBack + step;
+    if (to >= 0 && to <= graded.length && !grading) {
+      event.preventDefault();
+      lookBack = to;
+      renderCard();
+      placeFocus();
+      const past = pastCard();
+      announce(past ? `${past.entry.word}, ${past.label}.` : 'Back to the current card.');
+    }
+    return;
+  }
   // While the box has focus every other key belongs to it — a digit is a digit
   // and `r` is a letter. Enter is the exception, and the form handles that.
   if (document.activeElement === $('rv-input')) return;
+  // A past card is read-only: only speak, star, folder and Esc reach it.
+  if (lookBack) {
+    const entry = shownEntry();
+    if (event.key === 'r' || event.key === 'R') { event.preventDefault(); speakWord(entry); }
+    else if (event.key === 's' || event.key === 'S') { event.preventDefault(); toggleStar(); }
+    else if (event.key === 't' || event.key === 'T') { event.preventDefault(); openTagPicker(entry); }
+    return;
+  }
   // A focused control — the grade placeFocus put you on, one you tabbed to,
   // Pronounce — takes its own Enter and Space, so Enter on Blank grades Blank
   // rather than the suggestion. Except inside the grace window: the press that
@@ -2963,7 +3125,7 @@ function renderPrefs() {
 // A click moves focus off the typing box; give it back, or the next letters
 // typed go nowhere. Not renderCard(): that would re-run the card for nothing.
 function refocusCard() {
-  if (!revealed && canType && queue.length && !$('view-review').hidden) $('rv-input').focus();
+  if (!revealed && canType && queue.length && !lookBack && !$('view-review').hidden) $('rv-input').focus();
 }
 
 // The static controls' icons, from the same map as the built ones.
@@ -3022,10 +3184,10 @@ let starring = false;
 async function toggleStar() {
   // Same re-entry guard as grade(): a double press would read the folders
   // before the first write landed and undo it.
-  if (starring || !queue.length) return;
+  const entry = shownEntry();
+  if (starring || !entry) return;
   starring = true;
   try {
-    const entry = queue[0];
     await fileWord(entry.word, VT.STARRED, !VT.foldersOf(entry).includes(VT.STARRED));
     renderStar(entry);
   } finally {

@@ -637,6 +637,18 @@
   </form>
 </dialog>
 
+<!-- A word from a card's Full entry, opened in place. Filled by dashboard.js
+     openWordDlg: the saved entry, or a live lookup that is not saved. -->
+<dialog id="word-dlg" class="helpdlg" aria-labelledby="word-dlg-title">
+  <form method="dialog">
+    <div class="helphead">
+      <h3 id="word-dlg-title"></h3>
+      <button class="btn ghost small">Close</button>
+    </div>
+    <div id="word-dlg-body"></div>
+  </form>
+</dialog>
+
 <!-- Every sentence here is a rule in the code: lib.js schedule / isMastered /
      statusOf, dashboard.js grade / suggestedGrade / startReview, store.js
      getFolders. The probe pins the day counts to VT.schedule. -->

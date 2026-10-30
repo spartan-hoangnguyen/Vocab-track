@@ -471,6 +471,52 @@ ready.then(() => setTimeout(async () => {
   renderCard();
   check('the drawer stays open on the next render', document.getElementById('rv-full').open);
 
+  /* ---- a chip in the full entry opens that word ---- */
+  const wordDlg = document.getElementById('word-dlg');
+  WORDS.strategy.synonyms = ['nuance'];
+  renderCard();
+  document.querySelector('#rv-full-body .tag').click();
+  check('a saved synonym opens in the word dialog',
+        wordDlg.open && document.getElementById('word-dlg-title').textContent === 'nuance'
+        && /sắc thái/.test(document.getElementById('word-dlg-body').textContent),
+        document.getElementById('word-dlg-body').textContent);
+  check('marked as saved, with no Save button',
+        /Saved/.test(document.getElementById('word-dlg-body').textContent)
+        && ![...wordDlg.querySelectorAll('button')].some((b) => b.textContent === 'Save word'));
+  const cardsLeft = queue.length;
+  pressKey('3');
+  check('the dialog keeps the grade keys off the card', queue.length === cardsLeft && revealed);
+  wordDlg.close();
+  WORDS.strategy.synonyms = ['plan', 'approach'];
+  renderCard();
+
+  /* ---- ← and → look back at the cards done this session ---- */
+  const liveWord = queue[0].word;
+  graded.push({ entry: WORDS.candid, typed: 'candid', label: 'Good' });
+  document.getElementById('rv-card').focus();
+  pressKey('ArrowLeft');
+  check('← shows the last card done, answer up',
+        document.getElementById('rv-word').textContent === 'candid' && !answer.hidden,
+        document.getElementById('rv-word').textContent);
+  check('labelled as looking back, with how it went',
+        /Looking back · Good/.test(document.getElementById('rv-sub').textContent),
+        document.getElementById('rv-sub').textContent);
+  check('a past card has no grades and no Skip',
+        !document.querySelectorAll('#rv-grades button').length
+        && !document.getElementById('rv-skip').checkVisibility());
+  pressKey('3');
+  pressKey('Enter');
+  check('grade keys do nothing on a past card', queue.length === cardsLeft && queue[0].word === liveWord);
+  pressKey('ArrowLeft');
+  check('← stops at the first card of the session', lookBack === 1);
+  pressKey('ArrowRight');
+  check('→ returns to the live card as it was',
+        lookBack === 0 && document.getElementById('rv-word').textContent === liveWord
+        && document.querySelectorAll('#rv-grades button').length === 4);
+  pressKey('ArrowRight');
+  check('→ on the live card does nothing', lookBack === 0 && queue[0].word === liveWord);
+  graded.pop();
+
   /* ---- the pronunciation line names a romanisation ---- */
   const rvIpa = document.getElementById('rv-ipa');
   const heldCard = queue[0];
