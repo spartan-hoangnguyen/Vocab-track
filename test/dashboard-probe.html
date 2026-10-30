@@ -203,7 +203,7 @@ ready.then(() => setTimeout(async () => {
         && [...helpNav.children].filter((c) => c.checkVisibility()).length === 4,
         [...helpNav.children].map((c) => c.checkVisibility()).join());
 
-  /* ---- narrow: all seven links on screen, none scrolled out of sight ---- */
+  /* ---- narrow: all eight links on screen, none scrolled out of sight ---- */
   // The 900px rules answer to the viewport, so the real sidebar goes into an
   // 800px frame with the real stylesheet rather than having this page shrunk.
   const narrow = document.createElement('iframe');
@@ -215,7 +215,7 @@ ready.then(() => setTimeout(async () => {
   const nLinks = [...nDoc.querySelectorAll('.navs nav a')];
   const nNavs = nDoc.querySelector('.navs');
   check('at 800 px every page link is on screen, wrapped rather than scrolled',
-        nLinks.length === 7 && nNavs.scrollWidth <= nNavs.clientWidth
+        nLinks.length === 8 && nNavs.scrollWidth <= nNavs.clientWidth
         && nLinks.every((a) => { const r = a.getBoundingClientRect(); return r.width > 0 && r.right <= 800; }),
         nLinks.map((a) => `${a.textContent}:${Math.round(a.getBoundingClientRect().right)}`).join());
   narrow.remove();
@@ -699,7 +699,7 @@ ready.then(() => setTimeout(async () => {
   /* ---- nav icons must be distinguishable from one another ---- */
   const icons = [...document.querySelectorAll('nav a svg')].map((el) => el.innerHTML);
   check('every nav item has its own icon',
-        icons.length === 9 && new Set(icons).size === 9, `${new Set(icons).size} distinct of ${icons.length}`);
+        icons.length === 10 && new Set(icons).size === 10, `${new Set(icons).size} distinct of ${icons.length}`);
 
   /* ---- writing: the settings and the mistake list ----
      Driven through STORE + refresh() rather than the initial load, so each
@@ -1538,8 +1538,10 @@ ready.then(() => setTimeout(async () => {
   };
   decks = null;
   const paceReps = STORE.words.paceold.reps;
-  showView('io');
+  document.querySelector('nav a[data-view="lists"]').click();
   await renderDecks();
+  check('Word lists is a tab of its own', !document.getElementById('view-lists').hidden
+        && location.hash === '#lists');
   const deckRows = () => [...document.querySelectorAll('#deck-list .deckrow')];
   check('the word lists show the active language only, under their headings',
         deckRows().length === 2 && [...document.querySelectorAll('#deck-list h3')].map((h) => h.textContent).join() === 'Topics,Idioms',
@@ -2127,10 +2129,10 @@ ready.then(() => setTimeout(async () => {
   const tkey = document.getElementById('translate-key');
   check('the translation key field is under Settings',
         !!tkey && tkey.closest('section')?.id === 'view-settings' && /Translation key/.test(tkey.closest('.iocard').textContent));
-  // Import & export holds only the word lists and the backup tasks; every key,
-  // sign-in and Anki card lives in Settings, where someone setting them up would look.
-  check('Import & export has only Word lists, Export and Import',
-        [...document.querySelectorAll('#view-io .iocard h2')].map((h) => h.textContent).join() === 'Word lists,Export,Import');
+  // Import & export holds only the backup tasks; every key, sign-in and Anki
+  // card lives in Settings, where someone setting them up would look.
+  check('Import & export has only Export and Import',
+        [...document.querySelectorAll('#view-io .iocard h2')].map((h) => h.textContent).join() === 'Export,Import');
   check('Settings holds cloud sync, the three keys and Anki',
         ['cloud-signin', 'giphy-key', 'translate-key', 'krdict-key', 'anki-push']
           .every((id) => document.getElementById(id)?.closest('section')?.id === 'view-settings'));

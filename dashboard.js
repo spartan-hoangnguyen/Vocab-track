@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const DASH = VT.DASH;
-const VIEWS = ['overview', 'words', 'review', 'stats', 'writing', 'io', 'settings'];
+const VIEWS = ['overview', 'words', 'review', 'stats', 'writing', 'lists', 'io', 'settings'];
 
 // One in-memory snapshot per render pass. Every view reads from this rather
 // than hitting storage per row, and refresh() is the single place that
@@ -2123,6 +2123,10 @@ $('review-btn').addEventListener('click', () => {
 });
 // The same session as the top bar's Review: the strip is a preview of it.
 $('ov-today-go').addEventListener('click', () => $('review-btn').click());
+$('ov-start-lists').addEventListener('click', () => {
+  showView('lists');
+  render();
+});
 $('ov-start-import').addEventListener('click', () => {
   showView('io');
   render();

@@ -27,6 +27,7 @@
   </nav>
   <div class="navlabel">Library</div>
   <nav>
+    <a href="#lists" data-view="lists"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8.5A1.5 1.5 0 0 1 13 4v10.5H4.5A1.5 1.5 0 0 1 3 13z"/><path d="M3 13a1.5 1.5 0 0 1 1.5-1.5H13M6 5.5h4"/></svg>Word lists</a>
     <a href="#io" data-view="io"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v7M8 1.5 5.5 4M8 1.5 10.5 4"/><path d="M2.5 10v3a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-3"/></svg>Import &amp; export</a>
     <a href="#settings" data-view="settings"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h6.5M12.5 4.5H14M2 11.5h1.5M7.5 11.5H14"/><circle cx="10.5" cy="4.5" r="2"/><circle cx="5.5" cy="11.5" r="2"/></svg>Settings</a>
   </nav>
@@ -108,8 +109,10 @@
           <span>Saved words come back as flashcards, spaced further apart each
             time you remember them.</span></li>
       </ol>
+      <p class="start-alt">Rather start from a ready-made list?
+        <button type="button" id="ov-start-lists">Browse word lists</button></p>
       <p class="start-alt">Moving from another computer?
-        <button type="button" id="ov-start-import">Import a word list or a backup</button></p>
+        <button type="button" id="ov-start-import">Import a backup</button></p>
     </div>
     <div class="stats" id="ov-stats">
       <div class="stat"><div class="n" id="ov-total">0</div><div class="l">Total words</div></div>
@@ -476,6 +479,20 @@
        written in a text box on a page with checking on.</p>
   </section>
 
+  <!-- Word lists: the folders that ship with the extension (data/decks.json),
+       imported one at a time. Filled by dashboard.js renderDecks. -->
+  <section id="view-lists" hidden>
+    <h1>Word lists</h1>
+    <div class="sub">Ready-made folders for the language you are studying. Importing one adds
+       its words as new cards, and the daily limits pace them.</div>
+    <div class="iocards">
+      <div class="iocard decks">
+        <div id="deck-list"></div>
+        <div class="note" id="deck-note" role="status"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Import / export -->
   <section id="view-io" hidden>
     <h1>Import &amp; export</h1>
@@ -483,15 +500,6 @@
        to Downloads/vocab-track a minute after you change them; seven days are kept.</div>
     <p class="note" id="backup-status">No automatic backup yet.</p>
     <div class="iocards">
-      <!-- The lists that ship with the extension (data/decks.json), one folder
-           at a time. Filled by dashboard.js renderDecks. -->
-      <div class="iocard decks">
-        <h2>Word lists</h2>
-        <p>Ready-made folders for the language you are studying. Importing one adds
-           its words as new cards, and the daily limits pace them.</p>
-        <div id="deck-list"></div>
-        <div class="note" id="deck-note" role="status"></div>
-      </div>
       <div class="iocard">
         <h2>Export</h2>
         <p>Downloads your words, folders, pins, review history and practice

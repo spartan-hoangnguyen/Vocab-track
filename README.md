@@ -299,7 +299,7 @@ tooltip names the deck. A per-word push uses the deck the picker holds.
 
 ## Word lists
 
-**Import & export → Word lists** lists every folder that ships with the
+The **Word lists** tab in the sidebar lists every folder that ships with the
 extension for the language you are studying. **Import** on one row brings in
 that folder only, through the same confirm-and-merge step as a backup. A word
 you already have keeps its schedule and gains the folder. The cards arrive due
