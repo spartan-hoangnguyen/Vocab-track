@@ -1478,14 +1478,15 @@ $('import-file').addEventListener('change', async (event) => {
 // Nothing is written until the file's effect has been read: an import merges
 // into folders and pins across the whole library and has no undo, so a wrong
 // or old backup is caught here, by its counts, or not at all. `what` names
-// the source and `back` is where focus returns: a word list (importDeck) is not
+// the source and `back` is where focus returns: a word list (importDecks) is not
 // a file, and its button is not the file picker.
-function confirmImport(note, data, current, { what = 'This file', back = $('import-file') } = {}) {
+function confirmImport(note, data, current,
+  { what = 'This file', back = $('import-file'), onDone = null, onCancel = null } = {}) {
   const words = Object.keys(data.words);
   const merged = words.filter((word) => current[word]).length;
   const added = words.length - merged;
-  setNote(note, `${what} adds ${added} word${added === 1 ? '' : 's'} and merges `
-    + `${merged} with words you already have.`);
+  setNote(note, `${what} adds ${plural(added, 'word')}`
+    + (merged ? ` and merges ${merged} with words you already have.` : '.'));
   const row = el('div', 'dlgrow');
   const go = el('button', 'btn small', 'Import');
   const cancel = el('button', 'btn ghost small', 'Cancel');
@@ -1494,13 +1495,15 @@ function confirmImport(note, data, current, { what = 'This file', back = $('impo
   note.append(row);
   go.focus();
   cancel.addEventListener('click', () => {
+    if (onCancel) { onCancel(); return; }
     setNote(note, 'Nothing was imported.');
     back.focus();
   });
   go.addEventListener('click', async () => {
     go.disabled = cancel.disabled = true;
-    await importBackup(note, data);
-    back.focus();
+    const ok = await importBackup(note, data);
+    if (ok && onDone) await onDone();
+    else back.focus();
   });
 }
 
@@ -1562,11 +1565,13 @@ async function importBackup(note, data) {
         ? ` In ${elsewhere.join(' and ')} — switch the language toggle to see them.`
         : ''));
     await refresh();
+    return true;
   } catch (err) {
     // The file read fine, so this is the browser refusing the write.
     console.error('[vocab-track] import failed', err);
     setNote(note, 'Could not save the imported words. Import the file again; '
       + 'it merges, so nothing is doubled.', { error: true, detail: err.message });
+    return false;
   }
 }
 
@@ -1589,59 +1594,143 @@ async function loadDecks() {
   return decks;
 }
 
-// The active language's lists, under their headings (Topics, Phrasal verbs…).
-// A folder reads Imported once you hold as many of its words as it has.
+// Each list is a section and each folder a line on one ruled sheet, like All
+// words in list density. A folder whose words you all hold is done — its icon
+// turns to a check and its count to "In your library"; one you hold part of
+// offers the rest.
 async function renderDecks() {
   const rows = (await loadDecks()).filter((d) => d.lang === activeLang);
   const held = {};
   for (const entry of Object.values(words)) {
     for (const id of VT.foldersOf(entry)) held[id] = (held[id] ?? 0) + 1;
   }
+  for (const deck of rows) if ((held[deck.folder] ?? 0) >= deck.count) pickedDecks.delete(deck.folder);
+  const groups = new Map();
+  for (const deck of rows) groups.set(deck.group, [...(groups.get(deck.group) ?? []), deck]);
   const parts = [];
-  let group = null;
-  let list = null;
-  for (const deck of rows) {
-    if (deck.group !== group) {
-      group = deck.group;
-      list = el('ul', 'decklist');
-      parts.push(el('h3', null, group), list);
-    }
-    const item = el('li', 'deckrow');
-    // Under its heading the folder's prefix is said already: "B1", not
-    // "Phrasal verbs · B1". The folder keeps its full name everywhere else.
-    item.title = deck.desc;
-    item.append(el('span', 'deckicon', deck.icon ?? ''), el('span', 'deckname', deck.name.split(' · ').pop()),
-      el('span', 'deckcount', plural(deck.count, 'word')));
-    const done = (held[deck.folder] ?? 0) >= deck.count;
-    const go = el('button', 'btn ghost small', done ? 'Imported' : 'Import');
-    go.type = 'button';
-    go.disabled = done;
-    go.setAttribute('aria-label', `${done ? 'Imported' : 'Import'} ${deck.name}`);
-    go.addEventListener('click', () => importDeck(deck, go));
-    item.appendChild(go);
-    list.appendChild(item);
+  for (const [group, list] of groups) {
+    const done = list.filter((d) => (held[d.folder] ?? 0) >= d.count).length;
+    const total = list.reduce((sum, d) => sum + d.count, 0);
+    const head = el('div', 'secthead deckhead');
+    head.append(el('h2', null, group), el('span', 'decksum',
+      `${plural(list.length, 'folder')} · ${total.toLocaleString('en')} words`
+      + (done ? ` · ${done} in your library` : '')));
+    const sheet = el('div', 'decks');
+    sheet.append(...list.map((deck) => deckRow(deck, held[deck.folder] ?? 0)));
+    parts.push(head, sheet);
   }
-  if (!rows.length) parts.push(el('p', null, `No word lists for ${LANG.get(activeLang)?.name ?? activeLang} yet.`));
+  if (!rows.length) parts.push(el('p', 'empty', `No word lists for ${LANG.get(activeLang)?.name ?? activeLang} yet.`));
   $('deck-list').replaceChildren(...parts);
+  syncDecks();
 }
 
-// One folder of a list, through the backup import's own confirm and merge.
-// Only that folder's words come in, filed under it alone. A folder you already
-// have (a topic you tagged by hand) keeps its own name and colour.
-async function importDeck(deck, button) {
-  const note = $('deck-note');
+function deckRow(deck, have) {
+  const done = have >= deck.count;
+  const row = el('div', `deck${done ? ' done' : ''}`);
+  row.dataset.folder = deck.folder;
+  // Focus lands here once an import redraws the list, since the button that
+  // was pressed is gone.
+  row.tabIndex = -1;
+  row.title = deck.desc;
+  // Where the confirm step is written: under the line pressed, not at the
+  // foot of a page of sixty.
+  const note = el('div', 'note decknote');
+  note.setAttribute('role', 'status');
+  const ico = el('span', 'deckico');
+  ico.setAttribute('aria-hidden', 'true');
+  if (done) ico.appendChild(VT.icon('check'));
+  else ico.textContent = deck.icon ?? '';
+  // Under its section heading the folder's prefix is said already: "B1", not
+  // "Phrasal verbs · B1". The folder keeps its full name everywhere else.
+  const name = el('h3', null, deck.name.split(' · ').pop());
+  const n = `${deck.count.toLocaleString('en')} word${deck.count === 1 ? '' : 's'}`;
+  const count = el('span', 'deckcount', done ? 'In your library' : have ? `${have} of ${n}` : n);
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'dsel';
+  box.checked = pickedDecks.has(deck.folder);
+  box.disabled = done;
+  box.setAttribute('aria-label', `Select ${deck.name}`);
+  box.addEventListener('change', () => {
+    box.checked ? pickedDecks.add(deck.folder) : pickedDecks.delete(deck.folder);
+    syncDecks();
+  });
+  row.append(box, ico, name, count);
+  if (!done) {
+    const go = el('button', 'btn small ghost edit', have ? 'Add the rest' : 'Import');
+    go.type = 'button';
+    go.setAttribute('aria-label', `Import ${deck.name}`);
+    go.addEventListener('click', () => importDecks([deck], note, go, row));
+    row.appendChild(go);
+  }
+  row.appendChild(note);
+  return row;
+}
+
+// Folders ticked for one import together (the #l-bulk bar), by folder id.
+const pickedDecks = new Set();
+
+function syncDecks() {
+  const bar = $('l-bulk');
+  const n = pickedDecks.size;
+  if (!n && !bar.hidden && bar.contains(document.activeElement)) $('deck-list').focus();
+  bar.hidden = !n;
+  $('lb-count').textContent = `${plural(n, 'list')} selected`;
+  for (const box of $('deck-list').querySelectorAll('.dsel')) box.checked = pickedDecks.has(box.closest('.deck').dataset.folder);
+}
+
+$('lb-clear').addEventListener('click', () => { pickedDecks.clear(); syncDecks(); });
+$('lb-import').addEventListener('click', async () => {
+  const all = await loadDecks();
+  const list = all.filter((d) => d.lang === activeLang && pickedDecks.has(d.folder));
+  importDecks(list, $('lb-note'), $('lb-import'), $('l-bulk'));
+});
+
+// Folders of the lists, through the backup import's own confirm and merge.
+// Only those folders' words come in, filed under them alone (a word in two
+// picked folders gets both). A folder you already have (a topic you tagged by
+// hand) keeps its own name and colour.
+async function importDecks(list, note, button, host) {
   try {
-    const { data, error, detail } = readBackup(await (await fetch(`data/${deck.file}`)).text());
-    if (error) { setNote(note, error, { error: true, detail }); return; }
-    const picked = Object.fromEntries(Object.entries(data.words)
-      .filter(([, entry]) => entry.folders?.includes(deck.folder))
-      .map(([word, entry]) => [word, { ...entry, folders: [deck.folder] }]));
-    confirmImport(note, {
-      folders: folders[deck.folder] ? {} : { [deck.folder]: data.folders[deck.folder] },
-      words: picked
-    }, await getWords(), { what: deck.name, back: button });
+    const files = {};
+    for (const file of new Set(list.map((d) => d.file))) {
+      const { data, error, detail } = readBackup(await (await fetch(`data/${file}`)).text());
+      if (error) { setNote(note, error, { error: true, detail }); return; }
+      files[file] = data;
+    }
+    const picked = {};
+    const newFolders = {};
+    for (const deck of list) {
+      const data = files[deck.file];
+      for (const [word, entry] of Object.entries(data.words)) {
+        if (!entry.folders?.includes(deck.folder)) continue;
+        picked[word] = { ...entry, folders: [...(picked[word]?.folders ?? []), deck.folder] };
+      }
+      if (!folders[deck.folder]) newFolders[deck.folder] = data.folders[deck.folder];
+    }
+    // While it asks, the host's own Import steps aside for the confirm's.
+    host.classList.add('asking');
+    confirmImport(note, { folders: newFolders, words: picked }, await getWords(), {
+      what: list.length === 1 ? 'This folder' : `Importing ${list.length} folders`,
+      back: button,
+      onCancel: () => {
+        host.classList.remove('asking');
+        note.replaceChildren();
+        button.focus();
+      },
+      onDone: async () => {
+        host.classList.remove('asking');
+        note.replaceChildren();
+        for (const deck of list) pickedDecks.delete(deck.folder);
+        await renderDecks();
+        document.querySelector(`#deck-list [data-folder="${list[0].folder}"]`)?.focus();
+        const n = plural(Object.keys(picked).length, 'word');
+        showHint(`${list.length === 1 ? list[0].name : plural(list.length, 'list')} added — ${n}, paced by your daily limit.`,
+          { icon: 'check' });
+      }
+    });
   } catch (err) {
-    console.error('[vocab-track] word list read failed', deck.file, err);
+    console.error('[vocab-track] word list read failed', err);
     setNote(note, 'Could not read this word list. Try again.', { error: true, detail: err.message });
   }
 }
@@ -3511,7 +3600,7 @@ function speakWord(entry) {
   const pack = LANG.of(entry);
   const voices = pack.voices;
   if (!pronounce(entry, voices.some((v) => v.id === prefs.accent) ? prefs.accent : voices[0].id)) {
-    showVoiceHint(voiceHint(pack));
+    showHint(voiceHint(pack));
   }
 }
 
@@ -3570,11 +3659,12 @@ $('toast-undo').addEventListener('click', async () => {
 
 // One line at the bottom of the window, gone after a few seconds: speakWord is
 // reached from the card, the words list and practice, so the hint cannot live
-// in any one of them.
+// in any one of them. A finished word-list import says so in the same strip,
+// with `icon` ahead of the text.
 let voiceHintTimer = 0;
-function showVoiceHint(text) {
+function showHint(text, { icon = null } = {}) {
   const box = $('voice-hint');
-  box.textContent = text;
+  box.replaceChildren(...(icon ? [VT.icon(icon)] : []), text);
   box.hidden = false;
   clearTimeout(voiceHintTimer);
   voiceHintTimer = setTimeout(() => { box.hidden = true; }, VOICE_HINT_MS);

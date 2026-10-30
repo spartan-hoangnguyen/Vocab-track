@@ -485,12 +485,14 @@
     <h1>Word lists</h1>
     <div class="sub">Ready-made folders for the language you are studying. Importing one adds
        its words as new cards, and the daily limits pace them.</div>
-    <div class="iocards">
-      <div class="iocard decks">
-        <div id="deck-list"></div>
-        <div class="note" id="deck-note" role="status"></div>
-      </div>
+    <!-- The ticked folders, imported together; the Words bar's slip. -->
+    <div class="wbulk" id="l-bulk" role="group" aria-label="Selected lists" hidden>
+      <span class="wbulk-count" id="lb-count"></span>
+      <button type="button" class="btn small" id="lb-import">Import</button>
+      <button type="button" class="btn ghost small wbulk-clear" id="lb-clear">Clear selection</button>
+      <div class="note decknote" id="lb-note" role="status"></div>
     </div>
+    <div id="deck-list" tabindex="-1"></div>
   </section>
 
   <!-- Import / export -->

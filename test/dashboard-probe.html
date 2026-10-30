@@ -1542,26 +1542,59 @@ ready.then(() => setTimeout(async () => {
   await renderDecks();
   check('Word lists is a tab of its own', !document.getElementById('view-lists').hidden
         && location.hash === '#lists');
-  const deckRows = () => [...document.querySelectorAll('#deck-list .deckrow')];
+  const deckTiles = () => [...document.querySelectorAll('#deck-list .deck')];
   check('the word lists show the active language only, under their headings',
-        deckRows().length === 2 && [...document.querySelectorAll('#deck-list h3')].map((h) => h.textContent).join() === 'Topics,Idioms',
-        deckRows().map((r) => r.textContent).join(' | '));
-  deckRows()[0].querySelector('button').click();
+        deckTiles().length === 2 && [...document.querySelectorAll('#deck-list h2')].map((h) => h.textContent).join() === 'Topics,Idioms',
+        deckTiles().map((r) => r.textContent).join(' | '));
+  check('a tile names its folder without the list’s prefix, and its size',
+        deckTiles()[0].querySelector('h3').textContent === 'Probe A' && /3 words/.test(deckTiles()[0].textContent));
+  const cancelTile = deckTiles()[1];
+  cancelTile.querySelector('.edit').click();
   await tick();
-  const deckNote = document.getElementById('deck-note');
-  check('importing a folder says what it adds first',
-        /^Probe A adds 2 words and merges 1/.test(deckNote.textContent), deckNote.textContent);
+  check('while it asks, the tile’s own Import steps aside',
+        cancelTile.classList.contains('asking') && !cancelTile.querySelector('.edit').checkVisibility());
+  [...cancelTile.querySelectorAll('.decknote button')].find((b) => b.textContent === 'Cancel').click();
+  check('Cancel puts the tile back as it was', !cancelTile.classList.contains('asking')
+        && !cancelTile.querySelector('.decknote').textContent
+        && document.activeElement === cancelTile.querySelector('.edit'));
+  deckTiles()[0].querySelector('.edit').click();
+  await tick();
+  const deckNote = deckTiles()[0].querySelector('.decknote');
+  check('importing a folder says what it adds first, on its own tile',
+        /^This folder adds 2 words and merges 1/.test(deckNote.textContent), deckNote.textContent);
   [...deckNote.querySelectorAll('button')].find((b) => b.textContent === 'Import').click();
-  await tick(); await tick();
+  await tick(); await tick(); await tick();
   check('only that folder’s words come in, filed under it',
         STORE.words.deckone?.folders.join() === 'pr-a' && !STORE.words.deckthree && STORE.folders?.['pr-a']?.name === 'Probe A',
         JSON.stringify(STORE.words.deckone?.folders));
   check('a word you already have is merged, its schedule kept',
         STORE.words.paceold.reps === paceReps && STORE.words.paceold.folders.includes('pr-a'),
         JSON.stringify(STORE.words.paceold.folders));
-  await renderDecks();
-  check('and the folder then reads Imported', deckRows()[0].querySelector('button').disabled
-        && deckRows()[0].querySelector('button').textContent === 'Imported', deckRows()[0].textContent);
+  const doneTile = deckTiles()[0];
+  check('the folder is then marked done, with nothing left to press',
+        doneTile.classList.contains('done') && /In your library/.test(doneTile.textContent)
+        && !doneTile.querySelector('.edit') && !!doneTile.querySelector('.deckico .ic'), doneTile.textContent);
+  check('focus is on the tile, since the button pressed is gone', document.activeElement === doneTile);
+  const doneHint = document.getElementById('voice-hint');
+  check('and a toast says it landed', !doneHint.hidden && /^Probe A added — 3 words/.test(doneHint.textContent),
+        doneHint.textContent);
+  check('the section counts it', /1 in your library/.test(document.querySelector('#deck-list .decksum').textContent),
+        document.querySelector('#deck-list .decksum').textContent);
+  doneHint.hidden = true;
+  check('a done folder cannot be ticked', doneTile.querySelector('.dsel').disabled);
+  const bBox = deckTiles()[1].querySelector('.dsel');
+  bBox.click();
+  check('ticking a folder shows the bar', !document.getElementById('l-bulk').hidden
+        && document.getElementById('lb-count').textContent === '1 list selected');
+  document.getElementById('lb-import').click();
+  await tick(); await tick();
+  const bulkNote = document.getElementById('lb-note');
+  check('the bar confirms in its own note', /^This folder adds 1 word/.test(bulkNote.textContent), bulkNote.textContent);
+  [...bulkNote.querySelectorAll('button')].find((b) => b.textContent === 'Import').click();
+  await tick(); await tick(); await tick();
+  check('the ticked folder comes in and the bar goes', STORE.words.deckthree?.folders.join() === 'pr-b'
+        && document.getElementById('l-bulk').hidden && deckTiles()[1].classList.contains('done'));
+  doneHint.hidden = true;
   window.fetch = deckFetch;
   decks = null;
 

@@ -106,7 +106,8 @@ PHRASAL_BANDS = [('en-pv-a', 'A1–A2', ['A1', 'A2']), ('en-pv-b1', 'B1', ['B1']
                  ('en-pv-b2', 'B2', ['B2']), ('en-pv-c', 'C1–C2', ['C1', 'C2'])]
 ACADEMIC_BANDS = [('en-acad-b1', 'up to B1', ['A1', 'A2', 'B1']), ('en-acad-b2', 'B2', ['B2']),
                   ('en-acad-c', 'C1–C2 and specialist', ['C1', 'C2', None])]
-COLORS = ['sage', 'sky', 'clay', 'ochre', 'plum']
+# The folder tints dashboard.css has (.f.sage …); a name outside these draws no tint.
+COLORS = ['sage', 'sky', 'clay', 'ochre']
 
 
 def fetch(url):
