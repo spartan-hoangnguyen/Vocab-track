@@ -1305,5 +1305,46 @@ const VT = {
     q.set(form.entry.version, version);
     q.set(form.entry.browser, browser);
     return `${form.url}?${q}`;
+  },
+
+  // Cloud sign-in. chrome.identity.getAuthToken works only in Google Chrome:
+  // Edge defines it and rejects every call ("This API is not supported on
+  // Microsoft Edge"), so the brand decides, not typeof. No brands at all
+  // keeps the Chrome path, which is what every build did before Edge.
+  usesChromeSignIn(brands) {
+    return !brands || brands.some((b) => b.brand === 'Google Chrome');
+  },
+
+  // Google's implicit-flow URL for chrome.identity.launchWebAuthFlow, the
+  // path where getAuthToken is missing. Interactive shows the account chooser;
+  // silent (prompt=none) asks for a fresh token for the same account and
+  // fails instead of showing anything.
+  authUrl({ clientId, redirectUri, scopes, state, interactive, email }) {
+    const q = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'token',
+      redirect_uri: redirectUri,
+      scope: scopes.join(' '),
+      state,
+      prompt: interactive ? 'select_account' : 'none'
+    });
+    if (email) q.set('login_hint', email);
+    return `https://accounts.google.com/o/oauth2/v2/auth?${q}`;
+  },
+
+  // The token in the URL launchWebAuthFlow resolved with, as { token, expires }.
+  // Google puts it in the fragment, and an error in the fragment or the query.
+  // `expires` is a minute early, so a request never leaves with a token that
+  // dies on the way. Throws on an error, a missing token or a foreign state.
+  authRedirect(responseUrl, state, now) {
+    const url = new URL(responseUrl);
+    const q = new URLSearchParams(url.hash.slice(1));
+    const error = q.get('error') ?? url.searchParams.get('error');
+    if (error) throw new Error(`Google sign-in failed: ${error}`);
+    if (q.get('state') !== state) throw new Error('Google sign-in failed: state mismatch');
+    const token = q.get('access_token');
+    if (!token) throw new Error('Google sign-in failed: no access token');
+    const seconds = Number(q.get('expires_in')) || 3600;
+    return { token, expires: now + (seconds - 60) * 1000 };
   }
 };

@@ -22,20 +22,75 @@ const CLOUD_TIMEOUT_MS = 30000;
 // at a few hundred bytes a word that is well over ten thousand words.
 const CLOUD_MAX_BYTES = 4.5 * 1024 * 1024;
 
+// Edge has no working getAuthToken, so it signs in through
+// chrome.identity.launchWebAuthFlow instead. That needs a second OAuth client,
+// of type Web application, whose authorized redirect URI is this extension's
+// chrome.identity.getRedirectURL(): https://<extension id>.chromiumapp.org/.
+// The Chrome Extension client in manifest.json turns that redirect down
+// (redirect_uri_mismatch). See docs/cloud-setup.md.
+const WEB_CLIENT_ID = 'REPLACE_WITH_WEB_CLIENT_ID';
+// The web flow's token, in chrome.storage.session: memory only, never in an
+// export or a sync, gone when the browser closes. Chrome's path keeps none.
+const WEB_TOKEN_KEY = 'cloudToken';
+// How long a silent refresh may take before it counts as failed.
+const WEB_SILENT_TIMEOUT_MS = 10000;
+
+const chromeSignIn = VT.usesChromeSignIn(navigator.userAgentData?.brands);
+
 async function setCloud(patch) {
   const { cloud } = await chrome.storage.local.get('cloud');
   await chrome.storage.local.set({ cloud: { ...cloud, ...patch } });
 }
 
+// A Drive token. Chrome caches and refreshes its own. The web flow reuses the
+// one in session storage until a minute before it expires (an hour after it
+// was issued), then asks Google again: silently, for the account already
+// signed in, unless this is the Sign in button.
+async function getToken(interactive) {
+  if (chromeSignIn) return (await chrome.identity.getAuthToken({ interactive })).token;
+  if (!interactive) {
+    const { [WEB_TOKEN_KEY]: saved } = await chrome.storage.session.get(WEB_TOKEN_KEY);
+    if (saved?.expires > Date.now()) return saved.token;
+  }
+  if (WEB_CLIENT_ID.startsWith('REPLACE_')) {
+    throw new Error('No Web application OAuth client in cloud.js WEB_CLIENT_ID; see docs/cloud-setup.md');
+  }
+  const { cloud } = await chrome.storage.local.get('cloud');
+  const state = crypto.randomUUID();
+  const reply = await chrome.identity.launchWebAuthFlow({
+    url: VT.authUrl({
+      clientId: WEB_CLIENT_ID,
+      redirectUri: chrome.identity.getRedirectURL(),
+      scopes: chrome.runtime.getManifest().oauth2.scopes,
+      state,
+      interactive,
+      email: cloud?.email
+    }),
+    interactive,
+    // Google's prompt=none can pass through a page before it redirects; the
+    // default would give up on that page's load.
+    abortOnLoadForNonInteractive: false,
+    timeoutMsForNonInteractive: WEB_SILENT_TIMEOUT_MS
+  });
+  const saved = VT.authRedirect(reply, state, Date.now());
+  await chrome.storage.session.set({ [WEB_TOKEN_KEY]: saved });
+  return saved.token;
+}
+
+async function dropToken(token) {
+  if (chromeSignIn) await chrome.identity.removeCachedAuthToken({ token });
+  else await chrome.storage.session.remove(WEB_TOKEN_KEY);
+}
+
 // A Drive request with the cached token. A 401 means the token expired or was
-// revoked: drop it from Chrome's cache and try once more with a fresh one.
+// revoked: drop it from the cache and try once more with a fresh one.
 // Resolves null on a 404 when the caller asked for that (a file deleted under
 // a cached id); every other failure throws a sentence the card can show.
 async function driveFetch(url, init = {}, { allow404 = false } = {}) {
   for (let attempt = 0; ; attempt++) {
     let token;
     try {
-      ({ token } = await chrome.identity.getAuthToken({ interactive: false }));
+      token = await getToken(false);
     } catch (err) {
       console.error('[vocab-track] no Google token', err);
       throw new Error('Your Google sign-in has expired. Sign out and sign in again.');
@@ -52,7 +107,7 @@ async function driveFetch(url, init = {}, { allow404 = false } = {}) {
       throw new Error('Could not reach Google Drive. Check your connection and try again.');
     }
     if (res.status === 401 && attempt === 0) {
-      await chrome.identity.removeCachedAuthToken({ token });
+      await dropToken(token);
       continue;
     }
     if (res.status === 404 && allow404) return null;
@@ -165,16 +220,18 @@ async function runSync() {
 
 async function signIn() {
   try {
-    await chrome.identity.getAuthToken({ interactive: true });
+    await getToken(true);
   } catch (err) {
-    // Also what happens until a real OAuth client id is in manifest.json.
+    // Also what happens until a real OAuth client id is in manifest.json, or,
+    // in Edge, in WEB_CLIENT_ID.
     console.error('[vocab-track] Google sign-in failed', err);
     await chrome.storage.local.set({
       // Chrome's own wording ("The user did not approve access.") stays in the
-      // console; the card says what happened and what to press.
+      // console; the card says what happened and what to press. access_denied
+      // is Google's Cancel on the web flow's consent page.
       cloud: {
         signedIn: false,
-        error: /did not approve|cancel|closed/i.test(err?.message ?? '')
+        error: /did not approve|cancel|closed|access_denied/i.test(err?.message ?? '')
           ? 'Sign-in was cancelled. Press Sign in with Google to try again.'
           : 'Could not sign in with Google. Check your connection, then try again.'
       }
@@ -198,9 +255,9 @@ async function signIn() {
 async function signOut() {
   await cloudInflight;
   try {
-    const { token } = await chrome.identity.getAuthToken({ interactive: false });
+    const token = await getToken(false);
     if (token) {
-      await chrome.identity.removeCachedAuthToken({ token });
+      await dropToken(token);
       // no-cors: the request is all that matters, and the endpoint's reply is
       // not one this page is allowed to read.
       await fetch(REVOKE_URL + encodeURIComponent(token), { mode: 'no-cors' })

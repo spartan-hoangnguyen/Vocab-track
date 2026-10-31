@@ -39,7 +39,7 @@ three.
 >
 > No Sheaf account and no Sheaf server. Your words stay in this
 > Chrome profile, unless you choose to sign in with Google: then they sync to
-> every Chrome you sign in to, through a hidden app folder in your own Google
+> every Chrome or Edge you sign in to, through a hidden app folder in your own Google
 > Drive that only Sheaf can read. The synced file includes the sentences
 > you saved and the addresses of the pages you saved words on.
 > Privacy policy: https://github.com/spartan-hoangnguyen/Vocab-track/blob/main/PRIVACY.md
@@ -74,7 +74,7 @@ manifest, and no others:
 | `downloads` | Writes the automatic backup of your words to `Downloads/vocab-track/backup-<date>.json` on this device, and removes backups older than the last seven. |
 | `downloads.ui` | Keeps the browser's download bubble from opening each time the automatic backup is written. |
 | `alarms` | Writes the automatic backup a minute after your last change, and keeps one backup per day. |
-| `identity` | Optional cloud sync. Only when you press **Sign in with Google**, Chrome's own sign-in (`chrome.identity.getAuthToken`) gets a token for the `drive.appdata` scope, so your words can be kept in a hidden app folder of your own Google Drive and synced to your other computers. Never used if you do not sign in. |
+| `identity` | Optional cloud sync. Only when you press **Sign in with Google**, Chrome's own sign-in (`chrome.identity.getAuthToken`) gets a token for the `drive.appdata` scope (in Microsoft Edge, which has no `getAuthToken`, Google's sign-in window through `chrome.identity.launchWebAuthFlow` gets the same token), so your words can be kept in a hidden app folder of your own Google Drive and synced to your other computers. Never used if you do not sign in. |
 | `offscreen` | A service worker cannot make a file to download. An offscreen document makes the backup file for `downloads`. |
 | Content script on `<all_urls>` | The content script has to be on the page you are reading for a click to look a word up, and there is no way to know in advance which page that is. It reads the word you clicked and its sentence, highlights words you saved, and runs the writing check in text boxes. It sends nothing on its own. |
 | `api.datamuse.com` | When you click an English word, the word is sent here for its meanings, part of speech and synonyms. |

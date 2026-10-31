@@ -33,6 +33,46 @@ eq('normalise lowercases', VT.normaliseWord('HAPPY'), 'happy');
   eq('feedback browser is encoded and round-trips', p(u).get('entry.3'), ua);
 }
 
+// --- cloud sign-in: which path, the auth URL, and the redirect it comes back on
+{
+  const chromeBrands = [{ brand: 'Not:A-Brand', version: '8' }, { brand: 'Chromium', version: '156' },
+                  { brand: 'Google Chrome', version: '156' }];
+  const edgeBrands = [{ brand: 'Not:A-Brand', version: '8' }, { brand: 'Chromium', version: '156' },
+                { brand: 'Microsoft Edge', version: '156' }];
+  check('chrome uses getAuthToken', VT.usesChromeSignIn(chromeBrands));
+  check('edge uses the web flow', !VT.usesChromeSignIn(edgeBrands));
+  check('no brands keeps getAuthToken', VT.usesChromeSignIn(undefined));
+
+  const base = { clientId: 'cid.apps.googleusercontent.com', redirectUri: 'https://abc.chromiumapp.org/',
+                 scopes: ['https://www.googleapis.com/auth/drive.appdata'], state: 's1' };
+  const p = (u) => new URL(u).searchParams;
+  const loud = VT.authUrl({ ...base, interactive: true, email: null });
+  check('auth url is google v2', loud.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'), loud);
+  eq('auth url asks for a token', p(loud).get('response_type'), 'token');
+  eq('auth url carries the redirect', p(loud).get('redirect_uri'), 'https://abc.chromiumapp.org/');
+  eq('auth url carries the scope', p(loud).get('scope'), 'https://www.googleapis.com/auth/drive.appdata');
+  eq('auth url carries the state', p(loud).get('state'), 's1');
+  eq('interactive auth shows the account chooser', p(loud).get('prompt'), 'select_account');
+  check('no email, no login hint', !p(loud).has('login_hint'));
+  const quiet = VT.authUrl({ ...base, interactive: false, email: 'a@b.test' });
+  eq('silent auth never prompts', p(quiet).get('prompt'), 'none');
+  eq('silent auth hints the signed-in account', p(quiet).get('login_hint'), 'a@b.test');
+
+  const back = 'https://abc.chromiumapp.org/#access_token=ya29.x&token_type=Bearer&expires_in=3599&state=s1';
+  const got = VT.authRedirect(back, 's1', 1000);
+  eq('redirect yields the token', got.token, 'ya29.x');
+  eq('redirect expiry is a minute early', got.expires, 1000 + 3539 * 1000);
+  const throws = (url, state) => { try { VT.authRedirect(url, state, 0); return ''; } catch (e) { return e.message; } };
+  check('redirect with a foreign state throws',
+        /state mismatch/.test(throws(back, 'other')));
+  check('redirect with an error in the fragment throws',
+        /access_denied/.test(throws('https://abc.chromiumapp.org/#error=access_denied&state=s1', 's1')));
+  check('redirect with an error in the query throws',
+        /interaction_required/.test(throws('https://abc.chromiumapp.org/?error=interaction_required', 's1')));
+  check('redirect without a token throws',
+        /no access token/.test(throws('https://abc.chromiumapp.org/#state=s1', 's1')));
+}
+
 // --- isLookupCandidate
 check('accepts a plain word', VT.isLookupCandidate('resilient'));
 check('accepts a hyphenated word', VT.isLookupCandidate('well-known'));
