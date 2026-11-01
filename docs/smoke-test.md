@@ -859,9 +859,32 @@ leave B empty or with different words.
      **Sign in with Google**, every word is still there, and saving a word
      makes no request to `www.googleapis.com`. A still syncs.
 
+## Cloud sync: Microsoft Edge
+
+Needs a real `WEB_CLIENT_ID` in `cloud.js` (see `docs/cloud-setup.md`). Load
+the unpacked extension in Edge, with the same Google account as profile **A**
+above.
+
+115. **Edge signs in through Google's window.** **Settings** → **Cloud sync**
+     → **Sign in with Google**. A Google window opens with the account
+     chooser, then the consent page. After you allow access, the card shows
+     the account email and a "Last synced" time, and Edge holds A's words.
+     Sign out, sign in again, and close the window with its X: the card shows
+     "Sign-in was cancelled." With the placeholder `WEB_CLIENT_ID`, the card
+     shows "Could not sign in with Google. …" and no window opens.
+116. **Edge stays signed in.** Wait more than one hour with Edge open, then
+     press **Sync now**. Make sure that it syncs with no window and no error.
+     The token expires after one hour, so this sync needs a silent refresh
+     (`prompt=none`). If the card shows "Your Google sign-in has expired",
+     the silent refresh failed, and every sync after the first hour fails.
+117. **Edge sign-out.** **Sign out**. The card returns to **Sign in with
+     Google**, and the service worker console shows no `cloudToken` in
+     `await chrome.storage.session.get(null)`.
+
 ## Cloud sync: last full run
 
-Run items 109–114 with the real client id, then fill this in.
+Run items 109–114 with the real client id, then fill this in. Run 115–117 in
+Edge with the real Web application client id.
 
 - Date: ______  Chrome version: ______  macOS: ______
 - Result: ______ (items that failed, with what you saw)

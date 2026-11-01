@@ -101,6 +101,13 @@ policy applies to it there. To show which account is signed in, the extension
 also asks Drive for your account's email address and keeps it in
 `chrome.storage.local`; it is not sent anywhere else.
 
+**The sign-in token.** In Chrome, Chrome holds the Google sign-in token and
+the extension asks Chrome for it. Microsoft Edge has no such sign-in, so there
+the extension opens Google's own sign-in window. The extension never sees your
+password. It keeps the access token, which expires after one hour, in
+`chrome.storage.session`. That storage is in memory only, is never part of an
+export or a sync, and is cleared when Edge closes.
+
 **When.** Half a minute after you change your words, when you open the
 dashboard or the side panel, every 30 minutes while Chrome runs, and when you
 press **Sync now**.

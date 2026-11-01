@@ -24,7 +24,7 @@ and level once you paste a free krdict key. See *Languages* below, which says pl
 
 There is no Sheaf server and no Sheaf account. Your words stay in
 your own Chrome profile unless you choose to sign in with Google: then they
-sync, through your own Google Drive, to every Chrome you sign in to. See
+sync, through your own Google Drive, to every Chrome or Edge you sign in to. See
 *Privacy* below for exactly what that sends.
 
 | Side panel | Dashboard |
@@ -93,7 +93,7 @@ sync, through your own Google Drive, to every Chrome you sign in to. See
   recently reviewed schedule wins, so an old backup never rolls a word back.
 - **Take it to another computer.** Optional: **Sign in with Google** under
   **Settings** and the same words, folders and review schedule follow
-  you to every Chrome you sign in to. They are kept in a hidden app folder of
+  you to every Chrome or Edge you sign in to. They are kept in a hidden app folder of
   your own Google Drive that only Sheaf can read. A change goes up half a
   minute after you make it; another machine picks it up when its dashboard or
   panel opens, or within 30 minutes. A word deleted on one machine stays
@@ -575,7 +575,11 @@ hidden app data**. [PRIVACY.md](PRIVACY.md) has the details.
 Cloud sync needs **`identity`**, for Chrome's own Google sign-in
 (`chrome.identity.getAuthToken`, so Chrome holds the token and Sheaf
 never sees a password), and the **`www.googleapis.com`** host, for the Drive
-API calls that read and write that one file. It does not ask for
+API calls that read and write that one file. Microsoft Edge has no
+`getAuthToken`, so there the same `identity` permission opens Google's own
+sign-in window (`chrome.identity.launchWebAuthFlow`). Sheaf still never
+sees a password. It keeps the one-hour access token in
+`chrome.storage.session`, which is memory only and is cleared when Edge closes. It does not ask for
 `identity.email`: the email on the card comes from Drive itself.
 
 The automatic backup needs four permissions: **`downloads`** writes the file
@@ -789,8 +793,9 @@ manual checklist for it.
 - **Storage is local to this Chrome profile.** The backup is a file per day
   in `Downloads/vocab-track/`, the last seven days kept; restore one with
   **Import**. Without signing in, nothing syncs between machines — carry the
-  file. Signed in, cloud sync carries it, with three limits: it is Chrome-only
-  (`chrome.identity.getAuthToken` does not exist in Edge, Brave or Firefox);
+  file. Signed in, cloud sync carries it, with three limits: it works in
+  Chrome and Microsoft Edge only (Edge signs in through
+  `chrome.identity.launchWebAuthFlow`, and other browsers are not tested);
   settings, theme, voices and keys stay per machine; and the store stops
   syncing past 4.5 MB (well over ten thousand words) with an error instead.
   Two machines syncing in the same moment do not lose anything, but one side's
