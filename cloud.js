@@ -28,7 +28,7 @@ const CLOUD_MAX_BYTES = 4.5 * 1024 * 1024;
 // chrome.identity.getRedirectURL(): https://<extension id>.chromiumapp.org/.
 // The Chrome Extension client in manifest.json turns that redirect down
 // (redirect_uri_mismatch). See docs/cloud-setup.md.
-const WEB_CLIENT_ID = 'REPLACE_WITH_WEB_CLIENT_ID';
+const WEB_CLIENT_ID = '1041853444560-c03si5r8detffh30uuo281gvvr83vpua.apps.googleusercontent.com';
 // The web flow's token, in chrome.storage.session: memory only, never in an
 // export or a sync, gone when the browser closes. Chrome's path keeps none.
 const WEB_TOKEN_KEY = 'cloudToken';

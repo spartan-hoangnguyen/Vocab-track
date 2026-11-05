@@ -17,7 +17,7 @@ make its own.
 | Google Cloud project | `vocab-track-512107` |
 | OAuth client (type Chrome Extension) | `1041853444560-lraltlkbatonto7dn46rrsls0lfo5clc.apps.googleusercontent.com` |
 | Scope | `https://www.googleapis.com/auth/drive.appdata` (non-sensitive) |
-| OAuth client for Edge (type Web application) | not made yet: `WEB_CLIENT_ID` in `cloud.js` is `REPLACE_WITH_WEB_CLIENT_ID` |
+| OAuth client for Edge (type Web application) | `1041853444560-c03si5r8detffh30uuo281gvvr83vpua.apps.googleusercontent.com` (`WEB_CLIENT_ID` in `cloud.js`) |
 | Edge redirect URI | `https://peeekjnmhnjbpbkaodhhffhehmhdnlnm.chromiumapp.org/` |
 
 `manifest.json` holds the client ID in `oauth2.client_id` and the item's public
