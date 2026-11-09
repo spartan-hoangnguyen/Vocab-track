@@ -60,12 +60,15 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   }
 
   if (message?.type !== 'lookup') return;
+  openLookup({ tabId: sender.tab.id }, message);
+});
 
-  // Open FIRST. sidePanel.open() consumes the user gesture forwarded with
-  // this message, and the gesture does not survive an await. Do not reorder
-  // these two calls and do not await the first one.
-  chrome.sidePanel.open({ tabId: sender.tab.id })
-    .catch((err) => console.error('[vocab-track] sidePanel.open failed for', message.word, err));
+// Open FIRST. sidePanel.open() consumes the user gesture (a forwarded content
+// script click, or a context menu click), and the gesture does not survive an
+// await. Do not reorder these two calls and do not await the first one.
+function openLookup(target, { word, url, mode, context }) {
+  chrome.sidePanel.open(target)
+    .catch((err) => console.error('[vocab-track] sidePanel.open failed for', word, err));
 
   // Handed over through storage rather than a message: the panel may not have
   // loaded a listener yet, and a storage write cannot be missed because the
@@ -74,9 +77,26 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   chrome.storage.session.set({
     // mode says what the panel does with the word: a quiz for a click on an
     // already-saved (highlighted) one, the full entry for everything else.
-    pending: { word: message.word, url: message.url, mode: message.mode ?? null,
-               context: message.context ?? null, ts: Date.now() }
+    pending: { word, url, mode: mode ?? null, context: context ?? null, ts: Date.now() }
   });
+}
+
+// The right-click route exists for pages the content script cannot reach:
+// Chrome's PDF viewer is another extension's page drawn by PDFium, so neither
+// injection nor window.getSelection() works there, yet Chrome still hands the
+// selected text to a "selection" context menu. Created on install only: menu
+// items persist, and a second create with the same id throws.
+const LOOKUP_MENU = 'sheaf-lookup';
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({ id: LOOKUP_MENU, title: 'Look up "%s"', contexts: ['selection'] });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== LOOKUP_MENU || !info.selectionText) return;
+  // tab is missing for a click outside a normal tab; windowId still opens it.
+  const target = tab?.id >= 0 ? { tabId: tab.id } : { windowId: tab?.windowId };
+  openLookup(target, { word: info.selectionText, url: info.pageUrl });
 });
 
 
